@@ -26,7 +26,7 @@ Options:
     -v, --version              Print the script name and version
 """
 # ----------------------------------------------------------------------------
-# - 20200416 - baculabackupreport.py v1.0 - Initial release
+# - 20200426 - baculabackupreport.py v1.0 - Initial release
 # ----------------------------------------------------------------------------
 #
 # This is is my first foray into Python. Please be nice :)
@@ -130,7 +130,7 @@ fontsizesumlog = "10px"         # Font size of job summaries and bad job logs
 # ------------------
 progname="Bacula Backup Report"
 version = "1.0"
-reldate = "Apr 25, 2021"
+reldate = "Apr 26, 2021"
 badjobset = {'A', 'D', 'E', 'f', 'I'}
 
 import sys

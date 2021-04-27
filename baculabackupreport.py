@@ -50,6 +50,7 @@ Options:
 # administrator? I say YES! Would I appreciate feedback? YES!
 #
 # ----------------------------------------------------------------------------
+# BSD 2-Clause License
 #
 # Copyright (c) 2021, William A. Arlofski waa-at-revpol-dot-com
 # All rights reserved.

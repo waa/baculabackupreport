@@ -1,7 +1,7 @@
 #!/usr/bin/python
 """
 Usage:
-    baculabackupreport.py -e <email>  [-s <server>] [-t <time>] [-c <client>] [-j <jobname>]
+    baculabackupreport.py -e <email> [-s <server>] [-t <time>] [-c <client>] [-j <jobname>]
                           [--dbname <dbname>] [--dbhost <dbhost>] [--dbport <dbport>] [--dbuser <dbuser>] [--dbpass <dbpass>]
                           [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
     baculabackupreport.py -v | --version
@@ -11,8 +11,8 @@ Options:
     -e, --email <email>        Email address to send report to
     -s, --server <server>      Name of the Bacula Server [default: Bacula]
     -t, --time <time>          Time to report on in hours [default: 24]
-    -c, --client <client>      Client to report on using SQL 'LIKE client' [default: %%] (all clients)
-    -j, --jobname <jobname>    Job name to report on using SQL 'LIKE jobname' [default: %%] (all jobs)
+    -c, --client <client>      Client to report on using SQL 'LIKE client' [default: %] (all clients)
+    -j, --jobname <jobname>    Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
     --dbname <dbname>          Bacula catalog database name [default: bacula]
     --dbhost <dbhost>          Bacula catalog database host [default: localhost]
     --dbport <dbport>          Bacula catalog database port [default: 5432]
@@ -26,7 +26,7 @@ Options:
     -v, --version              Print the script name and version
 """
 # ----------------------------------------------------------------------------
-# - 20200426 - baculabackupreport.py v1.0 - Initial release
+# - 20210426 - baculabackupreport.py v1.0 - Initial release
 # ----------------------------------------------------------------------------
 #
 # This is is my first foray into Python. Please be nice :)
@@ -129,8 +129,8 @@ fontsizesumlog = "10px"         # Font size of job summaries and bad job logs
 # Set some variables
 # ------------------
 progname="Bacula Backup Report"
-version = "1.0"
-reldate = "Apr 26, 2021"
+version = "1.1"
+reldate = "Apr 27, 2021"
 badjobset = {'A', 'D', 'E', 'f', 'I'}
 
 import sys
@@ -367,11 +367,11 @@ if args['--dbpass'] == None:
 else:
     dbpass = args['--dbpass']
 if not args['--client']:
-    client = "%%"
+    client = "%"
 else:
     client = args['--client']
 if not args['--jobname']:
-    jobname = "%%"
+    jobname = "%"
 else:
     jobname = args['--jobname']
 if args['--smtpuser'] == None:
@@ -468,11 +468,13 @@ if emailsummaries == "yes":
     try:
         conn = psycopg2.connect(db_connect_str('conn'))
         cur = db_connect_str('cur')
-        for job_id in range(len(alljobids)):
-            cur.execute("SELECT jobid, time, logtext FROM log WHERE jobid=" + str(alljobids[job_id]) + " AND logtext LIKE '%Termination:%' ORDER BY jobid, time ASC;")
+        for job_id in alljobids:
+            cur.execute("SELECT jobid, logtext FROM log WHERE jobid=" \
+            + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid ASC;")
             summaryrow = cur.fetchall()
-            for r in summaryrow:
-                jobsummary = jobsummary + "==============\nJobID:" + '{:8}'.format(r['jobid']) + "\n==============\n" + r['logtext']
+            jobsummary = jobsummary + "==============\nJobID:" \
+            + '{:8}'.format(summaryrow[0]['jobid']) \
+            + "\n==============\n" + summaryrow[0]['logtext']
         jobsummary = jobsummary + "</pre>"
     except:
         print("\nProblem communicating with database '" + dbname + "' while fetching all job summaries.\n")
@@ -492,10 +494,10 @@ if emailbadlogs == "yes":
         try:
             conn = psycopg2.connect(db_connect_str('conn'))
             cur = db_connect_str('cur')
-            for job_id in range(len(badjobids)):
-                cur.execute("SELECT jobid,time,logtext FROM log WHERE jobid=" + str(badjobids[job_id]) + " ORDER BY jobid, time ASC;")
+            for job_id in badjobids:
+                cur.execute("SELECT jobid,time,logtext FROM log WHERE jobid=" + str(job_id) + " ORDER BY jobid, time ASC;")
                 badjobrow = cur.fetchall()
-                badjoblogs = badjoblogs + "==============\nJobID:   " + str(badjobids[job_id]) + "\n==============\n"
+                badjoblogs = badjoblogs + "==============\nJobID:" + '{:8}'.format(job_id) + "\n==============\n"
                 for r in badjobrow:
                     badjoblogs = badjoblogs + str(r['time']) + " " + r['logtext']
             badjoblogs = badjoblogs + "</pre>"
@@ -511,26 +513,14 @@ if emailbadlogs == "yes":
 else:
     badjoblogs = ""
 
-"""
-----------------------------------------
-All clients/jobsnames, or some subset?
-¡FIXME! This idea of different English
-        messages in subject, header and
-        no jobs subject is stupid...FIX!
-----------------------------------------
-"""
-if client != "%%":
-    clientlike = client
+if client != "%":
     clientstr = "client '" + client + "'"
 else:
-    clientlike = "any"
     clientstr = "all clients"
-if jobname != "%%":
-    joblike = jobname
+if jobname != "%":
     jobstr = "jobname '" + jobname + "'"
 else:
-    joblike = "any"
-    jobstr = "any jobnames"
+    jobstr = "all jobs"
 
 # Silly OCD string manipulations
 # ------------------------------
@@ -562,11 +552,11 @@ else:
 
 # Create the HTML header message and Subject
 # ------------------------------------------
-msgheader = "For " + clientstr + ", " + jobstr + ", " +str(numjobs) + " " + job \
-            + " ran in the past " + str(time) + " " + hour + runningorcreatedsubject + ":"
-subject = server + " Job Summary - Hours: " + str(time) + ", Jobs: " + str(numjobs) \
-          + ", Bad: " + str(numbadjobs) + ", Errors: " + str(jobswitherrors) + ", Client: '" \
-          + clientlike + "', Jobname: '" + joblike + "' " + runningorcreatedsubject
+subject = server + " - " + str(numjobs) + " " + job + " in the past " \
++ str(time) + " " + hour + ": " + str(numbadjobs) + " bad, " \
++ str(jobswitherrors) + " with errors, for " + clientstr + ", and " \
++ jobstr + runningorcreatedsubject
+
 if addsubjecticon == "yes":
     subject = set_subject_icon() + " " + subject
 
@@ -576,7 +566,7 @@ if addsubjecticon == "yes":
 # ------------------------
 msg = "<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><style>" \
 + "body {font-family:" + fontfamily + "; font-size:" + fontsize + ";} td {font-size:" + fontsizejobinfo \
-+ ";} pre {font-size:" + fontsizesumlog + ";}</style></head><body><p><b> " + msgheader + "</b></p>\n \
++ ";} pre {font-size:" + fontsizesumlog + ";}</style></head><body>\n \
 <table width=\"100%\" align=\"center\" border=\"1\" cellpadding=\"2\" cellspacing=\"0\"> <tr bgcolor=\"" + jobtableheadercolor + "\"> \
 <td align=\"center\"><b>Job ID</b></td> \
 <td align=\"center\"><b>Job Name</b></td> \

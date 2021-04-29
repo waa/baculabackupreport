@@ -1,29 +1,31 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 """
 Usage:
-    baculabackupreport.py -e <email> [-s <server>] [-t <time>] [-c <client>] [-j <jobname>]
+    baculabackupreport.py -e <email> [-f <fromemail>] [-s <server>] [-t <time>] [-c <client>] [-j <jobname>]
                           [--dbname <dbname>] [--dbhost <dbhost>] [--dbport <dbport>] [--dbuser <dbuser>] [--dbpass <dbpass>]
                           [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
     baculabackupreport.py -v | --version
     baculabackupreport.py -h | --help
 
 Options:
-    -e, --email <email>        Email address to send report to
-    -s, --server <server>      Name of the Bacula Server [default: Bacula]
-    -t, --time <time>          Time to report on in hours [default: 24]
-    -c, --client <client>      Client to report on using SQL 'LIKE client' [default: %] (all clients)
-    -j, --jobname <jobname>    Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
-    --dbname <dbname>          Bacula catalog database name [default: bacula]
-    --dbhost <dbhost>          Bacula catalog database host [default: localhost]
-    --dbport <dbport>          Bacula catalog database port [default: 5432]
-    --dbuser <dbuser>          Bacula catalog database user [default: bacula]
-    --dbpass <dbpass>          Bacula catalog database password
-    --smtpserver <smtpserver>  SMTP server [default: localhost]
-    --smtpport <smtpport>      SMTP port [default: 25]
-    -u, --smtpuser <smtpuser>  SMTP user
-    -p, --smtppass <smtppass>  SMTP password
-    -h, --help                 Print this help message
-    -v, --version              Print the script name and version
+    -e, --email <email>          Email address to send report to
+    -f, --fromemail <fromemail>  Email address to be set in the From: field of the email
+    -s, --server <server>        Name of the Bacula Server [default: Bacula]
+    -t, --time <time>            Time to report on in hours [default: 24]
+    -c, --client <client>        Client to report on using SQL 'LIKE client' [default: %] (all clients)
+    -j, --jobname <jobname>      Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
+    --dbname <dbname>            Bacula catalog database name [default: bacula]
+    --dbhost <dbhost>            Bacula catalog database host [default: localhost]
+    --dbport <dbport>            Bacula catalog database port [default: 5432]
+    --dbuser <dbuser>            Bacula catalog database user [default: bacula]
+    --dbpass <dbpass>            Bacula catalog database password
+    --smtpserver <smtpserver>    SMTP server [default: localhost]
+    --smtpport <smtpport>        SMTP port [default: 25]
+    -u, --smtpuser <smtpuser>    SMTP user
+    -p, --smtppass <smtppass>    SMTP password
+
+    -h, --help                   Print this help message
+    -v, --version                Print the script name and version
 """
 # ----------------------------------------------------------------------------
 # - 20210426 - baculabackupreport.py v1.0 - Initial release
@@ -31,7 +33,7 @@ Options:
 #
 # This is is my first foray into Python. Please be nice :)
 #
-# This script is a rewrite/port from my original baculabackupreprt.sh script
+# This script is a rewrite/port from my original baculabackupreport.sh script
 # which was something that started out as a simple bash script which just
 # sent a basic text email about recent Bacula jobs.
 #
@@ -129,8 +131,8 @@ fontsizesumlog = "10px"         # Font size of job summaries and bad job logs
 # Set some variables
 # ------------------
 progname="Bacula Backup Report"
-version = "1.1"
-reldate = "Apr 27, 2021"
+version = "1.2"
+reldate = "Apr 28, 2021"
 badjobset = {'A', 'D', 'E', 'f', 'I'}
 
 import sys
@@ -168,7 +170,7 @@ def print_opt_errors(opt):
         return "\nThe '" + opt + "' variable must not be empty."
     elif opt in {'time', 'smtpport', 'dbport'}:
         return "\nThe '" + opt + "' variable must not be empty and must be an integer."
-    elif opt in {'email', 'emailto', 'emailfrom'}:
+    elif opt in {'email', 'fromemail'}:
         return "\nThe '" + opt + "' variable is either empty or it does not look like a valid email address."
 
 def set_subject_icon():
@@ -284,19 +286,20 @@ def humanbytes(B):
    elif PB <= B:
       return '{0:.2f} PB'.format(B/PB)
 
-def send_email(email, senderemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport):
+def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport):
     'Send the email'
     # Use 'f' to  automatically insert variables in the text
     # Use two newlines (\n) to separate the subject from the message body
     # Thank you to: Aleksandr Varnin for this short and simple solution
     # https://blog.mailtrap.io/sending-emails-in-python-tutorial-with-code-examples
     # -----------------------------------------------------------------------------
-    message = f"Content-Type: text/html\nMIME-Version: 1.0\nTo: {email}\nFrom: {senderemail}\nSubject: {subject}\n\n{msg}"
+    message = f"Content-Type: text/html\nMIME-Version: 1.0\nTo: {email}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}"
+
     try:
         with smtplib.SMTP(smtpserver, smtpport) as server:
             if smtpuser != "" and smtppass != "":
                 server.login(smtpuser, smtppass)
-            server.sendmail(senderemail, email, message)
+            server.sendmail(fromemail, email, message)
             # print("Successfully sent email to " + email + " via " + smtpserver + ":" + str(smtpport))
     except (gaierror, ConnectionRefusedError):
         print("Failed to connect to the server. Bad connection settings?")
@@ -321,7 +324,14 @@ if "@" not in args['--email']:
     print(print_opt_errors('email'))
     usage()
 else:
-    email = senderemail = args['--email']
+    email = args['--email']
+if args['--fromemail'] == None:
+    fromemail = email
+elif "@" not in args['--fromemail']:
+    print(print_opt_errors('fromemail'))
+    usage()
+else:
+    fromemail = args['--fromemail']
 if not args['--time'].isnumeric():
     print(print_opt_errors('time'))
     usage()
@@ -456,7 +466,7 @@ total_copied_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'C']
 total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'C'])
 jobswitherrors = len([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
-runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] == 'R' or r['jobstatus'] == 'C'])
+runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in 'R, C'])
 # For possible future addition. See notes above
 # ---------------------------------------------
 # copymigratejobids = [r['jobid'] for r in alljobrows if r['type'] in ('c', 'g') and r['jobstatus'] == 'T']
@@ -535,7 +545,7 @@ if numjobs == 0:
     if addsubjecticon == "yes":
         subject = set_subject_icon() + " " + subject
     msg = "These are not the droids you are looking for."
-    send_email(email, senderemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
+    send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
     sys.exit(1)
 else:
     # Silly OCD string manipulations
@@ -546,16 +556,16 @@ else:
 # -----------------------------------------------------------------
 if addsubjectrunningorcreated == "yes" and runningorcreated != 0:
     runningjob = "job" if runningorcreated == 1 else "jobs"
-    runningorcreatedsubject = " (" + str(runningorcreated) + " " + runningjob + " still queued/running)"
+    runningorcreatedsubject = " (" + str(runningorcreated) + " " + runningjob + " queued/running)"
 else:
     runningorcreatedsubject = ""
 
 # Create the HTML header message and Subject
 # ------------------------------------------
 subject = server + " - " + str(numjobs) + " " + job + " in the past " \
-+ str(time) + " " + hour + ": " + str(numbadjobs) + " bad, " \
-+ str(jobswitherrors) + " with errors, for " + clientstr + ", and " \
-+ jobstr + runningorcreatedsubject
+        + str(time) + " " + hour + ": " + str(numbadjobs) + " bad, " \
+        + str(jobswitherrors) + " with errors, for " + clientstr + ", and " \
+        + jobstr + runningorcreatedsubject
 
 if addsubjecticon == "yes":
     subject = set_subject_icon() + " " + subject
@@ -564,23 +574,24 @@ if addsubjecticon == "yes":
 # with the opening HTML
 # and the job table header
 # ------------------------
-msg = "<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><style>" \
-+ "body {font-family:" + fontfamily + "; font-size:" + fontsize + ";} td {font-size:" + fontsizejobinfo \
-+ ";} pre {font-size:" + fontsizesumlog + ";}</style></head><body>\n \
-<table width=\"100%\" align=\"center\" border=\"1\" cellpadding=\"2\" cellspacing=\"0\"> <tr bgcolor=\"" + jobtableheadercolor + "\"> \
-<td align=\"center\"><b>Job ID</b></td> \
-<td align=\"center\"><b>Job Name</b></td> \
-<td align=\"center\"><b>Client</b></td> \
-<td align=\"center\"><b>Status</b></td> \
-<td align=\"center\"><b>Errors</b></td> \
-<td align=\"center\"><b>Type</b></td> \
-<td align=\"center\"><b>Level</b></td> \
-<td align=\"center\"><b>Files</b></td> \
-<td align=\"center\"><b>Bytes</b></td> \
-<td align=\"center\"><b>Start Time</b></td> \
-<td align=\"center\"><b>End Time</b></td> \
-<td align=\"center\"><b>Run Time</b></td> \
-</tr>\n"
+msg = "<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">" \
+    + "<style>body {font-family:" + fontfamily + "; font-size:" + fontsize + ";} td {font-size:" \
+    + fontsizejobinfo + ";} pre {font-size:" + fontsizesumlog + ";}</style></head><body>\n" \
+    + "<table width=\"100%\" align=\"center\" border=\"1\" cellpadding=\"2\" cellspacing=\"0\">" \
+    + "<tr bgcolor=\"" + jobtableheadercolor + "\">" \
+    + "<td align=\"center\"><b>Job ID</b></td>" \
+    + "<td align=\"center\"><b>Job Name</b></td>" \
+    + "<td align=\"center\"><b>Client</b></td>" \
+    + "<td align=\"center\"><b>Status</b></td>" \
+    + "<td align=\"center\"><b>Errors</b></td>" \
+    + "<td align=\"center\"><b>Type</b></td>" \
+    + "<td align=\"center\"><b>Level</b></td>" \
+    + "<td align=\"center\"><b>Files</b></td>" \
+    + "<td align=\"center\"><b>Bytes</b></td>" \
+    + "<td align=\"center\"><b>Start Time</b></td>" \
+    + "<td align=\"center\"><b>End Time</b></td>" \
+    + "<td align=\"center\"><b>Run Time</b></td>" \
+    + "</tr>\n"
 
 # Build the job table
 # -------------------
@@ -632,12 +643,12 @@ if printsummary == "yes":
             + '{:,}'.format(total_verify_files) + "</b></td></tr>" \
             + "<tr><td><b>Total Verify Bytes</b></td><td align=\"center\"><b>:</b></td> <td align=\"right\"><b>" \
             + humanbytes(total_verify_bytes) + "</b></td></tr></table>" \
-            + "<hr align=\"left\" width=\"25%\"><p style=\"font-size: 8px;\">" + progname + " - v" + version + " - baculabackupreport.py<br>" \
-            + "By: Bill Arlofski mtnbkr@gmail.com (c) " + reldate
+            + "<hr align=\"left\" width=\"25%\"><p style=\"font-size: 8px;\">" + progname + " - v" \
+            + version + " - baculabackupreport.py<br>" + "By: Bill Arlofski mtnbkr@gmail.com (c) " + reldate
 
 # Build the final message & send the email
 # ----------------------------------------
 msg = msg + summary + jobsummary + badjoblogs
-send_email(email, senderemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
+send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
 
 # vim: expandtab tabstop=4 softtabstop=4 shiftwidth=4

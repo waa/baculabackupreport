@@ -587,7 +587,8 @@ if len(migration_ctrl_jobids) != 0:
 # Do we email all job summaries?
 # ------------------------------
 if emailsummaries == "yes":
-    jobsummary = "<pre>====================================\nJob Summaries of All Terminated Jobs\n====================================\n"
+    jobsummary = "<pre>====================================\n" \
+    + "Job Summaries of All Terminated Jobs\n====================================\n"
     try:
         conn = psycopg2.connect(db_connect_str('conn'))
         cur = db_connect_str('cur')
@@ -595,9 +596,12 @@ if emailsummaries == "yes":
             cur.execute("SELECT jobid, logtext FROM log WHERE jobid=" \
             + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid ASC;")
             summaryrow = cur.fetchall()
-            jobsummary = jobsummary + "==============\nJobID:" \
-            + '{:8}'.format(summaryrow[0]['jobid']) \
-            + "\n==============\n" + summaryrow[0]['logtext']
+            # Migrated (M) Jobs have no joblog
+            # --------------------------------
+            if len(summaryrow) != 0:
+                jobsummary = jobsummary + "==============\nJobID:" \
+                + '{:8}'.format(summaryrow[0]['jobid']) \
+                + "\n==============\n" + summaryrow[0]['logtext']
         jobsummary = jobsummary + "</pre>"
     except:
         print("\nProblem communicating with database '" + dbname + "' while fetching all job summaries.\n")
@@ -618,9 +622,11 @@ if emailbadlogs == "yes":
             conn = psycopg2.connect(db_connect_str('conn'))
             cur = db_connect_str('cur')
             for job_id in badjobids:
-                cur.execute("SELECT jobid,time,logtext FROM log WHERE jobid=" + str(job_id) + " ORDER BY jobid, time ASC;")
+                cur.execute("SELECT jobid,time,logtext FROM log WHERE jobid=" \
+                + str(job_id) + " ORDER BY jobid, time ASC;")
                 badjobrow = cur.fetchall()
-                badjoblogs = badjoblogs + "==============\nJobID:" + '{:8}'.format(job_id) + "\n==============\n"
+                badjoblogs = badjoblogs + "==============\nJobID:" \
+                + '{:8}'.format(job_id) + "\n==============\n"
                 for r in badjobrow:
                     badjoblogs = badjoblogs + str(r['time']) + " " + r['logtext']
             badjoblogs = badjoblogs + "</pre>"
@@ -681,7 +687,7 @@ subject = server + " - " + str(numjobs) + " " + job + " in the past " \
         + jobstr + runningorcreatedsubject
 
 if addsubjecticon == "yes":
-    subject = set_subject_icon() + " " + subject
+        subject = set_subject_icon() + " " + subject
 
 # Start the msg, beginning
 # with the opening HTML

@@ -131,7 +131,7 @@ fontsizesumlog = "10px"         # Font size of job summaries and bad job logs
 # Set some variables
 # ------------------
 progname="Bacula Backup Report"
-version = "1.3"
+version = "1.4"
 reldate = "Apr 29, 2021"
 badjobset = {'A', 'D', 'E', 'f', 'I'}
 
@@ -184,7 +184,7 @@ def translate_job_type(jobtype, jobid, priorjobid, jobstatus):
         if jobstatus in ('R', 'C'):
             return "Copy Ctrl"
         if '0' in cpn_jobids[str(jobid)]:
-            return "Copy Ctrl: Nothing to do" 
+            return "Copy Ctrl: Nothing to do"
         else:
             return "Copy Ctrl: " + cpn_jobids[str(jobid)][0] + "->" + cpn_jobids[str(jobid)][1]
 
@@ -549,39 +549,39 @@ migration_ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] == 'g' and 
 # * Do the same for Migration Control jobs
 # ------------------------------------------------------------
 
-try:
-    conn = psycopg2.connect(db_connect_str('conn'))
-    cur = db_connect_str('cur')
-    cur.execute("SELECT jobid, logtext FROM log WHERE jobid IN (" + ", ".join([str(x) for x in copy_ctrl_jobids]) + ") AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;")
-    ccji_rows = cur.fetchall()
-except:
-    print("Problem communicating with database '" + dbname + "' while fetching copy ctrl job info.")
-    sys.exit(1)
-finally:
-    if (conn):
-        cur.close()
-        conn.close()
+if len(copy_ctrl_jobids) != 0:
+    try:
+        conn = psycopg2.connect(db_connect_str('conn'))
+        cur = db_connect_str('cur')
+        cur.execute("SELECT jobid, logtext FROM log WHERE jobid IN (" + ", ".join([str(x) for x in copy_ctrl_jobids]) + ") AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;")
+        ccji_rows = cur.fetchall()
+    except:
+        print("Problem communicating with database '" + dbname + "' while fetching copy ctrl job info.")
+        sys.exit(1)
+    finally:
+        if (conn):
+            cur.close()
+            conn.close()
+    cpn_jobids = {}
+    for ccji in ccji_rows:
+        cpn_jobids[str(ccji[0])] = (pn_job_id(ccji, 'Prev'), pn_job_id(ccji, 'New'))
 
-try:
-    conn = psycopg2.connect(db_connect_str('conn'))
-    cur = db_connect_str('cur')
-    cur.execute("SELECT jobid, logtext FROM log WHERE jobid IN (" + ", ".join([str(x) for x in migration_ctrl_jobids]) + ") AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;")
-    mcji_rows = cur.fetchall()
-except:
-    print("Problem communicating with database '" + dbname + "' while fetching migration ctrl job info.")
-    sys.exit(1)
-finally:
-    if (conn):
-        cur.close()
-        conn.close()
-
-cpn_jobids = {}
-for ccji in ccji_rows:
-    cpn_jobids[str(ccji[0])] = (pn_job_id(ccji, 'Prev'), pn_job_id(ccji, 'New'))
-
-mpn_jobids = {}
-for mcji in mcji_rows:
-    mpn_jobids[str(mcji[0])] = (pn_job_id(mcji, 'Prev'), pn_job_id(mcji, 'New'))
+if len(migration_ctrl_jobids) != 0:
+    try:
+        conn = psycopg2.connect(db_connect_str('conn'))
+        cur = db_connect_str('cur')
+        cur.execute("SELECT jobid, logtext FROM log WHERE jobid IN (" + ", ".join([str(x) for x in migration_ctrl_jobids]) + ") AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;")
+        mcji_rows = cur.fetchall()
+    except:
+        print("Problem communicating with database '" + dbname + "' while fetching migration ctrl job info.")
+        sys.exit(1)
+    finally:
+        if (conn):
+            cur.close()
+            conn.close()
+    mpn_jobids = {}
+    for mcji in mcji_rows:
+        mpn_jobids[str(mcji[0])] = (pn_job_id(mcji, 'Prev'), pn_job_id(mcji, 'New'))
 
 # Do we email all job summaries?
 # ------------------------------

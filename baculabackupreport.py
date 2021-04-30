@@ -131,8 +131,8 @@ fontsizesumlog = "10px"         # Font size of job summaries and bad job logs
 # Set some variables
 # ------------------
 progname="Bacula Backup Report"
-version = "1.4"
-reldate = "Apr 29, 2021"
+version = "1.5"
+reldate = "Apr 30, 2021"
 badjobset = {'A', 'D', 'E', 'f', 'I'}
 
 import re
@@ -144,6 +144,7 @@ from docopt import docopt
 from socket import gaierror
 
 def usage():
+    'Should be self-explanatory'
     print(__doc__)
     sys.exit(1)
 
@@ -178,7 +179,10 @@ def translate_job_type(jobtype, jobid, priorjobid, jobstatus):
         return "Migrated from " + str(priorjobid)
 
     if jobtype == 'M':
-        return "Migrated to " + migrated_id(jobid)
+        if "mpn_jobids" in globals():
+            return "Migrated to " + migrated_id(jobid)
+        else:
+            return "Migrated"
 
     if jobtype == 'c':
         if jobstatus in ('R', 'C'):
@@ -594,7 +598,7 @@ if emailsummaries == "yes":
         cur = db_connect_str('cur')
         for job_id in alljobids:
             cur.execute("SELECT jobid, logtext FROM log WHERE jobid=" \
-            + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid ASC;")
+            + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;")
             summaryrow = cur.fetchall()
             # Migrated (M) Jobs have no joblog
             # --------------------------------

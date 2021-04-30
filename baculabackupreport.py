@@ -27,9 +27,9 @@ Options:
     -h, --help                   Print this help message
     -v, --version                Print the script name and version
 """
-# ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # - 20210426 - baculabackupreport.py v1.0 - Initial release
-# ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 #
 # This is is my first foray into Python. Please be nice :)
 #
@@ -51,7 +51,7 @@ Options:
 # produce a nice HTML email showing a lot of valuable information to a backup
 # administrator? I say YES! Would I appreciate feedback? YES!
 #
-# ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # BSD 2-Clause License
 #
 # Copyright (c) 2021, William A. Arlofski waa-at-revpol-dot-com
@@ -108,7 +108,7 @@ sortorder = "DESC"                         # Which direction to sort?
 # HTML colors
 # -----------
 jobtableheadercolor= "#b0b0b0"  # Background color for the HTML table's header
-jobtablejobcolor ="#f4f4f4"     # Background color for the job rows in the HTML table
+jobtablejobcolor ="#d4d4d4"     # Background color for the job rows in the HTML table
 colorstatusbg = "yes"           # Colorize the Status cell's background?
 runningjobcolor ="#4d79ff"      # Background color of the Status cell for "Running" jobs
 createdjobcolor ="#add8e6"      # Background color of the Status cell for "Created, but not yet running" jobs
@@ -148,7 +148,7 @@ def usage():
     sys.exit(1)
 
 def pn_job_id(x, p_or_n):
-    'Return a Previous or New jobid for Copy and Miogration Control jobs'
+    'Return a Previous or New jobid for Copy and Migration Control jobs.'
     # Given a Copy Ctrl or Migration Ctrl job log's job summary block of 20+ lines of text
     # as 'x', and a search term for 'Prev' or 'New' as 'p_or_n', perform a re.sub on the
     # block of text to find and return the previous or new jobid
@@ -157,13 +157,13 @@ def pn_job_id(x, p_or_n):
     return (x)
 
 def migrated_id(jobid):
-    'For a given job that has been migrated, return the jobid that it was migrated to'
+    'For a given job that has been migrated, return the jobid that it was migrated to.'
     for t in mpn_jobids:
         if mpn_jobids[t][0] == str(jobid):
             return mpn_jobids[t][1]
 
 def db_connect_str(arg):
-    'Just return the database connection parameters'
+    'Just return the database connection parameters.'
     if arg == 'cur':
         return conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     if arg == 'conn':
@@ -192,20 +192,20 @@ def translate_job_type(jobtype, jobid, priorjobid, jobstatus):
         if jobstatus in ('R', 'C'):
             return "Migration Ctrl"
         if '0' in mpn_jobids[str(jobid)]:
-            return "Migration Ctrl: Nothing to do" 
+            return "Migration Ctrl: Nothing to do"
         else:
             return "Migration Ctrl: " + mpn_jobids[str(jobid)][0] + "->" + mpn_jobids[str(jobid)][1]
 
     return {'B': 'Backup', 'D': 'Admin', 'R': 'Restore', 'V': 'Verify'}[jobtype]
 
 def translate_job_status(jobstatus, joberrors):
-    'jobstatus is stored in the catalog as a single character'
+    'jobstatus is stored in the catalog as a single character, replace with words.'
     return {'A': 'Aborted', 'C': 'Created', 'D': 'Verify Diffs',
             'E': 'Errors', 'f': 'Failed', 'I': 'Incomplete',
             'R': 'Running', 'T': ('-OK-', 'OK/Warnings')[joberrors > 0]}[jobstatus]
 
 def print_opt_errors(opt):
-    'Print the command line option passed and the reason it is incorrect'
+    'Print the command line option passed and the reason it is incorrect.'
     if opt in {'server', 'dbname', 'dbhost', 'dbuser', 'smtpserver'}:
         return "\nThe '" + opt + "' variable must not be empty."
     elif opt in {'time', 'smtpport', 'dbport'}:
@@ -214,7 +214,7 @@ def print_opt_errors(opt):
         return "\nThe '" + opt + "' variable is either empty or it does not look like a valid email address."
 
 def set_subject_icon():
-    'Set the utf-8 subject icon'
+    'Set the utf-8 subject icon.'
     if numjobs == 0:
         subjecticon = nojobsicon
     else:
@@ -225,7 +225,7 @@ def set_subject_icon():
     return subjecticon
 
 def translate_job_level(joblevel, jobtype):
-    'Job level is stored in the catalog as a single character'
+    'Job level is stored in the catalog as a single character, replace with a string.'
     # NOTES:
     # - A Verify job, level VVol does not use a client
     #   - BUT it does, and MUST contact any client!
@@ -243,7 +243,7 @@ def translate_job_level(joblevel, jobtype):
             'D': 'Diff', 'f': 'VFul', 'F': 'Full', 'I': 'Incr', 'O': 'VV2C', 'V': 'Init'}[joblevel]
 
 def html_format_cell(content, bgcolor = jobtablejobcolor, star = "", col = "", jobstatus = "", jobtype = ""):
-    'Format/modify some table cells based on settings and conditions'
+    'Format/modify some table cells based on settings and conditions.'
     # Set default tdo and tdc to wrap each cell
     # -----------------------------------------
     tdo = "<td align=\"center\">"
@@ -285,7 +285,7 @@ def html_format_cell(content, bgcolor = jobtablejobcolor, star = "", col = "", j
         tdo = tdo + "<b>"
         tdc = "</b>" + tdc
 
-    # Some specific modifications for Running or Created Jobs
+    # Some specific modifications for Running or Created Jobs,
     # or special Jobs (Copy/Migration/Admin/etc) where no real
     # client is used, or when the Job is still running, there
     # will be no endtime, nor runtime
@@ -308,7 +308,7 @@ def html_format_cell(content, bgcolor = jobtablejobcolor, star = "", col = "", j
     return tdo + star + content + star + tdc
 
 def humanbytes(B):
-   'Return the given bytes as a human friendly string'
+   'Return the given bytes as a human friendly string.'
    # Thank you 'whereisalext' :)
    # https://stackoverflow.com/questions/12523586/python-format-size-application-converting-b-to-kb-mb-gb-tb/31631711#31631711
    # -------------------------------------------------------------------------------------------------------------------------
@@ -333,9 +333,7 @@ def humanbytes(B):
       return '{0:.2f} PB'.format(B/PB)
 
 def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport):
-    'Send the email'
-    # Use 'f' to  automatically insert variables in the text
-    # Use two newlines (\n) to separate the subject from the message body
+    'Send the email.'
     # Thank you to: Aleksandr Varnin for this short and simple solution
     # https://blog.mailtrap.io/sending-emails-in-python-tutorial-with-code-examples
     # -----------------------------------------------------------------------------
@@ -354,15 +352,16 @@ def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, s
         print("Failed to connect to the server. Wrong user/password?")
         sys.exit(1)
     except smtplib.SMTPException as e:
-        print("Error occurred while communicating with SMTP server " + smtpserver + ":" + str(smtpport) + ". Error was: " + str(e))
+        print("Error occurred while communicating with SMTP server " + smtpserver + ":" + str(smtpport))
+        print("Error was: " + str(e))
         sys.exit(1)
 
-# TODO - See notes. This feature is for jobs that have been
-#        copied/migrated, but the original 'endtime' is older
-#        than the 'time' hours we initially queried for
-# -----------------------------------------------------------
+# TODO - See notes. This feature will be for jobs that have been
+#        copied/migrated, but their original, inherited 'endtime'
+#        is older than the 'time' hours we initially queried for
+# ---------------------------------------------------------------
 # def add_cp_mg_to_alljobids(copymigratejobids):
-#     'For each Copy and Migration (c,m) jobid, find the job it copied/migrated, and append it to the alljobids list'
+#     'For each Copy/Migration Ctrl jobid (c,m), find the job it copied/migrated, and append it to the alljobids list'
 
 # Assign command line variables
 # Do some basic sanity checking
@@ -466,12 +465,11 @@ finally:
         cur.close()
         conn.close()
 
-# ---------------------------------------------------------------------------
-# TODO/NOTE:
+# -----------------------------------------------------------------------
+# TODO/NOTE:  What about Copy/Migration jobs which
+#             Copy/Migrate jobs older than 'time'?
 #
-# What about Copy/Migration jobs which Copy/Migrate jobs older than 'time'??
-#
-# These "new" 'copied" jobs will not appear in the listing because they
+# These "new" 'copied' jobs will not appear in the listing because they
 # inherit the end time of the original backup job. Do we consider them
 # to be within 'time' time because they are new, even though they retain
 # the endtime of the job they are a copy of?  Good question??
@@ -491,11 +489,7 @@ finally:
 # Then, add the results to the list of alljobrows to work on... uff...
 #
 # Crazy?  Is it worth it? Will anyone care?
-#
-# TODO - See notes above
-# ----------------------
-# add_cp_mg_to_alljobids(copymigratejobids)
-#---------------------------------------------------------------------------
+#--------------------------------------------------------------------------
 
 # Get some lists, lengths, and totals to use later
 # ------------------------------------------------
@@ -513,19 +507,17 @@ total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'C']
 jobswitherrors = len([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in 'R, C'])
-# copied_jobids = [r['jobid'] for r in alljobrows if r['type'] == 'C' and r['jobstatus'] == 'T']
-# migrated_jobids = [r['jobid'] for r in alljobrows if r['type'] == 'M' and r['jobstatus'] == 'T']
 copy_ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] == 'c' and r['jobstatus'] == 'T']
 migration_ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] == 'g' and r['jobstatus'] == 'T']
 
 # NOTES:
-# - A job with a jobstatus=C (Copied) is the **copied **job. It will have a
+# - A job with a jobstatus=C (Copied) is the **copied** job. It will have a
 #   'priorjobid' set. We can use this priorjobid quite quickly and easily in
 #   the report.
 #
-# - A job with a jobstatus=M (Migrated) is the **original** job! It knows NOTHING about 
-#   what jobid it was migrated to. Also, it has NO joblog, just the secondary "minimal"
-#   summary. We can not do anything with the information about this job. Everything 
+# - A job with a jobstatus=M (Migrated) is the **original** job! It knows NOTHING about
+#   what jobid it was migrated to. Also, it has NO joblog, just the secondary "stub"
+#   summary. We can not do anything with the information about this job. Everything
 #   about it, including the joblog entries and full summary, are migrated to the new
 #   job it has been migrated to.
 #
@@ -535,25 +527,24 @@ migration_ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] == 'g' and 
 #      performed trhe migration
 # -------------------------------------------------------------------------------------
 
-# Connect to PostgreSQL database
-# and get the Summary for Copy Ctrl (c) jobs
-# so we can identify the Prev Backup JobId,
-# and New Backup JobId be put in the Type field
-# like "Copy Ctrl: 12345->67890"
+# Horrible variable names, I
+# know, but it was quite late
 #
 # - ccji = Copy Control Job Information
 # - mcji = Migration Control Job Information
 # - cpn_jobids = Copy Previous/New_jobids
 # - mpn_jobids = Migration Previous/New_jobids
-#
-# * Do the same for Migration Control jobs
-# ------------------------------------------------------------
+# --------------------------------------------
 
+# For each Copy Ctrl job (g), get the Job summary text from the job table
+# -----------------------------------------------------------------------
 if len(copy_ctrl_jobids) != 0:
     try:
         conn = psycopg2.connect(db_connect_str('conn'))
         cur = db_connect_str('cur')
-        cur.execute("SELECT jobid, logtext FROM log WHERE jobid IN (" + ", ".join([str(x) for x in copy_ctrl_jobids]) + ") AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;")
+        cur.execute("SELECT jobid, logtext FROM log WHERE jobid IN (" \
+        + ", ".join([str(x) for x in copy_ctrl_jobids]) \
+        + ") AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;")
         ccji_rows = cur.fetchall()
     except:
         print("Problem communicating with database '" + dbname + "' while fetching copy ctrl job info.")
@@ -562,15 +553,22 @@ if len(copy_ctrl_jobids) != 0:
         if (conn):
             cur.close()
             conn.close()
+    # For each row of the returned ccji_rows, add to the
+    # cpn_jobids dict as [CopyCtrlJobid: ('PrevJobId', 'NewJobId')]
+    # -------------------------------------------------------------
     cpn_jobids = {}
     for ccji in ccji_rows:
         cpn_jobids[str(ccji[0])] = (pn_job_id(ccji, 'Prev'), pn_job_id(ccji, 'New'))
 
+# For each Migration Ctrl job (g), get the Job summary text from the job table
+# ----------------------------------------------------------------------------
 if len(migration_ctrl_jobids) != 0:
     try:
         conn = psycopg2.connect(db_connect_str('conn'))
         cur = db_connect_str('cur')
-        cur.execute("SELECT jobid, logtext FROM log WHERE jobid IN (" + ", ".join([str(x) for x in migration_ctrl_jobids]) + ") AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;")
+        cur.execute("SELECT jobid, logtext FROM log WHERE jobid IN (" \
+        + ", ".join([str(x) for x in migration_ctrl_jobids]) \
+        + ") AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;")
         mcji_rows = cur.fetchall()
     except:
         print("Problem communicating with database '" + dbname + "' while fetching migration ctrl job info.")
@@ -579,6 +577,9 @@ if len(migration_ctrl_jobids) != 0:
         if (conn):
             cur.close()
             conn.close()
+    # For each row of the returned mcji_rows, add to the
+    # mpn_jobids dict as [MigrationCtrlJobid: ('PrevJobId', 'NewJobId')]
+    # ------------------------------------------------------------------
     mpn_jobids = {}
     for mcji in mcji_rows:
         mpn_jobids[str(mcji[0])] = (pn_job_id(mcji, 'Prev'), pn_job_id(mcji, 'New'))
@@ -762,5 +763,6 @@ if printsummary == "yes":
 # ----------------------------------------
 msg = msg + summary + jobsummary + badjoblogs
 send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
+
 
 # vim: expandtab tabstop=4 softtabstop=4 shiftwidth=4

@@ -295,46 +295,46 @@ def html_format_cell(content, bgcolor = jobtablejobcolor, star = "", col = "", j
     # will be no endtime, nor runtime
     # --------------------------------------------------------
     if content == "----" or ((col == "client" or col == "runtime") and content == "None"):
-        content = "<hr width=\"80%\">"
+        content = "<hr width=\"20%\">"
     if content == "None" and col == "endtime" and jobstatus == "R":
         content = "Still Running"
     if jobstatus == "C" and col == "endtime":
         content = "Created, not yet running"
 
     # Copy Ctrl and Migration Ctrl jobs will never have a value
-    # for jobfiles nor jobbytes so we set them to a 80% hr
+    # for jobfiles nor jobbytes so we set them to a 20% hr
     # -------------------------------------------------------- 
     if jobtype in ('c', 'g') and col in ('jobfiles', 'jobbytes'):
-        content = "<hr width=\"80%\">"
+        content = "<hr width=\"20%\">"
 
     # Return the wrapped and modified cell content
     # --------------------------------------------
     return tdo + star + content + star + tdc
 
 def humanbytes(B):
-   'Return the given bytes as a human friendly string.'
-   # Thank you 'whereisalext' :)
-   # https://stackoverflow.com/questions/12523586/python-format-size-application-converting-b-to-kb-mb-gb-tb/31631711#31631711
-   # -------------------------------------------------------------------------------------------------------------------------
-   B = float(B)
-   KB = float(1024)
-   MB = float(KB ** 2) # 1,048,576
-   GB = float(KB ** 3) # 1,073,741,824
-   TB = float(KB ** 4) # 1,099,511,627,776
-   PB = float(KB ** 5) # 1,125,899,906,842,624
-
-   if B < KB:
-      return '{0:.2f}'.format(B,'Bytes' if 0 == B > 1 else 'Byte')
-   elif KB <= B < MB:
-      return '{0:.2f} KB'.format(B/KB)
-   elif MB <= B < GB:
-      return '{0:.2f} MB'.format(B/MB)
-   elif GB <= B < TB:
-      return '{0:.2f} GB'.format(B/GB)
-   elif TB <= B < PB:
-      return '{0:.2f} TB'.format(B/TB)
-   elif PB <= B:
-      return '{0:.2f} PB'.format(B/PB)
+    'Return the given bytes as a human friendly string.'
+    # Thank you 'whereisalext' :)
+    # https://stackoverflow.com/questions/12523586/python-format-size-application-converting-b-to-kb-mb-gb-tb/31631711#31631711
+    # -------------------------------------------------------------------------------------------------------------------------
+    B = float(B)
+    KB = float(1024)
+    MB = float(KB ** 2) # 1,048,576
+    GB = float(KB ** 3) # 1,073,741,824
+    TB = float(KB ** 4) # 1,099,511,627,776
+    PB = float(KB ** 5) # 1,125,899,906,842,624
+ 
+    if B < KB:
+       return '{0:.2f}'.format(B,'Bytes' if 0 == B > 1 else 'Byte')
+    elif KB <= B < MB:
+       return '{0:.2f} KB'.format(B/KB)
+    elif MB <= B < GB:
+       return '{0:.2f} MB'.format(B/MB)
+    elif GB <= B < TB:
+       return '{0:.2f} GB'.format(B/GB)
+    elif TB <= B < PB:
+       return '{0:.2f} TB'.format(B/TB)
+    elif PB <= B:
+       return '{0:.2f} PB'.format(B/PB)
 
 def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport):
     'Send the email.'

@@ -131,8 +131,8 @@ fontsizesumlog = "10px"         # Font size of job summaries and bad job logs
 # Set some variables
 # ------------------
 progname="Bacula Backup Report"
-version = "1.5"
-reldate = "Apr 30, 2021"
+version = "1.6"
+reldate = "May 1, 2021"
 badjobset = {'A', 'D', 'E', 'f', 'I'}
 
 import re
@@ -229,17 +229,6 @@ def set_subject_icon():
 
 def translate_job_level(joblevel, jobtype):
     'Job level is stored in the catalog as a single character, replace with a string.'
-    # NOTES:
-    # - A Verify job, level VVol does not use a client
-    #   - BUT it does, and MUST contact any client!
-    # - A Verify job, level VV2C does not use a client
-    #   - BUT it does, and MUST contact any client!
-    # - A Backup job, level VFull does not have a 'real' client
-    # - There is no such thing as a joblevel='f' (VFull) in the catalog
-    #   as documented, and instead, it reports as joblevel='F' in the catalog!
-    #   The only place Virtual Full is indicated is in the Job log summary as
-    #   "Virtual Full", and in a 'status dir' terminated jobs list as "Virt".
-    # ------------------------------------------------------------------------
     if jobtype in ('D', 'R', 'g', 'c'):
         return '----'
     return {' ': '----', '-': 'Base', 'A': 'VVol', 'C': 'VCat', 'd': 'VD2C',
@@ -477,12 +466,7 @@ finally:
 # the endtime of the job they are a copy of?  Good question??
 #
 # Idea: For each job of type=(c|g), query the log table, and find the new
-# backup jobids from the Summary field using grep & awk:
-#
-# SELECT * FROM log WHERE jobid='37574' AND logtext LIKE \
-# '%Termination:%';" | grep "New Backup JobId:" | awk '{print $7}'
-#
-# In my current environment, I got the (old) 'New Backup JobID:' 37575
+# backup jobids from the Summary field.
 #
 # Then, for each of these "New Backup JobIds" we identify, we query the DB
 # as in the cur.execute() above (will be a more simple query, minus the 'R'
@@ -511,23 +495,6 @@ jobswitherrors = len([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in 'R, C'])
 ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] in ('c', 'g') and r['jobstatus'] == 'T']
-
-# NOTES:
-# - A job with a jobstatus=C (Copied) is the **copied** job. It will have a
-#   'priorjobid' set. We can use this priorjobid quite quickly and easily in
-#   the report.
-#
-# - A job with a jobstatus=M (Migrated) is the **original** job! It knows NOTHING about
-#   what jobid it was migrated to. Also, it has NO joblog, just the secondary "stub"
-#   summary. We can not do anything with the information about this job. Everything
-#   about it, including the joblog entries and full summary, are migrated to the new
-#   job it has been migrated to.
-#
-#   To get any link between original and migrated jobs, we can only look in two places
-#   1. The priorjobid in the destination job
-#   2. The 'Prev Backup JobId:' and 'New Backup JobId:' in the Migration Ctrl job that
-#      performed trhe migration
-# -------------------------------------------------------------------------------------
 
 # For each Ctrl job (c, g), get the Job summary text from the job table
 # ---------------------------------------------------------------------
@@ -558,7 +525,7 @@ if len(ctrl_jobids) != 0:
 # Do we email all job summaries?
 # ------------------------------
 if emailsummaries == "yes":
-    jobsummary = "<pre>====================================\n" \
+    jobsummaries = "<pre>====================================\n" \
     + "Job Summaries of All Terminated Jobs\n====================================\n"
     try:
         conn = psycopg2.connect(db_connect_str('conn'))
@@ -570,10 +537,10 @@ if emailsummaries == "yes":
             # Migrated (M) Jobs have no joblog
             # --------------------------------
             if len(summaryrow) != 0:
-                jobsummary = jobsummary + "==============\nJobID:" \
+                jobsummaries = jobsummaries + "==============\nJobID:" \
                 + '{:8}'.format(summaryrow[0]['jobid']) \
                 + "\n==============\n" + summaryrow[0]['logtext']
-        jobsummary = jobsummary + "</pre>"
+        jobsummaries = jobsummaries + "</pre>"
     except:
         print("\nProblem communicating with database '" + dbname + "' while fetching all job summaries.\n")
         sys.exit(1)
@@ -582,7 +549,7 @@ if emailsummaries == "yes":
             cur.close()
             conn.close()
 else:
-    jobsummary = ""
+    jobsummaries = ""
 
 # Do we email the bad job logs?
 # -----------------------------
@@ -659,10 +626,8 @@ subject = server + " - " + str(numjobs) + " " + job + " in the past " \
 if addsubjecticon == "yes":
         subject = set_subject_icon() + " " + subject
 
-# Start the msg, beginning
-# with the opening HTML
-# and the job table header
-# ------------------------
+# Start creating the msg
+# ----------------------
 msg = "<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">" \
     + "<style>body {font-family:" + fontfamily + "; font-size:" + fontsize + ";} td {font-size:" \
     + fontsizejobinfo + ";} pre {font-size:" + fontsizesumlog + ";}</style></head><body>\n" \
@@ -737,7 +702,7 @@ if printsummary == "yes":
 
 # Build the final message & send the email
 # ----------------------------------------
-msg = msg + summary + jobsummary + badjoblogs
+msg = msg + summary + jobsummaries + badjoblogs
 send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
 
 

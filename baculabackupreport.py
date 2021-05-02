@@ -497,6 +497,7 @@ finally:
 # ------------------------------------------------
 alljobids = [r['jobid'] for r in alljobrows]
 badjobids = [r['jobid'] for r in alljobrows if r['jobstatus'] in badjobset]
+numjobs = len(alljobrows)
 numbadjobs = len(badjobids)
 total_backup_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'B'])
 total_backup_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'B'])
@@ -509,7 +510,6 @@ total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'C']
 jobswitherrors = len([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in 'R, C'])
-# ctrl_jobids = [(r['jobid'], r['type']) for r in alljobrows if r['type'] in ('c', 'g') and r['jobstatus'] == 'T']
 ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] in ('c', 'g') and r['jobstatus'] == 'T']
 
 # NOTES:
@@ -629,7 +629,6 @@ hour = "hour" if time == 1 else "hours"
 # If there are no jobs to report
 # on, just send the email & exit
 # ------------------------------
-numjobs = len(alljobrows)
 if numjobs == 0:
     subject = "No jobs found for " + clientstr + " in the past " + time + " " + hour + " for " + jobstr
     if addsubjecticon == "yes":

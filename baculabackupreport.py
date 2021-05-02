@@ -186,16 +186,20 @@ def translate_job_type(jobtype, jobid, priorjobid, jobstatus):
     if jobtype == 'c':
         if jobstatus in ('R', 'C'):
             return "Copy Ctrl"
+        if jobstatus in badjobset:
+            return "Copy Ctrl: Failed"
         if '0' in pn_jobids[str(jobid)]:
-            return "Copy Ctrl: Nothing to do"
+            return "Copy Ctrl: No jobs to copy"
         else:
             return "Copy Ctrl: " + pn_jobids[str(jobid)][0] + "->" + pn_jobids[str(jobid)][1]
 
     if jobtype == 'g':
         if jobstatus in ('R', 'C'):
             return "Migration Ctrl"
+        if jobstatus in badjobset:
+            return "Migration Ctrl: Failed"
         if '0' in pn_jobids[str(jobid)]:
-            return "Migration Ctrl: Nothing to do"
+            return "Migration Ctrl: No jobs to migrate"
         else:
             return "Migration Ctrl: " + pn_jobids[str(jobid)][0] + "->" + pn_jobids[str(jobid)][1]
 
@@ -229,6 +233,8 @@ def set_subject_icon():
 
 def translate_job_level(joblevel, jobtype):
     'Job level is stored in the catalog as a single character, replace with a string.'
+    # No real level for these job types
+    # ---------------------------------
     if jobtype in ('D', 'R', 'g', 'c'):
         return '----'
     return {' ': '----', '-': 'Base', 'A': 'VVol', 'C': 'VCat', 'd': 'VD2C',
@@ -241,8 +247,8 @@ def html_format_cell(content, bgcolor = jobtablejobcolor, star = "", col = "", j
     tdo = "<td align=\"center\">"
     tdc = "</td>"
 
-    # Colorize the Status cell
-    # ------------------------
+    # Colorize the Status cell?
+    # -------------------------
     if colorstatusbg == "yes" and col == "status":
         if jobrow['jobstatus'] == 'C':
             bgcolor = createdjobcolor
@@ -326,7 +332,7 @@ def humanbytes(B):
 
 def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport):
     'Send the email.'
-    # Thank you to: Aleksandr Varnin for this short and simple solution
+    # Thank you to Aleksandr Varnin for this short and simple to implement solution
     # https://blog.mailtrap.io/sending-emails-in-python-tutorial-with-code-examples
     # -----------------------------------------------------------------------------
     message = f"Content-Type: text/html\nMIME-Version: 1.0\nTo: {email}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}"
@@ -347,12 +353,12 @@ def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, s
         print("Error was: " + str(e))
         sys.exit(1)
 
+# def add_cp_mg_to_alljobids(copymigratejobids):
+#     'For each Copy/Migration Ctrl jobid (c,g), find the job it copied/migrated, and append it to the alljobids list'
 # TODO - See notes. This feature will be for jobs that have been
 #        copied/migrated, but their original, inherited 'endtime'
 #        is older than the 'time' hours we initially queried for
 # ---------------------------------------------------------------
-# def add_cp_mg_to_alljobids(copymigratejobids):
-#     'For each Copy/Migration Ctrl jobid (c,g), find the job it copied/migrated, and append it to the alljobids list'
 
 # Assign command line variables
 # Do some basic sanity checking
@@ -494,7 +500,7 @@ total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'C']
 jobswitherrors = len([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in 'R, C'])
-ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] in ('c', 'g') and r['jobstatus'] == 'T']
+ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] in ('c', 'g')]
 
 # For each Ctrl job (c, g), get the Job summary text from the job table
 # ---------------------------------------------------------------------
@@ -616,8 +622,8 @@ if addsubjectrunningorcreated == "yes" and runningorcreated != 0:
 else:
     runningorcreatedsubject = ""
 
-# Create the HTML header message and Subject
-# ------------------------------------------
+# Create the Subject
+# ------------------
 subject = server + " - " + str(numjobs) + " " + job + " in the past " \
         + str(time) + " " + hour + ": " + str(numbadjobs) + " bad, " \
         + str(jobswitherrors) + " with errors, for " + clientstr + ", and " \
@@ -650,11 +656,8 @@ msg = "<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charse
 # Build the job table
 # -------------------
 for jobrow in alljobrows:
-    # Do we want asterisks around bad jobs?
-    # -------------------------------------
-    star = "*" if starbadjobids == "yes" and jobrow['jobstatus'] in badjobset else ""
     msg = msg + "<tr bgcolor=\"" + jobtablejobcolor + "\">" \
-        + html_format_cell(str(jobrow['jobid']), star = star) \
+        + html_format_cell(str(jobrow['jobid']), star = "*" if starbadjobids == "yes" and jobrow['jobstatus'] in badjobset else "") \
         + html_format_cell(jobrow['jobname'], col = "name") \
         + html_format_cell(jobrow['client'], col = "client") \
         + html_format_cell(translate_job_status(jobrow['jobstatus'], jobrow['joberrors']), col = "status") \

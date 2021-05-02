@@ -40,7 +40,7 @@ Options:
 # Over time, and with a lot of requests, and great ideas, the script grew
 # into a giant, unmaintainable mashup/combination of bash & awk.
 #
-# I awlays knew it would need to be rewritten in something like Python, so
+# I always knew it would need to be rewritten in something like Python, so
 # 1.5 years ago I started the parallel tasks of beginning to learn Python,
 # while porting the original script. I made some pretty good progress
 # relatively quickly, but then I gave up - Until this past week when I
@@ -148,20 +148,19 @@ def usage():
     print(__doc__)
     sys.exit(1)
 
-def pn_job_id(x, p_or_n):
+def pn_job_id(ctrl_jobid, p_or_n):
     'Return a Previous or New jobid for Copy and Migration Control jobs.'
-    # Given a Copy Ctrl or Migration Ctrl job log's job summary block of 20+ lines of text
-    # as 'x', and a search term for 'Prev' or 'New' as 'p_or_n', perform a re.sub on the
-    # block of text to find and return the previous or new jobid
-    # ------------------------------------------------------------------------------------
-    x = re.sub(".*" + p_or_n + " Backup JobId: +(.+?)\n.*", "\\1", x[1], flags = re.DOTALL)
-    return (x)
+    # Given a Copy Ctrl or Migration Ctrl job's jobid, perform a re.sub
+    # on the joblog's job summary block of 20+ lines of text using a search
+    # term of 'Prev' or 'New' as 'p_or_n' and return the previous or new jobid
+    # ------------------------------------------------------------------------
+    return re.sub(".*" + p_or_n + " Backup JobId: +(.+?)\n.*", "\\1", ctrl_jobid[1], flags = re.DOTALL)
 
 def migrated_id(jobid):
-    'For a given job that has been migrated, return the jobid that it was migrated to.'
-    for t in mpn_jobids:
-        if mpn_jobids[t][0] == str(jobid):
-            return mpn_jobids[t][1]
+    'For a given Migrated job, return the jobid that it was migrated to.'
+    for t in pn_jobids:
+        if pn_jobids[t][0] == str(jobid):
+            return pn_jobids[t][1]
 
 def db_connect_str(arg):
     'Just return the database connection parameters.'
@@ -179,7 +178,7 @@ def translate_job_type(jobtype, jobid, priorjobid, jobstatus):
         return "Migrated from " + str(priorjobid)
 
     if jobtype == 'M':
-        if "mpn_jobids" in globals():
+        if "pn_jobids" in globals():
             return "Migrated to " + migrated_id(jobid)
         else:
             return "Migrated"
@@ -187,18 +186,18 @@ def translate_job_type(jobtype, jobid, priorjobid, jobstatus):
     if jobtype == 'c':
         if jobstatus in ('R', 'C'):
             return "Copy Ctrl"
-        if '0' in cpn_jobids[str(jobid)]:
+        if '0' in pn_jobids[str(jobid)]:
             return "Copy Ctrl: Nothing to do"
         else:
-            return "Copy Ctrl: " + cpn_jobids[str(jobid)][0] + "->" + cpn_jobids[str(jobid)][1]
+            return "Copy Ctrl: " + pn_jobids[str(jobid)][0] + "->" + pn_jobids[str(jobid)][1]
 
     if jobtype == 'g':
         if jobstatus in ('R', 'C'):
             return "Migration Ctrl"
-        if '0' in mpn_jobids[str(jobid)]:
+        if '0' in pn_jobids[str(jobid)]:
             return "Migration Ctrl: Nothing to do"
         else:
-            return "Migration Ctrl: " + mpn_jobids[str(jobid)][0] + "->" + mpn_jobids[str(jobid)][1]
+            return "Migration Ctrl: " + pn_jobids[str(jobid)][0] + "->" + pn_jobids[str(jobid)][1]
 
     return {'B': 'Backup', 'D': 'Admin', 'R': 'Restore', 'V': 'Verify'}[jobtype]
 
@@ -303,7 +302,7 @@ def html_format_cell(content, bgcolor = jobtablejobcolor, star = "", col = "", j
 
     # Copy Ctrl and Migration Ctrl jobs will never have a value
     # for jobfiles nor jobbytes so we set them to a 20% hr
-    # -------------------------------------------------------- 
+    # ---------------------------------------------------------
     if jobtype in ('c', 'g') and col in ('jobfiles', 'jobbytes'):
         content = "<hr width=\"20%\">"
 
@@ -322,7 +321,7 @@ def humanbytes(B):
     GB = float(KB ** 3) # 1,073,741,824
     TB = float(KB ** 4) # 1,099,511,627,776
     PB = float(KB ** 5) # 1,125,899,906,842,624
- 
+
     if B < KB:
        return '{0:.2f}'.format(B,'Bytes' if 0 == B > 1 else 'Byte')
     elif KB <= B < MB:
@@ -342,7 +341,6 @@ def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, s
     # https://blog.mailtrap.io/sending-emails-in-python-tutorial-with-code-examples
     # -----------------------------------------------------------------------------
     message = f"Content-Type: text/html\nMIME-Version: 1.0\nTo: {email}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}"
-
     try:
         with smtplib.SMTP(smtpserver, smtpport) as server:
             if smtpuser != "" and smtppass != "":
@@ -365,7 +363,7 @@ def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, s
 #        is older than the 'time' hours we initially queried for
 # ---------------------------------------------------------------
 # def add_cp_mg_to_alljobids(copymigratejobids):
-#     'For each Copy/Migration Ctrl jobid (c,m), find the job it copied/migrated, and append it to the alljobids list'
+#     'For each Copy/Migration Ctrl jobid (c,g), find the job it copied/migrated, and append it to the alljobids list'
 
 # Assign command line variables
 # Do some basic sanity checking
@@ -511,8 +509,8 @@ total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'C']
 jobswitherrors = len([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in 'R, C'])
-copy_ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] == 'c' and r['jobstatus'] == 'T']
-migration_ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] == 'g' and r['jobstatus'] == 'T']
+# ctrl_jobids = [(r['jobid'], r['type']) for r in alljobrows if r['type'] in ('c', 'g') and r['jobstatus'] == 'T']
+ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] in ('c', 'g') and r['jobstatus'] == 'T']
 
 # NOTES:
 # - A job with a jobstatus=C (Copied) is the **copied** job. It will have a
@@ -531,62 +529,31 @@ migration_ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] == 'g' and 
 #      performed trhe migration
 # -------------------------------------------------------------------------------------
 
-# Horrible variable names, I
-# know, but it was quite late
-#
-# - ccji = Copy Control Job Information
-# - mcji = Migration Control Job Information
-# - cpn_jobids = Copy Previous/New_jobids
-# - mpn_jobids = Migration Previous/New_jobids
-# --------------------------------------------
-
-# For each Copy Ctrl job (g), get the Job summary text from the job table
-# -----------------------------------------------------------------------
-if len(copy_ctrl_jobids) != 0:
+# For each Ctrl job (c, g), get the Job summary text from the job table
+# ---------------------------------------------------------------------
+# - cji = Control Job Information
+# - pn_jobids = Previous/New_jobids
+# ---------------------------------
+if len(ctrl_jobids) != 0:
     try:
         conn = psycopg2.connect(db_connect_str('conn'))
         cur = db_connect_str('cur')
         cur.execute("SELECT jobid, logtext FROM log WHERE jobid IN (" \
-        + ", ".join([str(x) for x in copy_ctrl_jobids]) \
+        + ", ".join([str(x) for x in ctrl_jobids]) \
         + ") AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;")
-        ccji_rows = cur.fetchall()
+        cji_rows = cur.fetchall()
     except:
-        print("Problem communicating with database '" + dbname + "' while fetching copy ctrl job info.")
+        print("Problem communicating with database '" + dbname + "' while fetching all ctrl job info.")
         sys.exit(1)
     finally:
         if (conn):
             cur.close()
-            conn.close()
-    # For each row of the returned ccji_rows, add to the
-    # cpn_jobids dict as [CopyCtrlJobid: ('PrevJobId', 'NewJobId')]
-    # -------------------------------------------------------------
-    cpn_jobids = {}
-    for ccji in ccji_rows:
-        cpn_jobids[str(ccji[0])] = (pn_job_id(ccji, 'Prev'), pn_job_id(ccji, 'New'))
-
-# For each Migration Ctrl job (g), get the Job summary text from the job table
-# ----------------------------------------------------------------------------
-if len(migration_ctrl_jobids) != 0:
-    try:
-        conn = psycopg2.connect(db_connect_str('conn'))
-        cur = db_connect_str('cur')
-        cur.execute("SELECT jobid, logtext FROM log WHERE jobid IN (" \
-        + ", ".join([str(x) for x in migration_ctrl_jobids]) \
-        + ") AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;")
-        mcji_rows = cur.fetchall()
-    except:
-        print("Problem communicating with database '" + dbname + "' while fetching migration ctrl job info.")
-        sys.exit(1)
-    finally:
-        if (conn):
-            cur.close()
-            conn.close()
-    # For each row of the returned mcji_rows, add to the
-    # mpn_jobids dict as [MigrationCtrlJobid: ('PrevJobId', 'NewJobId')]
-    # ------------------------------------------------------------------
-    mpn_jobids = {}
-    for mcji in mcji_rows:
-        mpn_jobids[str(mcji[0])] = (pn_job_id(mcji, 'Prev'), pn_job_id(mcji, 'New'))
+    # For each row of the returned cji_rows (Ctrl Jobs), add to
+    # the pn_jobids dict as [CtrlJobid: ('PrevJobId', 'NewJobId')]
+    # ------------------------------------------------------------
+    pn_jobids = {}
+    for cji in cji_rows:
+        pn_jobids[str(cji[0])] = (pn_job_id(cji, 'Prev'), pn_job_id(cji, 'New'))
 
 # Do we email all job summaries?
 # ------------------------------
@@ -675,8 +642,8 @@ else:
     # ------------------------------
     job = "job" if numjobs == 1 else "jobs"
 
-# Touch up the Running or Created message to be appended to Subject
-# -----------------------------------------------------------------
+# Do we append the 'Running or Created' message to the Subject?
+# -------------------------------------------------------------
 if addsubjectrunningorcreated == "yes" and runningorcreated != 0:
     runningjob = "job" if runningorcreated == 1 else "jobs"
     runningorcreatedsubject = " (" + str(runningorcreated) + " " + runningjob + " queued/running)"

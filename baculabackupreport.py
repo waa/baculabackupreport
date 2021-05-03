@@ -131,8 +131,8 @@ fontsizesumlog = "10px"         # Font size of job summaries and bad job logs
 # Set some variables
 # ------------------
 progname="Bacula Backup Report"
-version = "1.6"
-reldate = "May 1, 2021"
+version = "1.7"
+reldate = "May 2, 2021"
 badjobset = {'A', 'D', 'E', 'f', 'I'}
 
 import re
@@ -628,7 +628,6 @@ subject = server + " - " + str(numjobs) + " " + job + " in the past " \
         + str(time) + " " + hour + ": " + str(numbadjobs) + " bad, " \
         + str(jobswitherrors) + " with errors, for " + clientstr + ", and " \
         + jobstr + runningorcreatedsubject
-
 if addsubjecticon == "yes":
         subject = set_subject_icon() + " " + subject
 

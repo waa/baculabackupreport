@@ -84,11 +84,11 @@ Options:
 # Toggles and other formatting settings
 # -------------------------------------
 centerjobname = "no"                       # Center the Job Name in HTML emails?
-centerclientname = "no"                    # Center the Client Name in HTML emails?
+centerclientname = "yes"                   # Center the Client Name in HTML emails?
 boldjobname = "yes"                        # Bold the Job Name in HTML emails?
 boldstatus = "yes"                         # Bold the Status in HTML emails?
-printsummary = "yes"                       # Print a short summary after the Job list table? (Total Jobs, Files, Bytes, etc)
-emailsummaries = "no"                      # Email all Job summaries? Be careful with this, it can generate very large emails
+emailsummary = "yes"                       # Print a short summary after the Job list table? (Total Jobs, Files, Bytes, etc)
+emailjobsummaries = "no"                   # Email all Job summaries? Be careful with this, it can generate very large emails
 emailbadlogs = "no"                        # Email logs of bad Jobs? Be careful with this, it can generate very large emails.
 addsubjecticon = "yes"                     # Prepend the email Subject with UTF-8 icons? See goodjobsicon, nojobsicon, and badjobsicon
 addsubjectrunningorcreated = "yes"         # Append "(## Jobs still runnning/queued)" to Subject if running or queued Jobs > 0?
@@ -120,7 +120,7 @@ errorjobcolor ="#cc3300"        # Background color of the Status cell for jobs w
 # HTML fonts
 # ----------
 fontfamily = "Verdana, Arial, Helvetica, sans-serif"  # Font family to use for HTML emails
-fontsize = "16px"               # Font size to use for email title and print summaries
+fontsize = "16px"               # Font size to use for email title (title removed from email for now)
 fontsizejobinfo = "12px"        # Font size to use for job information inside of table
 fontsizesumlog = "10px"         # Font size of job summaries and bad job logs
 
@@ -148,6 +148,22 @@ def usage():
     print(__doc__)
     sys.exit(1)
 
+def print_opt_errors(opt):
+    'Print the command line option passed and the reason it is incorrect.'
+    if opt in {'server', 'dbname', 'dbhost', 'dbuser', 'smtpserver'}:
+        return "\nThe '" + opt + "' variable must not be empty."
+    elif opt in {'time', 'smtpport', 'dbport'}:
+        return "\nThe '" + opt + "' variable must not be empty and must be an integer."
+    elif opt in {'email', 'fromemail'}:
+        return "\nThe '" + opt + "' variable is either empty or it does not look like a valid email address."
+
+def db_connect_str(arg):
+    'Just return the database connection parameters.'
+    if arg == 'cur':
+        return conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    if arg == 'conn':
+        return 'host=' + dbhost + ' port=' + dbport + ' dbname=' + dbname + ' user=' + dbuser + ' password=' + dbpass
+
 def pn_job_id(ctrl_jobid, p_or_n):
     'Return a Previous or New jobid for Copy and Migration Control jobs.'
     # Given a Copy Ctrl or Migration Ctrl job's jobid, perform a re.sub
@@ -161,13 +177,6 @@ def migrated_id(jobid):
     for t in pn_jobids:
         if pn_jobids[t][0] == str(jobid):
             return pn_jobids[t][1]
-
-def db_connect_str(arg):
-    'Just return the database connection parameters.'
-    if arg == 'cur':
-        return conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    if arg == 'conn':
-        return 'host=' + dbhost + ' port=' + dbport + ' dbname=' + dbname + ' user=' + dbuser + ' password=' + dbpass
 
 def translate_job_type(jobtype, jobid, priorjobid, jobstatus):
     'Job type is stored in the catalog as a single character. Do some "special" things for Copy and Migration jobs.'
@@ -210,15 +219,6 @@ def translate_job_status(jobstatus, joberrors):
     return {'A': 'Aborted', 'C': 'Created', 'D': 'Verify Diffs',
             'E': 'Errors', 'f': 'Failed', 'I': 'Incomplete',
             'R': 'Running', 'T': ('-OK-', 'OK/Warnings')[joberrors > 0]}[jobstatus]
-
-def print_opt_errors(opt):
-    'Print the command line option passed and the reason it is incorrect.'
-    if opt in {'server', 'dbname', 'dbhost', 'dbuser', 'smtpserver'}:
-        return "\nThe '" + opt + "' variable must not be empty."
-    elif opt in {'time', 'smtpport', 'dbport'}:
-        return "\nThe '" + opt + "' variable must not be empty and must be an integer."
-    elif opt in {'email', 'fromemail'}:
-        return "\nThe '" + opt + "' variable is either empty or it does not look like a valid email address."
 
 def set_subject_icon():
     'Set the utf-8 subject icon.'
@@ -295,10 +295,11 @@ def html_format_cell(content, bgcolor = jobtablejobcolor, star = "", col = "", j
     if jobstatus == "C" and col == "endtime":
         content = "Created, not yet running"
 
-    # Copy Ctrl and Migration Ctrl jobs will never have a value
-    # for jobfiles nor jobbytes so we set them to a 20% hr
+    # Created (not ready to run), Copy Ctrl, and Migration Ctrl
+    # jobs will never have a value for jobfiles nor jobbytes so
+    # we set them to a 20% hr
     # ---------------------------------------------------------
-    if jobtype in ('c', 'g') and col in ('jobfiles', 'jobbytes'):
+    if (jobstatus == 'C' or jobtype in ('c', 'g')) and col in ('jobfiles', 'jobbytes'):
         content = "<hr width=\"20%\">"
 
     # Return the wrapped and modified cell content
@@ -443,9 +444,9 @@ else:
 try:
     conn = psycopg2.connect(db_connect_str('conn'))
     cur = db_connect_str('cur')
-    cur.execute("SELECT JobId, Client.Name AS Client, REPLACE(Job.Name,' ','_') AS JobName, JobStatus, \
-                 JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, PriorJobId, \
-                 AGE(EndTime, StartTime) AS RunTime \
+    cur.execute("SELECT JobId, Client.Name AS Client, REPLACE(Job.Name,' ','_') AS JobName, \
+                 JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
+                 PriorJobId, AGE(EndTime, StartTime) AS RunTime \
                  FROM Job \
                  INNER JOIN Client on Job.ClientID=Client.ClientID \
                  WHERE (EndTime >= CURRENT_TIMESTAMP(2) - cast('" + time + "HOUR' as INTERVAL) \
@@ -530,7 +531,7 @@ if len(ctrl_jobids) != 0:
 
 # Do we email all job summaries?
 # ------------------------------
-if emailsummaries == "yes":
+if emailjobsummaries == "yes":
     jobsummaries = "<pre>====================================\n" \
     + "Job Summaries of All Terminated Jobs\n====================================\n"
     try:
@@ -586,6 +587,9 @@ if emailbadlogs == "yes":
 else:
     badjoblogs = ""
 
+# Silly OCD string manipulations
+# ------------------------------
+hour = "hour" if time == 1 else "hours"
 if client != "%":
     clientstr = "client '" + client + "'"
 else:
@@ -594,10 +598,6 @@ if jobname != "%":
     jobstr = "jobname '" + jobname + "'"
 else:
     jobstr = "all jobs"
-
-# Silly OCD string manipulations
-# ------------------------------
-hour = "hour" if time == 1 else "hours"
 
 # If there are no jobs to report
 # on, just send the email & exit
@@ -663,16 +663,16 @@ for jobrow in alljobrows:
         + html_format_cell(str('{:,}'.format(jobrow['joberrors']))) \
         + html_format_cell(translate_job_type(jobrow['type'], jobrow['jobid'], jobrow['priorjobid'], jobrow['jobstatus'])) \
         + html_format_cell(translate_job_level(jobrow['level'], jobrow['type'])) \
-        + html_format_cell(str('{:,}'.format(jobrow['jobfiles'])), jobtype = jobrow['type'], col = "jobfiles") \
-        + html_format_cell(str('{:,}'.format(jobrow['jobbytes'])), jobtype = jobrow['type'], col = "jobbytes") \
+        + html_format_cell(str('{:,}'.format(jobrow['jobfiles'])), jobtype = jobrow['type'], jobstatus = jobrow['jobstatus'], col = "jobfiles") \
+        + html_format_cell(str('{:,}'.format(jobrow['jobbytes'])), jobtype = jobrow['type'], jobstatus = jobrow['jobstatus'], col = "jobbytes") \
         + html_format_cell(str(jobrow['starttime']), col = "starttime", jobstatus = jobrow['jobstatus']) \
         + html_format_cell(str(jobrow['endtime']), col = "endtime", jobstatus = jobrow['jobstatus']) \
         + html_format_cell(str(jobrow['runtime']), col = "runtime") + "</tr>\n"
 msg = msg + "</table>"
 
-# Create the the summary table
-# ----------------------------
-if printsummary == "yes":
+# Email the summary table?
+# ------------------------
+if emailsummary == "yes":
     summary = "<br><hr align=\"left\" width=\"25%\">" \
             + "<table width=\"25%\">" \
             + "<tr><td><b>Total Jobs</b></td><td align=\"center\"><b>:</b></td> <td align=\"right\"><b>" \

@@ -131,8 +131,8 @@ fontsizesumlog = "10px"         # Font size of job summaries and bad job logs
 # Set some variables
 # ------------------
 progname="Bacula Backup Report"
-version = "1.7"
-reldate = "May 2, 2021"
+version = "1.8"
+reldate = "May 4, 2021"
 badjobset = {'A', 'D', 'E', 'f', 'I'}
 
 import re
@@ -295,11 +295,12 @@ def html_format_cell(content, bgcolor = jobtablejobcolor, star = "", col = "", j
     if jobstatus == "C" and col == "endtime":
         content = "Created, not yet running"
 
-    # Created (not ready to run), Copy Ctrl, and Migration Ctrl
-    # jobs will never have a value for jobfiles nor jobbytes so
-    # we set them to a 20% hr
-    # ---------------------------------------------------------
-    if (jobstatus == 'C' or jobtype in ('c', 'g')) and col in ('jobfiles', 'jobbytes'):
+    # Jobs with status: Created, Running ('C', 'R'), or
+    # Jobs with type: Admin, Copy Ctrl, Migration Ctrl
+    # ('D', 'c, 'g') will never have a value for jobfiles
+    # nor jobbytes in the db, so we set them to a 20% hr
+    # ---------------------------------------------------
+    if (jobstatus in ('R', 'C') or jobtype in ('D', 'c', 'g')) and col in ('jobfiles', 'jobbytes'):
         content = "<hr width=\"20%\">"
 
     # Return the wrapped and modified cell content

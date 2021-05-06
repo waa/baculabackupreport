@@ -50,7 +50,7 @@ Note: Multiple commands may be combined:
 #### Sample two: Some OK, one with Errors, one OK (with warnings), and the optional summary/totals table at the bottom:
 ![baculabackupreport-Sample_2-2021-05-06_16-26](https://user-images.githubusercontent.com/108133/117374273-15d60700-ae8a-11eb-97b8-7a02b0f41399.png)
 
-#### Sapmle three: Shows the (optional) summary/totals table followed by the (optional) Job log summary:
+#### Sample three: Shows the (optional) summary/totals table followed by the (optional) Job log summary:
 ![baculabackupreport-Sample_3-2021-05-06_16-46](https://user-images.githubusercontent.com/108133/117374706-dd82f880-ae8a-11eb-8220-00edb1c4081a.png)
 
 #### Sample four: Shows the tail end of the (optional) summary/totals table followed by the (optional) 'bad' Jobs logs:

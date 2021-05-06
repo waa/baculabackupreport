@@ -33,14 +33,14 @@ Options:
 ```
 ## Example commands:
 ```
-# ./baculabackupreport.py -t 48          (show 48 hours instead of the default 24)
-# ./baculabackupreport.py -c speedy-fd   (show only jobs where 'speedy-fd' was the client)
-# ./baculabackupreport.py -c www%        (show only jobs where the client name starts with 'www')
-# ./baculabackupreport.py -j oracle_back (show only the job named 'oracle-back')
-# ./baculabackupreport.py -j %-prod-%    (show only jobs where the string '-prod-' appears in the name)
+# ./baculabackupreport.py -e admin@example.com -t 48         (show 48 hours instead of the default 24)
+# ./baculabackupreport.py -e admin@example.com -c speedy-fd  (show only jobs where 'speedy-fd' was the client)
+# ./baculabackupreport.py -e admin@example.com -c www%       (show only jobs where the client name starts with 'www')
+# ./baculabackupreport.py -e admin@example.com -j oracle_bck (show only the job named 'oracle-bck')
+# ./baculabackupreport.py -e admin@example.com -j %-prod-%   (show only jobs where the string '-prod-' appears in the name)
 
 Note: Multiple commands may be combined:
-# ./baculabackupreport.py -t 48 -c speedy-fd -j Catalog (Report on 48 hours for a specific client, and a specific job name)
+# ./baculabackupreport.py -e admin@example.com -t 48 -c speedy-fd -j Catalog (48 hours for a specific client, and job)
 ```
 
 ## Screenshots
@@ -55,4 +55,3 @@ Note: Multiple commands may be combined:
 
 #### Sample four: Shows the tail end of the (optional) summary/totals table followed by the (optional) 'bad' Jobs logs:
 ![baculabackupreport-Sample_4-2021-05-06_16-49](https://user-images.githubusercontent.com/108133/117374978-65690280-ae8b-11eb-8b8a-3e7b82a1f0f7.png)
-

@@ -45,8 +45,13 @@ Notes:
 # ./baculabackupreport.py -e admin@example.com -j oracle_bck (show only the job named 'oracle-bck')
 # ./baculabackupreport.py -e admin@example.com -j %-prod-%   (show only jobs where the string '-prod-' appears in the name)
 
-Note: Multiple commands may be combined:
+- Multiple commands may be combined:
 # ./baculabackupreport.py -e admin@example.com -t 48 -c speedy-fd -j Catalog (48 hours for a specific client, and job)
+
+- Variables may be set via environment variables:
+# export EMAIL="admin@example.com"
+# export DBPASS="s3cr3t"
+# ./baculabackupreport.py -t 48
 ```
 
 ## Screenshots

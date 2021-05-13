@@ -1,11 +1,11 @@
 #!/usr/bin/python3
 """
 Usage:
-    baculabackupreport.py -e <email> [-f <fromemail>] [-s <server>] [-t <time>] [-c <client>] [-j <jobname>]
+    baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-c <client>] [-j <jobname>]
                           [--dbname <dbname>] [--dbhost <dbhost>] [--dbport <dbport>] [--dbuser <dbuser>] [--dbpass <dbpass>]
                           [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
-    baculabackupreport.py -v | --version
     baculabackupreport.py -h | --help
+    baculabackupreport.py -v | --version
 
 Options:
     -e, --email <email>          Email address to send report to
@@ -26,6 +26,12 @@ Options:
 
     -h, --help                   Print this help message
     -v, --version                Print the script name and version
+
+Notes:
+* Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
+* Only the email variable is required. It must be set on the command line or via an environment variable
+* Variable assignment precedence is: command line > environment variable > default
+
 """
 # ---------------------------------------------------------------------------
 # - 20210426 - baculabackupreport.py v1.0 - Initial release
@@ -131,10 +137,11 @@ fontsizesumlog = "10px"         # Font size of job summaries and bad job logs
 # Set some variables
 # ------------------
 progname="Bacula Backup Report"
-version = "1.8"
-reldate = "May 4, 2021"
+version = "1.9"
+reldate = "May 12, 2021"
 badjobset = {'A', 'D', 'E', 'f', 'I'}
 
+import os
 import re
 import sys
 import smtplib
@@ -147,6 +154,19 @@ def usage():
     'Should be self-explanatory'
     print(__doc__)
     sys.exit(1)
+
+def cli_vs_env_vs_default_vars(var_name, env_name):
+    'Assign/re-assign args[] vars based on if they came from cli, env, or defaults.'
+    if var_name in sys.argv:
+        if args['--dbname'] == "":
+            print(print_opt_errors('dbname'))
+            usage()
+        else:
+            return args[var_name]
+    elif env_name in os.environ and os.environ[env_name] != "":
+        return os.environ[env_name]
+    else:
+        return args[var_name]
 
 def print_opt_errors(opt):
     'Print the command line option passed and the reason it is incorrect.'
@@ -362,11 +382,34 @@ def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, s
 #        is older than the 'time' hours we initially queried for
 # ---------------------------------------------------------------
 
-# Assign command line variables
+# Assign command line variables using docopt
+# ------------------------------------------
+args = docopt(__doc__, version="\n" + progname + " - v" + version + "\n" + reldate + "\n")
+
+# Need to assign/re-assign args[] vars based on cli vs env vs defaults
+# --------------------------------------------------------------------
+for ced_tup in [
+    ('--time', 'TIME'),
+    ('--email', 'EMAIL'),
+    ('--client', 'CLIENT'),
+    ('--server', 'SERVER'),
+    ('--dbname', 'DBNAME'),
+    ('--dbhost', 'DBHOST'),
+    ('--dbport', 'DBPORT'),
+    ('--dbuser', 'DBUSER'),
+    ('--dbpass', 'DBPASS'),
+    ('--jobname', 'JOBNAME'),
+    ('--smtpport', 'SMTPPORT'),
+    ('--smtpuser', 'SMTPUSER'),
+    ('--smtppass', 'SMTPPASS'),
+    ('--fromemail', 'FROMEMAIL'),
+    ('--smtpserver', 'SMTPSERVER')
+    ]:
+    args[ced_tup[0]] = cli_vs_env_vs_default_vars(ced_tup[0], ced_tup[1])
+
 # Do some basic sanity checking
 # -----------------------------
-args = docopt(__doc__, version="\n" + progname + " - v" + version + "\n" + reldate + "\n")
-if "@" not in args['--email']:
+if args['--email'] is None or "@" not in args['--email']:
     print(print_opt_errors('email'))
     usage()
 else:
@@ -591,14 +634,8 @@ else:
 # Silly OCD string manipulations
 # ------------------------------
 hour = "hour" if time == 1 else "hours"
-if client != "%":
-    clientstr = "client '" + client + "'"
-else:
-    clientstr = "all clients"
-if jobname != "%":
-    jobstr = "jobname '" + jobname + "'"
-else:
-    jobstr = "all jobs"
+jobstr = "all jobs" if jobname == "%" else "jobname '" + jobname + "'"
+clientstr = "all clients" if client == "%" else "client '" + client + "'"
 
 # If there are no jobs to report
 # on, just send the email & exit

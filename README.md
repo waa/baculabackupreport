@@ -5,11 +5,11 @@
 
 ```
 Usage:
-    baculabackupreport.py -e <email> [-f <fromemail>] [-s <server>] [-t <time>] [-c <client>] [-j <jobname>]
+    baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-c <client>] [-j <jobname>]
                           [--dbname <dbname>] [--dbhost <dbhost>] [--dbport <dbport>] [--dbuser <dbuser>] [--dbpass <dbpass>]
                           [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
-    baculabackupreport.py -v | --version
     baculabackupreport.py -h | --help
+    baculabackupreport.py -v | --version
 
 Options:
     -e, --email <email>          Email address to send report to
@@ -30,6 +30,12 @@ Options:
 
     -h, --help                   Print this help message
     -v, --version                Print the script name and version
+
+Notes:
+* Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
+* Only the email variable is required. It must be set on the command line or via an environment variable
+* Variable assignment precedence is: command line > environment variable > default
+
 ```
 ## Example commands:
 ```

@@ -1,7 +1,7 @@
 # bacula
 ## Bacula related scripts
 
-- **baculabackupreport.py:** Sends an HTML email report of jobs that have run in the past x hours. Can filter on Client and/or Job name (-c client-fd and/or -j jobname). This is a port of my previous bash/awk script that tried to perform a similar function. :)
+- **baculabackupreport.py:** Sends an HTML email report of jobs that have run in the past x hours. Can filter on Client and/or Job name (-c client-fd and/or -j jobname). This is a port of my previous bash/awk script that grew to be completely unmaintainable.
 
 ```
 Usage:
@@ -42,7 +42,7 @@ Notes:
 # ./baculabackupreport.py -e admin@example.com -t 48         (show 48 hours instead of the default 24)
 # ./baculabackupreport.py -e admin@example.com -c speedy-fd  (show only jobs where 'speedy-fd' was the client)
 # ./baculabackupreport.py -e admin@example.com -c www%       (show only jobs where the client name starts with 'www')
-# ./baculabackupreport.py -e admin@example.com -j oracle_bck (show only the job named 'oracle-bck')
+# ./baculabackupreport.py -e admin@example.com -j oracle-bck (show only the job named 'oracle-bck')
 # ./baculabackupreport.py -e admin@example.com -j %-prod-%   (show only jobs where the string '-prod-' appears in the name)
 
 - Multiple commands may be combined:

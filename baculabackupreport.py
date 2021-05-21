@@ -137,8 +137,8 @@ fontsizesumlog = "10px"         # Font size of job summaries and bad job logs
 # Set some variables
 # ------------------
 progname="Bacula Backup Report"
-version = "1.9"
-reldate = "May 12, 2021"
+version = "1.9.1"
+reldate = "May 21, 2021"
 badjobset = {'A', 'D', 'E', 'f', 'I'}
 
 import os
@@ -207,8 +207,15 @@ def translate_job_type(jobtype, jobid, priorjobid, jobstatus):
         return "Migrated from " + str(priorjobid)
 
     if jobtype == 'M':
-        if "pn_jobids" in globals():
+        # Part of this is a workaround for what I consider to be a bug in Bacula for jobs of
+        # type 'B' which meet the criteria to be 'eligible' for migration, but have 0 file/bytes
+        # The original backup Job's type gets changed from 'B' (Backup) to 'M' (Migrated), even
+        # though nothing is migrated. https://bugs.bacula.org/view.php?id=2619
+        # --------------------------------------------------------------------------------------
+        if "pn_jobids" in globals() and migrated_id(jobid) != '0':
             return "Migrated to " + migrated_id(jobid)
+        elif "pn_jobids" in globals() and migrated_id(jobid) == '0':
+            return "Nothing to migrate"
         else:
             return "Migrated"
 

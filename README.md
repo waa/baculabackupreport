@@ -1,9 +1,9 @@
 # bacula
 ## Bacula related scripts
-```
+
 - **baculabackupreport.py:** Sends an HTML email report of jobs that have run in the past x hours. Can filter on Client and/or Job name (-c client-fd and/or -j jobname). This is a port of my previous bash/awk script that grew to be completely unmaintainable.
 
-"""
+```
 Usage:
     baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-c <client>] [-j <jobname>]
                           [--dbtype <dbtype>] [--dbport <dbport>] [--dbhost <dbhost>] [--dbname <dbname>]

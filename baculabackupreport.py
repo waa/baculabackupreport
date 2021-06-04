@@ -2,30 +2,32 @@
 """
 Usage:
     baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-c <client>] [-j <jobname>]
-                          [--dbname <dbname>] [--dbhost <dbhost>] [--dbport <dbport>] [--dbuser <dbuser>] [--dbpass <dbpass>]
+                          [--dbtype <dbtype>] [--dbport <dbport>] [--dbhost <dbhost>] [--dbname <dbname>]
+                          [--dbuser <dbuser>] [--dbpass <dbpass>]
                           [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
     baculabackupreport.py -h | --help
     baculabackupreport.py -v | --version
 
 Options:
-    -e, --email <email>          Email address to send report to
-    -f, --fromemail <fromemail>  Email address to be set in the From: field of the email
-    -s, --server <server>        Name of the Bacula Server [default: Bacula]
-    -t, --time <time>            Time to report on in hours [default: 24]
-    -c, --client <client>        Client to report on using SQL 'LIKE client' [default: %] (all clients)
-    -j, --jobname <jobname>      Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
-    --dbname <dbname>            Bacula catalog database name [default: bacula]
-    --dbhost <dbhost>            Bacula catalog database host [default: localhost]
-    --dbport <dbport>            Bacula catalog database port [default: 5432]
-    --dbuser <dbuser>            Bacula catalog database user [default: bacula]
-    --dbpass <dbpass>            Bacula catalog database password
-    --smtpserver <smtpserver>    SMTP server [default: localhost]
-    --smtpport <smtpport>        SMTP port [default: 25]
-    -u, --smtpuser <smtpuser>    SMTP user
-    -p, --smtppass <smtppass>    SMTP password
+    -e, --email <email>               Email address to send report to
+    -f, --fromemail <fromemail>       Email address to be set in the From: field of the email
+    -s, --server <server>             Name of the Bacula Server [default: Bacula]
+    -t, --time <time>                 Time to report on in hours [default: 24]
+    -c, --client <client>             Client to report on using SQL 'LIKE client' [default: %] (all clients)
+    -j, --jobname <jobname>           Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
+    --dbtype (pgsql | mysql | maria)  Database type [default: pgsql]
+    --dbport <dbport>                 Database port (defaults pgsql 5432, mysql & maria 3306)
+    --dbhost <dbhost>                 Database host [default: localhost]
+    --dbname <dbname>                 Database name [default: bacula]
+    --dbuser <dbuser>                 Database user [default: bacula]
+    --dbpass <dbpass>                 Database password
+    --smtpserver <smtpserver>         SMTP server [default: localhost]
+    --smtpport <smtpport>             SMTP port [default: 25]
+    -u, --smtpuser <smtpuser>         SMTP user
+    -p, --smtppass <smtppass>         SMTP password
 
-    -h, --help                   Print this help message
-    -v, --version                Print the script name and version
+    -h, --help                        Print this help message
+    -v, --version                     Print the script name and version
 
 Notes:
 * Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
@@ -98,15 +100,15 @@ emailjobsummaries = "no"                   # Email all Job summaries? Be careful
 emailbadlogs = "no"                        # Email logs of bad Jobs? Be careful with this, it can generate very large emails.
 addsubjecticon = "yes"                     # Prepend the email Subject with UTF-8 icons? See goodjobsicon, nojobsicon, and badjobsicon
 addsubjectrunningorcreated = "yes"         # Append "(## Jobs still runnning/queued)" to Subject if running or queued Jobs > 0?
+goodjobsicon = "=?utf-8?Q?=F0=9F=9F=A9?="  # utf-8 'green square' subject icon when there are Jobs with errors etc
 # goodjobsicon = "=?UTF-8?Q?=E2=9C=85?="   # utf-8 'white checkmark in green box' subject icon when all Jobs were "OK"
 # goodjobsicon = "=?UTF-8?Q?=E2=98=BA?="   # utf-8 'smiley face' subject icon when all Jobs were "OK"
-goodjobsicon = "=?utf-8?Q?=F0=9F=9F=A9?="  # utf-8 'green square' subject icon when there are Jobs with errors etc
 nojobsicon = "=?utf-8?Q?=F0=9F=9A=AB?="    # utf-8 'no entry sign' subject icon when no Jobs have been run
+badjobsicon = "=?utf-8?Q?=F0=9F=9F=A5?="   # utf-8 'red square' subject icon when there are Jobs with errors etc
 # badjobsicon = "=?utf-8?Q?=E2=9C=96?="    # utf-8 'black bold X' subject icon when there are Jobs with errors etc
 # badjobsicon = "=?utf-8?Q?=E2=9D=8C?="    # utf-8 'red X' subject icon when there are Jobs with errors etc
 # badjobsicon = "=?utf-8?Q?=E2=9D=97?="    # utf-8 'red !' subject icon when there are Jobs with errors etc
 # badjobsicon = "=?utf-8?Q?=E2=98=B9?="    # utf-8 'sad face' subject icon when there are Jobs with errors etc
-badjobsicon = "=?utf-8?Q?=F0=9F=9F=A5?="   # utf-8 'red square' subject icon when there are Jobs with errors etc
 starbadjobids = "no"                       # Wrap bad Jobs with an asterisk "*"?
 sortfield = "JobId"                        # Which catalog DB field to sort on? hint: multiple,fields,work,here
 sortorder = "DESC"                         # Which direction to sort?
@@ -137,21 +139,25 @@ fontsizesumlog = "10px"         # Font size of job summaries and bad job logs
 # Set some variables
 # ------------------
 progname="Bacula Backup Report"
-version = "1.9.1"
-reldate = "May 21, 2021"
+version = "1.9.2"
+reldate = "June 3, 2021"
 badjobset = {'A', 'D', 'E', 'f', 'I'}
+valid_db_set = {'pgsql', 'mysql', 'maria'}
+prog_info = "<p style=\"font-size: 8px;\">" \
+          + progname + " - v" + version \
+          + " - baculabackupreport.py<br>" \
+          + "By: Bill Arlofski waa@revpol.com (c) " \
+          + reldate
 
 import os
 import re
 import sys
 import smtplib
-import psycopg2
-import psycopg2.extras
 from docopt import docopt
 from socket import gaierror
 
 def usage():
-    'Should be self-explanatory'
+    'Should be self-explanatory.'
     print(__doc__)
     sys.exit(1)
 
@@ -176,13 +182,18 @@ def print_opt_errors(opt):
         return "\nThe '" + opt + "' variable must not be empty and must be an integer."
     elif opt in {'email', 'fromemail'}:
         return "\nThe '" + opt + "' variable is either empty or it does not look like a valid email address."
+    elif opt == 'dbtype':
+        return "\nThe '" + opt + "' variable must not be empty, and must be one of: pgsql, mysql, or maria."
 
-def db_connect_str(arg):
-    'Just return the database connection parameters.'
-    if arg == 'cur':
-        return conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    if arg == 'conn':
-        return 'host=' + dbhost + ' port=' + dbport + ' dbname=' + dbname + ' user=' + dbuser + ' password=' + dbpass
+def db_connect():
+    'Connect to the db using the appropriate database connector and create the right cursor'
+    global conn, cur
+    if dbtype == 'pgsql':
+        conn = psycopg2.connect(host=dbhost, port=dbport, dbname=dbname, user=dbuser, password=dbpass)
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    elif dbtype in ('mysql', 'maria'):
+        conn = mysql.connector.connect(host=dbhost, port=dbport, database=dbname, user=dbuser, password=dbpass)
+        cur = conn.cursor(dictionary=True)
 
 def pn_job_id(ctrl_jobid, p_or_n):
     'Return a Previous or New jobid for Copy and Migration Control jobs.'
@@ -190,7 +201,7 @@ def pn_job_id(ctrl_jobid, p_or_n):
     # on the joblog's job summary block of 20+ lines of text using a search
     # term of 'Prev' or 'New' as 'p_or_n' and return the previous or new jobid
     # ------------------------------------------------------------------------
-    return re.sub(".*" + p_or_n + " Backup JobId: +(.+?)\n.*", "\\1", ctrl_jobid[1], flags = re.DOTALL)
+    return re.sub(".*" + p_or_n + " Backup JobId: +(.+?)\n.*", "\\1", ctrl_jobid['logtext'], flags = re.DOTALL)
 
 def migrated_id(jobid):
     'For a given Migrated job, return the jobid that it was migrated to.'
@@ -225,7 +236,12 @@ def translate_job_type(jobtype, jobid, priorjobid, jobstatus):
         if jobstatus in badjobset:
             return "Copy Ctrl: Failed"
         if '0' in pn_jobids[str(jobid)]:
-            return "Copy Ctrl: No jobs to copy"
+            # This covers when the 'main' copy control job finds no eligable
+            # jobs to copy at all both 'Prev JobId' and 'Next JobId' are '0'
+            if pn_jobids[str(jobid)][0] == '0':
+                return "Copy Ctrl: No jobs to copy"
+            else:
+                return "Copy Ctrl: " + pn_jobids[str(jobid)][0] + "->No files to copy"
         else:
             return "Copy Ctrl: " + pn_jobids[str(jobid)][0] + "->" + pn_jobids[str(jobid)][1]
 
@@ -393,29 +409,32 @@ def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, s
 # ------------------------------------------
 args = docopt(__doc__, version="\n" + progname + " - v" + version + "\n" + reldate + "\n")
 
+# Set the default ports for the different databases if not set on command line
+# ----------------------------------------------------------------------------
+if args['--dbtype'] == 'pgsql' and args['--dbport'] == None:
+    args['--dbport'] = '5432'
+elif args['--dbtype'] in ('mysql', 'maria') and args['--dbport'] == None:
+    args['--dbport'] = '3306'
+elif args['--dbtype'] not in valid_db_set:
+    print(print_opt_errors('dbtype'))
+    usage()
+
 # Need to assign/re-assign args[] vars based on cli vs env vs defaults
 # --------------------------------------------------------------------
 for ced_tup in [
-    ('--time', 'TIME'),
-    ('--email', 'EMAIL'),
-    ('--client', 'CLIENT'),
-    ('--server', 'SERVER'),
-    ('--dbname', 'DBNAME'),
-    ('--dbhost', 'DBHOST'),
-    ('--dbport', 'DBPORT'),
-    ('--dbuser', 'DBUSER'),
-    ('--dbpass', 'DBPASS'),
-    ('--jobname', 'JOBNAME'),
-    ('--smtpport', 'SMTPPORT'),
-    ('--smtpuser', 'SMTPUSER'),
-    ('--smtppass', 'SMTPPASS'),
-    ('--fromemail', 'FROMEMAIL'),
-    ('--smtpserver', 'SMTPSERVER')
+    ('--time', 'TIME'), ('--email', 'EMAIL'),
+    ('--client', 'CLIENT'), ('--server', 'SERVER'),
+    ('--dbtype', 'DBTYPE'), ('--dbport', 'DBPORT'),
+    ('--dbhost', 'DBHOST'), ('--dbname', 'DBNAME'),
+    ('--dbuser', 'DBUSER'), ('--dbpass', 'DBPASS'),
+    ('--jobname', 'JOBNAME'), ('--smtpport', 'SMTPPORT'),
+    ('--smtpuser', 'SMTPUSER'), ('--smtppass', 'SMTPPASS'),
+    ('--fromemail', 'FROMEMAIL'), ('--smtpserver', 'SMTPSERVER')
     ]:
     args[ced_tup[0]] = cli_vs_env_vs_default_vars(ced_tup[0], ced_tup[1])
 
-# Do some basic sanity checking
-# -----------------------------
+# Do some basic sanity checking on variables
+# ------------------------------------------
 if args['--email'] is None or "@" not in args['--email']:
     print(print_opt_errors('email'))
     usage()
@@ -438,16 +457,29 @@ if not args['--smtpport'].isnumeric():
     usage()
 else:
     smtpport = args['--smtpport']
-if not args['--dbport']:
-    print(print_opt_errors('dbport'))
-    usage()
-else:
-    dbport = args['--dbport']
 if not args['--server']:
     print(print_opt_errors('server'))
     usage()
 else:
     server = args['--server']
+if not args['--dbtype'] or args['--dbtype'] not in valid_db_set:
+    print(print_opt_errors('dbtype'))
+    usage()
+else:
+    dbtype = args['--dbtype']
+    if dbtype == 'pgsql':
+        import psycopg2
+        import psycopg2.extras
+    elif dbtype in ('mysql', 'maria'):
+        import mysql.connector
+    else:
+        print(print_opt_errors('dbtype'))
+        usage()
+if not args['--dbport'].isnumeric():
+    print(print_opt_errors('dbport'))
+    usage()
+else:
+    dbport = args['--dbport']
 if not args['--dbname']:
     print(print_opt_errors('dbname'))
     usage()
@@ -489,22 +521,35 @@ if args['--smtppass'] == None:
 else:
     smtppass = args['--smtppass']
 
-# Connect to PostgreSQL database
-# and query for all matching jobs
-# -------------------------------
+# Connect to database and
+# query for all matching jobs
+# ---------------------------
 try:
-    conn = psycopg2.connect(db_connect_str('conn'))
-    cur = db_connect_str('cur')
-    cur.execute("SELECT JobId, Client.Name AS Client, REPLACE(Job.Name,' ','_') AS JobName, \
-                 JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
-                 PriorJobId, AGE(EndTime, StartTime) AS RunTime \
-                 FROM Job \
-                 INNER JOIN Client on Job.ClientID=Client.ClientID \
-                 WHERE (EndTime >= CURRENT_TIMESTAMP(2) - cast('" + time + "HOUR' as INTERVAL) \
-                 OR (JobStatus='R' OR JobStatus='C')) \
-                 AND Client.Name LIKE '" + client + "' \
-                 AND Job.Name LIKE '" + jobname + "' \
-                 ORDER BY " + sortfield + " " + sortorder + ";")
+    db_connect()
+    if dbtype == 'pgsql':
+        query_str = "SELECT JobId, Client.Name AS Client, REPLACE(Job.Name,' ','_') AS JobName, \
+            JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
+            PriorJobId, AGE(EndTime, StartTime) AS RunTime \
+            FROM Job \
+            INNER JOIN Client on Job.ClientID=Client.ClientID \
+            WHERE (EndTime >= CURRENT_TIMESTAMP(2) - cast('" + time + "HOUR' as INTERVAL) \
+            OR (JobStatus='R' OR JobStatus='C')) \
+            AND Client.Name LIKE '" + client + "' \
+            AND Job.Name LIKE '" + jobname + "' \
+            ORDER BY " + sortfield + " " + sortorder + ";"
+    elif dbtype in ('mysql', 'maria'):
+        query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
+            REPLACE(CAST(Job.name as CHAR(50)),' ','_') AS jobname, CAST(jobstatus as CHAR(1)) AS jobstatus, \
+            joberrors, CAST(type as CHAR(1)) AS type, CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
+            starttime, endtime, priorjobid, TIMEDIFF (endtime,starttime) as runtime \
+            FROM Job \
+            INNER JOIN Client on Job.clientid=Client.clientid \
+            WHERE (endtime >= DATE_ADD(NOW(), INTERVAL -" + time + " HOUR) \
+            OR (jobstatus='R' OR jobstatus='C')) \
+            AND Client.Name LIKE '" + client + "' \
+            AND Job.Name LIKE '" + jobname + "' \
+            ORDER BY " + sortfield + " " + sortorder + ";"
+    cur.execute(query_str)
     alljobrows = cur.fetchall()
 except:
     print("Problem communicating with database '" + dbname + "' while fetching all jobs.")
@@ -521,7 +566,7 @@ finally:
 # These "new" 'copied' jobs will not appear in the listing because they
 # inherit the end time of the original backup job. Do we consider them
 # to be within 'time' time because they are new, even though they retain
-# the endtime of the job they are a copy of?  Good question??
+# the endtime of the job they are a copy of?  Good question?? I say 'yes'
 #
 # Idea: For each job of type=(c|g), query the log table, and find the new
 # backup jobids from the Summary field.
@@ -535,8 +580,8 @@ finally:
 # Crazy?  Is it worth it? Will anyone care?
 #--------------------------------------------------------------------------
 
-# Get some lists, lengths, and totals to use later
-# ------------------------------------------------
+# Assign some lists, lengths, and totals to global variables for later
+# --------------------------------------------------------------------
 alljobids = [r['jobid'] for r in alljobrows]
 badjobids = [r['jobid'] for r in alljobrows if r['jobstatus'] in badjobset]
 numjobs = len(alljobrows)
@@ -554,31 +599,75 @@ totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in 'R, C'])
 ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] in ('c', 'g')]
 
-# For each Ctrl job (c, g), get the Job summary text from the job table
+# Silly OCD string manipulations
+# ------------------------------
+hour = "hour" if time == 1 else "hours"
+jobstr = "all jobs" if jobname == "%" else "jobname '" + jobname + "'"
+clientstr = "all clients" if client == "%" else "client '" + client + "'"
+
+# If there are no jobs to report
+# on, just send the email & exit
+# ------------------------------
+if numjobs == 0:
+    subject = server + " - No jobs found for " + clientstr + " in the past " + time + " " + hour + " for " + jobstr
+    if addsubjecticon == "yes":
+        subject = set_subject_icon() + " " + subject
+    msg = "These are not the droids you are looking for."
+    send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
+    sys.exit(1)
+else:
+    # More silly OCD string manipulations
+    # -----------------------------------
+    job = "job" if numjobs == 1 else "jobs"
+
+# Do we append the 'Running or Created' message to the Subject?
+# -------------------------------------------------------------
+if addsubjectrunningorcreated == "yes" and runningorcreated != 0:
+    runningjob = "job" if runningorcreated == 1 else "jobs"
+    runningorcreatedsubject = " (" + str(runningorcreated) + " " + runningjob + " queued/running)"
+else:
+    runningorcreatedsubject = ""
+
+# Create the Subject
+# ------------------
+subject = server + " - " + str(numjobs) + " " + job + " in the past " \
+        + str(time) + " " + hour + ": " + str(numbadjobs) + " bad, " \
+        + str(jobswitherrors) + " with errors, for " + clientstr + ", and " \
+        + jobstr + runningorcreatedsubject
+if addsubjecticon == "yes":
+        subject = set_subject_icon() + " " + subject
+
+# For each Ctrl job (c, g), get the Job summary text from the log table
 # ---------------------------------------------------------------------
 # - cji = Control Job Information
 # - pn_jobids = Previous/New_jobids
 # ---------------------------------
 if len(ctrl_jobids) != 0:
     try:
-        conn = psycopg2.connect(db_connect_str('conn'))
-        cur = db_connect_str('cur')
-        cur.execute("SELECT jobid, logtext FROM log WHERE jobid IN (" \
-        + ", ".join([str(x) for x in ctrl_jobids]) \
-        + ") AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;")
+        db_connect()
+        if dbtype == 'pgsql':
+            query_str = "SELECT jobid, logtext FROM log WHERE jobid IN (" \
+            + ", ".join([str(x) for x in ctrl_jobids]) + ") AND logtext LIKE \
+            '%Termination:%' ORDER BY jobid DESC;"
+        elif dbtype in ('mysql', 'maria'):
+            query_str = "SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
+            FROM Log WHERE jobid IN (" + ", ".join([str(x) for x in ctrl_jobids]) \
+            + ") AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
+        cur.execute(query_str)
         cji_rows = cur.fetchall()
     except:
-        print("Problem communicating with database '" + dbname + "' while fetching all ctrl job info.")
+        print("Problem communicating with database '" + dbname + "' while fetching control job info.")
         sys.exit(1)
     finally:
         if (conn):
             cur.close()
+            conn.close()
     # For each row of the returned cji_rows (Ctrl Jobs), add to
     # the pn_jobids dict as [CtrlJobid: ('PrevJobId', 'NewJobId')]
     # ------------------------------------------------------------
     pn_jobids = {}
     for cji in cji_rows:
-        pn_jobids[str(cji[0])] = (pn_job_id(cji, 'Prev'), pn_job_id(cji, 'New'))
+        pn_jobids[str(cji['jobid'])] = (pn_job_id(cji, 'Prev'), pn_job_id(cji, 'New'))
 
 # Do we email all job summaries?
 # ------------------------------
@@ -586,11 +675,15 @@ if emailjobsummaries == "yes":
     jobsummaries = "<pre>====================================\n" \
     + "Job Summaries of All Terminated Jobs\n====================================\n"
     try:
-        conn = psycopg2.connect(db_connect_str('conn'))
-        cur = db_connect_str('cur')
+        db_connect()
         for job_id in alljobids:
-            cur.execute("SELECT jobid, logtext FROM log WHERE jobid=" \
-            + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;")
+            if dbtype == 'pgsql':
+                query_str = "SELECT jobid, logtext FROM Log WHERE jobid=" \
+                + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
+            elif dbtype in ('mysql', 'maria'):
+                query_str = "SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE jobid=" \
+                + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
+            cur.execute(query_str)
             summaryrow = cur.fetchall()
             # Migrated (M) Jobs have no joblog
             # --------------------------------
@@ -612,14 +705,18 @@ else:
 # Do we email the bad job logs?
 # -----------------------------
 if emailbadlogs == "yes":
+    badjoblogs = "<pre>=================\nBad Job Full Logs\n=================\n"
     if len(badjobids) != 0:
-        badjoblogs = "<pre>=================\nBad Job Full Logs\n=================\n"
         try:
-            conn = psycopg2.connect(db_connect_str('conn'))
-            cur = db_connect_str('cur')
+            db_connect()
             for job_id in badjobids:
-                cur.execute("SELECT jobid,time,logtext FROM log WHERE jobid=" \
-                + str(job_id) + " ORDER BY jobid, time ASC;")
+                if dbtype == 'pgsql':
+                    query_str = "SELECT jobid, time, logtext FROM log WHERE jobid=" \
+                    + str(job_id) + " ORDER BY jobid, time ASC;"
+                elif dbtype in ('mysql', 'maria'):
+                    query_str = "SELECT jobid, time, CAST(logtext as CHAR(2000)) AS logtext \
+                    FROM Log WHERE jobid=" + str(job_id) + " ORDER BY jobid, time ASC;"
+                cur.execute(query_str)
                 badjobrow = cur.fetchall()
                 badjoblogs = badjoblogs + "==============\nJobID:" \
                 + '{:8}'.format(job_id) + "\n==============\n"
@@ -634,47 +731,9 @@ if emailbadlogs == "yes":
                 cur.close()
                 conn.close()
     else:
-        badjoblogs = badjoblogs + "===================\nNo Bad Jobs to List\n===================\n"
+        badjoblogs = badjoblogs + "\n===================\nNo Bad Jobs to List\n===================\n"
 else:
     badjoblogs = ""
-
-# Silly OCD string manipulations
-# ------------------------------
-hour = "hour" if time == 1 else "hours"
-jobstr = "all jobs" if jobname == "%" else "jobname '" + jobname + "'"
-clientstr = "all clients" if client == "%" else "client '" + client + "'"
-
-# If there are no jobs to report
-# on, just send the email & exit
-# ------------------------------
-if numjobs == 0:
-    subject = "No jobs found for " + clientstr + " in the past " + time + " " + hour + " for " + jobstr
-    if addsubjecticon == "yes":
-        subject = set_subject_icon() + " " + subject
-    msg = "These are not the droids you are looking for."
-    send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
-    sys.exit(1)
-else:
-    # Silly OCD string manipulations
-    # ------------------------------
-    job = "job" if numjobs == 1 else "jobs"
-
-# Do we append the 'Running or Created' message to the Subject?
-# -------------------------------------------------------------
-if addsubjectrunningorcreated == "yes" and runningorcreated != 0:
-    runningjob = "job" if runningorcreated == 1 else "jobs"
-    runningorcreatedsubject = " (" + str(runningorcreated) + " " + runningjob + " queued/running)"
-else:
-    runningorcreatedsubject = ""
-
-# Create the Subject
-# ------------------
-subject = server + " - " + str(numjobs) + " " + job + " in the past " \
-        + str(time) + " " + hour + ": " + str(numbadjobs) + " bad, " \
-        + str(jobswitherrors) + " with errors, for " + clientstr + ", and " \
-        + jobstr + runningorcreatedsubject
-if addsubjecticon == "yes":
-        subject = set_subject_icon() + " " + subject
 
 # Start creating the msg
 # ----------------------
@@ -744,12 +803,13 @@ if emailsummary == "yes":
             + '{:,}'.format(total_verify_files) + "</b></td></tr>" \
             + "<tr><td><b>Total Verify Bytes</b></td><td align=\"center\"><b>:</b></td> <td align=\"right\"><b>" \
             + humanbytes(total_verify_bytes) + "</b></td></tr></table>" \
-            + "<hr align=\"left\" width=\"25%\"><p style=\"font-size: 8px;\">" + progname + " - v" \
-            + version + " - baculabackupreport.py<br>" + "By: Bill Arlofski mtnbkr@gmail.com (c) " + reldate
+            + "<hr align=\"left\" width=\"25%\">"
+else:
+    summary = ""
 
 # Build the final message & send the email
 # ----------------------------------------
-msg = msg + summary + jobsummaries + badjoblogs
+msg = msg + summary + prog_info + jobsummaries + badjoblogs
 send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
 
 

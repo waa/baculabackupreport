@@ -39,8 +39,6 @@ Notes:
 * Variable assignment precedence is: command line > environment variable > default
 
 ```
-
-```
 ## Example commands:
 ```
 # ./baculabackupreport.py -e admin@example.com -t 48         (show 48 hours instead of the default 24)

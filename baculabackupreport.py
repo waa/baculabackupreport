@@ -90,28 +90,31 @@ Notes:
 # ----------------------------------------------------------------------------
 
 # Toggles and other formatting settings
-# -------------------------------------
-centerjobname = "no"                       # Center the Job Name in HTML emails?
-centerclientname = "yes"                   # Center the Client Name in HTML emails?
-boldjobname = "yes"                        # Bold the Job Name in HTML emails?
-boldstatus = "yes"                         # Bold the Status in HTML emails?
-emailsummary = "yes"                       # Print a short summary after the Job list table? (Total Jobs, Files, Bytes, etc)
-emailjobsummaries = "no"                   # Email all Job summaries? Be careful with this, it can generate very large emails
-emailbadlogs = "no"                        # Email logs of bad Jobs? Be careful with this, it can generate very large emails.
-addsubjecticon = "yes"                     # Prepend the email Subject with UTF-8 icons? See goodjobsicon, nojobsicon, and badjobsicon
-addsubjectrunningorcreated = "yes"         # Append "(## Jobs still runnning/queued)" to Subject if running or queued Jobs > 0?
-goodjobsicon = "=?utf-8?Q?=F0=9F=9F=A9?="  # utf-8 'green square' subject icon when there are Jobs with errors etc
-# goodjobsicon = "=?UTF-8?Q?=E2=9C=85?="   # utf-8 'white checkmark in green box' subject icon when all Jobs were "OK"
-# goodjobsicon = "=?UTF-8?Q?=E2=98=BA?="   # utf-8 'smiley face' subject icon when all Jobs were "OK"
-nojobsicon = "=?utf-8?Q?=F0=9F=9A=AB?="    # utf-8 'no entry sign' subject icon when no Jobs have been run
-badjobsicon = "=?utf-8?Q?=F0=9F=9F=A5?="   # utf-8 'red square' subject icon when there are Jobs with errors etc
-# badjobsicon = "=?utf-8?Q?=E2=9C=96?="    # utf-8 'black bold X' subject icon when there are Jobs with errors etc
-# badjobsicon = "=?utf-8?Q?=E2=9D=8C?="    # utf-8 'red X' subject icon when there are Jobs with errors etc
-# badjobsicon = "=?utf-8?Q?=E2=9D=97?="    # utf-8 'red !' subject icon when there are Jobs with errors etc
-# badjobsicon = "=?utf-8?Q?=E2=98=B9?="    # utf-8 'sad face' subject icon when there are Jobs with errors etc
-starbadjobids = "no"                       # Wrap bad Jobs with an asterisk "*"?
-sortfield = "JobId"                        # Which catalog DB field to sort on? hint: multiple,fields,work,here
-sortorder = "DESC"                         # Which direction to sort?
+# https://www.utf8-chartable.de/unicode-utf8-table.pl
+# ---------------------------------------------------
+centerjobname = "no"                         # Center the Job Name in HTML emails?
+centerclientname = "yes"                     # Center the Client Name in HTML emails?
+boldjobname = "yes"                          # Bold the Job Name in HTML emails?
+boldstatus = "yes"                           # Bold the Status in HTML emails?
+emailsummary = "yes"                         # Print a short summary after the Job list table? (Total Jobs, Files, Bytes, etc)
+emailjobsummaries = "no"                     # Email all Job summaries? Be careful with this, it can generate very large emails
+emailbadlogs = "no"                          # Email logs of bad Jobs? Be careful with this, it can generate very large emails.
+addsubjecticon = "yes"                       # Prepend the email Subject with UTF-8 icons? See (no|good|warn|bad)jobsicon variables below
+addsubjectrunningorcreated = "yes"           # Append "(## Jobs still runnning/queued)" to Subject if running or queued Jobs > 0?
+nojobsicon = "=?utf-8?Q?=F0=9F=9A=AB?="      # utf-8 'no entry sign' subject icon when no Jobs have been run
+goodjobsicon = "=?utf-8?Q?=F0=9F=9F=A9?="    # utf-8 'green square' subject icon when there are Jobs with errors etc
+# goodjobsicon = "=?UTF-8?Q?=E2=9C=85?="     # utf-8 'white checkmark in green box' subject icon when all Jobs were "OK"
+# goodjobsicon = "=?UTF-8?Q?=E2=98=BA?="     # utf-8 'smiley face' subject icon when all Jobs were "OK"
+warnjobsicon = "=?UTF-8?Q?=F0=9F=9F=A7?="    # utf-8 'orange square' subject icon when all jobs are "OK", but some have errors/warnings
+# warnjobsicon = "=?UTF-8?Q?=F0=9F=9F=A8?="  # utf-8 'yellow square' subject icon when all jobs are "OK", but some have errors/warnings
+badjobsicon = "=?utf-8?Q?=F0=9F=9F=A5?="     # utf-8 'red square' subject icon when there are Jobs with errors etc
+# badjobsicon = "=?utf-8?Q?=E2=9C=96?="      # utf-8 'black bold X' subject icon when there are Jobs with errors etc
+# badjobsicon = "=?utf-8?Q?=E2=9D=8C?="      # utf-8 'red X' subject icon when there are Jobs with errors etc
+# badjobsicon = "=?utf-8?Q?=E2=9D=97?="      # utf-8 'red !' subject icon when there are Jobs with errors etc
+# badjobsicon = "=?utf-8?Q?=E2=98=B9?="      # utf-8 'sad face' subject icon when there are Jobs with errors etc
+starbadjobids = "no"                         # Wrap bad Jobs jobids with asterisks "*"?
+sortfield = "JobId"                          # Which catalog DB field to sort on? hint: multiple,fields,work,here
+sortorder = "DESC"                           # Which direction to sort?
 
 # HTML colors
 # -----------
@@ -139,8 +142,8 @@ fontsizesumlog = "10px"         # Font size of job summaries and bad job logs
 # Set some variables
 # ------------------
 progname="Bacula Backup Report"
-version = "1.9.2"
-reldate = "June 3, 2021"
+version = "1.9.3"
+reldate = "June 6, 2021"
 badjobset = {'A', 'D', 'E', 'f', 'I'}
 valid_db_set = {'pgsql', 'mysql', 'maria'}
 prog_info = "<p style=\"font-size: 8px;\">" \
@@ -183,7 +186,7 @@ def print_opt_errors(opt):
     elif opt in {'email', 'fromemail'}:
         return "\nThe '" + opt + "' variable is either empty or it does not look like a valid email address."
     elif opt == 'dbtype':
-        return "\nThe '" + opt + "' variable must not be empty, and must be one of: pgsql, mysql, or maria."
+        return "\nThe '" + opt + "' variable must not be empty, and must be one of: " + ', '.join(valid_db_set)
 
 def db_connect():
     'Connect to the db using the appropriate database connector and create the right cursor'
@@ -268,8 +271,10 @@ def set_subject_icon():
     if numjobs == 0:
         subjecticon = nojobsicon
     else:
-        if numbadjobs != 0 or jobswitherrors != 0:
+        if numbadjobs != 0:
            subjecticon = badjobsicon
+        elif jobswitherrors != 0:
+           subjecticon = warnjobsicon
         else:
             subjecticon = goodjobsicon
     return subjecticon
@@ -386,7 +391,6 @@ def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, s
             if smtpuser != "" and smtppass != "":
                 server.login(smtpuser, smtppass)
             server.sendmail(fromemail, email, message)
-            # print("Successfully sent email to " + email + " via " + smtpserver + ":" + str(smtpport))
     except (gaierror, ConnectionRefusedError):
         print("Failed to connect to the server. Bad connection settings?")
         sys.exit(1)
@@ -472,9 +476,6 @@ else:
         import psycopg2.extras
     elif dbtype in ('mysql', 'maria'):
         import mysql.connector
-    else:
-        print(print_opt_errors('dbtype'))
-        usage()
 if not args['--dbport'].isnumeric():
     print(print_opt_errors('dbport'))
     usage()
@@ -541,7 +542,7 @@ try:
         query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
             REPLACE(CAST(Job.name as CHAR(50)),' ','_') AS jobname, CAST(jobstatus as CHAR(1)) AS jobstatus, \
             joberrors, CAST(type as CHAR(1)) AS type, CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
-            starttime, endtime, priorjobid, TIMEDIFF (endtime,starttime) as runtime \
+            starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime \
             FROM Job \
             INNER JOIN Client on Job.clientid=Client.clientid \
             WHERE (endtime >= DATE_ADD(NOW(), INTERVAL -" + time + " HOUR) \
@@ -580,8 +581,8 @@ finally:
 # Crazy?  Is it worth it? Will anyone care?
 #--------------------------------------------------------------------------
 
-# Assign some lists, lengths, and totals to global variables for later
-# --------------------------------------------------------------------
+# Assign some lists, lengths, and totals to variables for later
+# -------------------------------------------------------------
 alljobids = [r['jobid'] for r in alljobrows]
 badjobids = [r['jobid'] for r in alljobrows if r['jobstatus'] in badjobset]
 numjobs = len(alljobrows)
@@ -637,7 +638,7 @@ subject = server + " - " + str(numjobs) + " " + job + " in the past " \
 if addsubjecticon == "yes":
         subject = set_subject_icon() + " " + subject
 
-# For each Ctrl job (c, g), get the Job summary text from the log table
+# For each Ctrl Job (c, g), get the Job summary text from the log table
 # ---------------------------------------------------------------------
 # - cji = Control Job Information
 # - pn_jobids = Previous/New_jobids

@@ -108,6 +108,7 @@ goodjobsicon = "=?utf-8?Q?=F0=9F=9F=A9?="    # utf-8 'green square' subject icon
 warnjobsicon = "=?UTF-8?Q?=F0=9F=9F=A7?="    # utf-8 'orange square' subject icon when all jobs are "OK", but some have errors/warnings
 # warnjobsicon = "=?UTF-8?Q?=F0=9F=9F=A8?="  # utf-8 'yellow square' subject icon when all jobs are "OK", but some have errors/warnings
 badjobsicon = "=?utf-8?Q?=F0=9F=9F=A5?="     # utf-8 'red square' subject icon when there are Jobs with errors etc
+# badjobsicon = "=?utf-8?Q?=E2=9B=94?="      # utf-8 'red circle with white hypehn' subject icon when there are Jobs with errors etc
 # badjobsicon = "=?utf-8?Q?=E2=9C=96?="      # utf-8 'black bold X' subject icon when there are Jobs with errors etc
 # badjobsicon = "=?utf-8?Q?=E2=9D=8C?="      # utf-8 'red X' subject icon when there are Jobs with errors etc
 # badjobsicon = "=?utf-8?Q?=E2=9D=97?="      # utf-8 'red !' subject icon when there are Jobs with errors etc
@@ -142,8 +143,8 @@ fontsizesumlog = "10px"         # Font size of job summaries and bad job logs
 # Set some variables
 # ------------------
 progname="Bacula Backup Report"
-version = "1.9.3"
-reldate = "June 6, 2021"
+version = "1.9.4"
+reldate = "June 9, 2021"
 badjobset = {'A', 'D', 'E', 'f', 'I'}
 valid_db_set = {'pgsql', 'mysql', 'maria'}
 prog_info = "<p style=\"font-size: 8px;\">" \
@@ -200,11 +201,19 @@ def db_connect():
 
 def pn_job_id(ctrl_jobid, p_or_n):
     'Return a Previous or New jobid for Copy and Migration Control jobs.'
-    # Given a Copy Ctrl or Migration Ctrl job's jobid, perform a re.sub
+    # Given a Copy Ctrl or Migration Ctrl job's jobid, perform a re.sub()
     # on the joblog's job summary block of 20+ lines of text using a search
     # term of 'Prev' or 'New' as 'p_or_n' and return the previous or new jobid
     # ------------------------------------------------------------------------
     return re.sub(".*" + p_or_n + " Backup JobId: +(.+?)\n.*", "\\1", ctrl_jobid['logtext'], flags = re.DOTALL)
+
+def v_job_id(vrfy_jobid):
+    'Return a "Verify JobId" for Verify jobs.'
+    # Given a Verify job's jobid, perform a re.sub on the joblog's
+    # job summary block of 20+ lines of text using a search term of
+    # 'Verify JobId:' and return the jobid of the job it verified
+    # -------------------------------------------------------------
+    return re.sub(".*Verify JobId: +(.+?)\n.*", "\\1", vrfy_jobid['logtext'], flags = re.DOTALL)
 
 def migrated_id(jobid):
     'For a given Migrated job, return the jobid that it was migrated to.'
@@ -258,7 +267,13 @@ def translate_job_type(jobtype, jobid, priorjobid, jobstatus):
         else:
             return "Migration Ctrl: " + pn_jobids[str(jobid)][0] + "->" + pn_jobids[str(jobid)][1]
 
-    return {'B': 'Backup', 'D': 'Admin', 'R': 'Restore', 'V': 'Verify'}[jobtype]
+    if jobtype == 'V':
+        if '0' in v_jobids[str(jobid)]:
+            return "Verify: No job to verify"
+        else:
+            return "Verify of " + v_jobids[str(jobid)]
+
+    return {'B': 'Backup', 'D': 'Admin', 'R': 'Restore'}[jobtype]
 
 def translate_job_status(jobstatus, joberrors):
     'jobstatus is stored in the catalog as a single character, replace with words.'
@@ -466,6 +481,9 @@ if not args['--server']:
     usage()
 else:
     server = args['--server']
+# waa - 20210607 - This test is no longer needed, it is now caught above
+#                  We just need to test for the dbtype and import the
+#                  correct db module
 if not args['--dbtype'] or args['--dbtype'] not in valid_db_set:
     print(print_opt_errors('dbtype'))
     usage()
@@ -599,6 +617,7 @@ jobswitherrors = len([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in 'R, C'])
 ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] in ('c', 'g')]
+vrfy_jobids = [r['jobid'] for r in alljobrows if r['type'] =='V']
 
 # Silly OCD string manipulations
 # ------------------------------
@@ -638,11 +657,11 @@ subject = server + " - " + str(numjobs) + " " + job + " in the past " \
 if addsubjecticon == "yes":
         subject = set_subject_icon() + " " + subject
 
-# For each Ctrl Job (c, g), get the Job summary text from the log table
-# ---------------------------------------------------------------------
+# For each Copy/Migration Control Job (c, g),
+# get the Job summary text from the log table
+# -------------------------------------------
 # - cji = Control Job Information
-# - pn_jobids = Previous/New_jobids
-# ---------------------------------
+# -------------------------------
 if len(ctrl_jobids) != 0:
     try:
         db_connect()
@@ -669,6 +688,37 @@ if len(ctrl_jobids) != 0:
     pn_jobids = {}
     for cji in cji_rows:
         pn_jobids[str(cji['jobid'])] = (pn_job_id(cji, 'Prev'), pn_job_id(cji, 'New'))
+
+# For each Verify Job (V), get the Job summary text from the log table
+# --------------------------------------------------------------------
+# - vji = Verify Job Information
+# ------------------------------
+if len(vrfy_jobids) != 0:
+    try:
+        db_connect()
+        if dbtype == 'pgsql':
+            query_str = "SELECT jobid, logtext FROM log WHERE jobid IN (" \
+            + ", ".join([str(x) for x in vrfy_jobids]) + ") AND logtext LIKE \
+            '%Termination:%' ORDER BY jobid DESC;"
+        elif dbtype in ('mysql', 'maria'):
+            query_str = "SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
+            FROM Log WHERE jobid IN (" + ", ".join([str(x) for x in vrfy_jobids]) \
+            + ") AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
+        cur.execute(query_str)
+        vji_rows = cur.fetchall()
+    except:
+        print("Problem communicating with database '" + dbname + "' while fetching verify job info.")
+        sys.exit(1)
+    finally:
+        if (conn):
+            cur.close()
+            conn.close()
+    # For each row of the returned vji_rows (Vrfy Jobs), add
+    # to the v_jobids dict as [VrfyJobid: 'Verified JobId']
+    # ------------------------------------------------------
+    v_jobids = {}
+    for vji in vji_rows:
+        v_jobids[str(vji['jobid'])] = v_job_id(vji)
 
 # Do we email all job summaries?
 # ------------------------------

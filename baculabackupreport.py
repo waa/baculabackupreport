@@ -92,7 +92,7 @@ Notes:
 # Toggles and other formatting settings
 # https://www.utf8-chartable.de/unicode-utf8-table.pl
 # ---------------------------------------------------
-centerjobname = "no"                         # Center the Job Name in HTML emails?
+centerjobname = "yes"                        # Center the Job Name in HTML emails?
 centerclientname = "yes"                     # Center the Client Name in HTML emails?
 boldjobname = "yes"                          # Bold the Job Name in HTML emails?
 boldstatus = "yes"                           # Bold the Status in HTML emails?
@@ -116,6 +116,13 @@ badjobsicon = "=?utf-8?Q?=F0=9F=9F=A5?="     # utf-8 'red square' subject icon w
 starbadjobids = "no"                         # Wrap bad Jobs jobids with asterisks "*"?
 sortfield = "JobId"                          # Which catalog DB field to sort on? hint: multiple,fields,work,here
 sortorder = "DESC"                           # Which direction to sort?
+
+# Set the columns to display and the order
+# ----------------------------------------
+cols2show = "jobid jobname client status joberrors type level jobfiles jobbytes starttime endtime runtime"
+# cols2show = "jobname client status joberrors type level jobfiles jobbytes starttime runtime jobid"
+# cols2show = "jobname jobid status type level jobfiles jobbytes starttime runtime"
+# cols2show = "jobid status jobname starttime runtime"
 
 # HTML colors
 # -----------
@@ -143,15 +150,23 @@ fontsizesumlog = "10px"         # Font size of job summaries and bad job logs
 # Set some variables
 # ------------------
 progname="Bacula Backup Report"
-version = "1.9.4"
+version = "1.9.5"
 reldate = "June 9, 2021"
-badjobset = {'A', 'D', 'E', 'f', 'I'}
-valid_db_set = {'pgsql', 'mysql', 'maria'}
 prog_info = "<p style=\"font-size: 8px;\">" \
           + progname + " - v" + version \
           + " - baculabackupreport.py<br>" \
           + "By: Bill Arlofski waa@revpol.com (c) " \
           + reldate
+badjobset = {'A', 'D', 'E', 'f', 'I'}
+valid_db_set = {'pgsql', 'mysql', 'maria'}
+valid_col_set = {
+    'jobname', 'client', 
+    'status', 'joberrors', 
+    'type', 'level', 
+    'jobfiles', 'jobbytes', 
+    'starttime', 'endtime', 
+    'runtime', 'jobid'
+    }
 
 import os
 import re
@@ -222,7 +237,7 @@ def migrated_id(jobid):
             return pn_jobids[t][1]
 
 def translate_job_type(jobtype, jobid, priorjobid, jobstatus):
-    'Job type is stored in the catalog as a single character. Do some "special" things for Copy and Migration jobs.'
+    'Job type is stored in the catalog as a single character. Do some special things for Copy and Migration jobs.'
     if jobtype == 'C' and priorjobid != '0':
         return "Copy of " + str(priorjobid)
 
@@ -615,7 +630,7 @@ total_copied_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'C']
 total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'C'])
 jobswitherrors = len([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
-runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in 'R, C'])
+runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in ('R', 'C')])
 ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] in ('c', 'g')]
 vrfy_jobids = [r['jobid'] for r in alljobrows if r['type'] =='V']
 
@@ -786,44 +801,71 @@ if emailbadlogs == "yes":
 else:
     badjoblogs = ""
 
-# Start creating the msg
-# ----------------------
+# Start creating the msg to send
+# First create the table header from the
+# cols2show variable in the order defined
+# ---------------------------------------
+c2sl = cols2show.split()
+col_hdr_dict = {
+    'jobid': "<td align=\"center\"><b>Job ID</b></td>",
+    'jobname': "<td align=\"center\"><b>Job Name</b></td>",
+    'client': "<td align=\"center\"><b>Client</b></td>",
+    'status': "<td align=\"center\"><b>Status</b></td>",
+    'joberrors': "<td align=\"center\"><b>Errors</b></td>",
+    'type': "<td align=\"center\"><b>Type</b></td>",
+    'level': "<td align=\"center\"><b>Level</b></td>",
+    'jobfiles': "<td align=\"center\"><b>Files</b></td>",
+    'jobbytes': "<td align=\"center\"><b>Bytes</b></td>",
+    'starttime': "<td align=\"center\"><b>Start Time</b></td>",
+    'endtime': "<td align=\"center\"><b>End Time</b></td>",
+    'runtime': "<td align=\"center\"><b>Run Time</b></td>"
+    }
+
 msg = "<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">" \
     + "<style>body {font-family:" + fontfamily + "; font-size:" + fontsize + ";} td {font-size:" \
     + fontsizejobinfo + ";} pre {font-size:" + fontsizesumlog + ";}</style></head><body>\n" \
     + "<table width=\"100%\" align=\"center\" border=\"1\" cellpadding=\"2\" cellspacing=\"0\">" \
-    + "<tr bgcolor=\"" + jobtableheadercolor + "\">" \
-    + "<td align=\"center\"><b>Job ID</b></td>" \
-    + "<td align=\"center\"><b>Job Name</b></td>" \
-    + "<td align=\"center\"><b>Client</b></td>" \
-    + "<td align=\"center\"><b>Status</b></td>" \
-    + "<td align=\"center\"><b>Errors</b></td>" \
-    + "<td align=\"center\"><b>Type</b></td>" \
-    + "<td align=\"center\"><b>Level</b></td>" \
-    + "<td align=\"center\"><b>Files</b></td>" \
-    + "<td align=\"center\"><b>Bytes</b></td>" \
-    + "<td align=\"center\"><b>Start Time</b></td>" \
-    + "<td align=\"center\"><b>End Time</b></td>" \
-    + "<td align=\"center\"><b>Run Time</b></td>" \
-    + "</tr>\n"
+    + "<tr bgcolor=\"" + jobtableheadercolor + "\">"
 
-# Build the job table
-# -------------------
+for colname in c2sl:
+    if colname not in valid_col_set:
+        print("\nColumn name '" + colname + "' not valid. Exiting!\n")
+        sys.exit(1)
+    msg += col_hdr_dict[colname]
+msg += "</tr>\n"
+
+# Build the job table from the colstoshow
+# variable in the order defined
+# ---------------------------------------
 for jobrow in alljobrows:
-    msg = msg + "<tr bgcolor=\"" + jobtablejobcolor + "\">" \
-        + html_format_cell(str(jobrow['jobid']), star = "*" if starbadjobids == "yes" and jobrow['jobstatus'] in badjobset else "") \
-        + html_format_cell(jobrow['jobname'], col = "name") \
-        + html_format_cell(jobrow['client'], col = "client") \
-        + html_format_cell(translate_job_status(jobrow['jobstatus'], jobrow['joberrors']), col = "status") \
-        + html_format_cell(str('{:,}'.format(jobrow['joberrors']))) \
-        + html_format_cell(translate_job_type(jobrow['type'], jobrow['jobid'], jobrow['priorjobid'], jobrow['jobstatus'])) \
-        + html_format_cell(translate_job_level(jobrow['level'], jobrow['type'])) \
-        + html_format_cell(str('{:,}'.format(jobrow['jobfiles'])), jobtype = jobrow['type'], jobstatus = jobrow['jobstatus'], col = "jobfiles") \
-        + html_format_cell(str('{:,}'.format(jobrow['jobbytes'])), jobtype = jobrow['type'], jobstatus = jobrow['jobstatus'], col = "jobbytes") \
-        + html_format_cell(str(jobrow['starttime']), col = "starttime", jobstatus = jobrow['jobstatus']) \
-        + html_format_cell(str(jobrow['endtime']), col = "endtime", jobstatus = jobrow['jobstatus']) \
-        + html_format_cell(str(jobrow['runtime']), col = "runtime") + "</tr>\n"
-msg = msg + "</table>"
+    msg = msg + "<tr bgcolor=\"" + jobtablejobcolor + "\">"
+    for colname in c2sl:
+        if colname == 'jobid':
+            msg += html_format_cell(str(jobrow['jobid']), star = "*" if starbadjobids == "yes" and jobrow['jobstatus'] in badjobset else "")
+        elif colname == 'jobname':
+            msg += html_format_cell(jobrow['jobname'], col = "name")
+        elif colname == 'client':
+            msg += html_format_cell(jobrow['client'], col = "client")
+        elif colname == 'status':
+            msg+= html_format_cell(translate_job_status(jobrow['jobstatus'], jobrow['joberrors']), col = "status")
+        elif colname == 'joberrors':
+            msg += html_format_cell(str('{:,}'.format(jobrow['joberrors'])))
+        elif colname == 'type':
+            msg += html_format_cell(translate_job_type(jobrow['type'], jobrow['jobid'], jobrow['priorjobid'], jobrow['jobstatus']))
+        elif colname == 'level':
+            msg += html_format_cell(translate_job_level(jobrow['level'], jobrow['type']))
+        elif colname == 'jobfiles':
+            msg += html_format_cell(str('{:,}'.format(jobrow['jobfiles'])), jobtype = jobrow['type'], jobstatus = jobrow['jobstatus'], col = "jobfiles") 
+        elif colname == 'jobbytes':
+            msg += html_format_cell(str('{:,}'.format(jobrow['jobbytes'])), jobtype = jobrow['type'], jobstatus = jobrow['jobstatus'], col = "jobbytes")
+        elif colname == 'starttime':
+            msg += html_format_cell(str(jobrow['starttime']), col = "starttime", jobstatus = jobrow['jobstatus'])
+        elif colname == 'endtime':
+            msg += html_format_cell(str(jobrow['endtime']), col = "endtime", jobstatus = jobrow['jobstatus'])
+        elif colname == 'runtime':
+            msg += html_format_cell(str(jobrow['runtime']), col = "runtime")
+    msg += "</tr>\n"
+msg += "</table>"
 
 # Email the summary table?
 # ------------------------

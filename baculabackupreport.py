@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+#
 # ---------------------------------------------------------------------------
 # - 20210426 - baculabackupreport.py v1.0 - Initial release
 # ---------------------------------------------------------------------------
@@ -54,8 +55,7 @@
 # ----------------------------------------------------------------------------
 
 # Toggles and other formatting settings
-# https://www.utf8-chartable.de/unicode-utf8-table.pl
-# ---------------------------------------------------
+# -------------------------------------
 centerjobname = 'yes'                        # Center the Job Name in HTML emails?
 centerclientname = 'yes'                     # Center the Client Name in HTML emails?
 boldjobname = 'yes'                          # Bold the Job Name in HTML emails?
@@ -65,6 +65,13 @@ emailjobsummaries = 'no'                     # Email all Job summaries? Be caref
 emailbadlogs = 'no'                          # Email logs of bad Jobs? Be careful with this, it can generate very large emails.
 addsubjecticon = 'yes'                       # Prepend the email Subject with UTF-8 icons? See (no|good|warn|bad)jobsicon variables below
 addsubjectrunningorcreated = 'yes'           # Append "(## Jobs still runnning/queued)" to Subject if running or queued Jobs > 0?
+starbadjobids = 'no'                         # Wrap bad Jobs jobids with asterisks "*"?
+sortfield = 'JobId'                          # Which catalog DB field to sort on? hint: multiple,fields,work,here
+sortorder = 'DESC'                           # Which direction to sort?
+
+# Set some utf-8 icon to prepend the subject with
+# https://www.utf8-chartable.de/unicode-utf8-table.pl
+# ---------------------------------------------------
 nojobsicon = '=?utf-8?Q?=F0=9F=9A=AB?='      # utf-8 'no entry sign' subject icon when no Jobs have been run
 goodjobsicon = '=?utf-8?Q?=F0=9F=9F=A9?='    # utf-8 'green square' subject icon when there are Jobs with errors etc
 # goodjobsicon = '=?UTF-8?Q?=E2=9C=85?='     # utf-8 'white checkmark in green box' subject icon when all Jobs were "OK"
@@ -77,16 +84,17 @@ badjobsicon = '=?utf-8?Q?=F0=9F=9F=A5?='     # utf-8 'red square' subject icon w
 # badjobsicon = '=?utf-8?Q?=E2=9D=8C?='      # utf-8 'red X' subject icon when there are Jobs with errors etc
 # badjobsicon = '=?utf-8?Q?=E2=9D=97?='      # utf-8 'red !' subject icon when there are Jobs with errors etc
 # badjobsicon = '=?utf-8?Q?=E2=98=B9?='      # utf-8 'sad face' subject icon when there are Jobs with errors etc
-starbadjobids = 'no'                         # Wrap bad Jobs jobids with asterisks "*"?
-sortfield = 'JobId'                          # Which catalog DB field to sort on? hint: multiple,fields,work,here
-sortorder = 'DESC'                           # Which direction to sort?
 
-# Set the columns to display and the order
-# ----------------------------------------
+# Set the columns to display and their order
+# ------------------------------------------
 cols2show = 'jobid jobname client status joberrors type level jobfiles jobbytes starttime endtime runtime'
-# cols2show = 'jobname client status joberrors type level jobfiles jobbytes starttime runtime jobid'
+# cols2show = 'jobname jobid client status joberrors type level jobfiles jobbytes starttime runtime'
 # cols2show = 'jobname jobid status type level jobfiles jobbytes starttime runtime'
-# cols2show = 'jobid status jobname starttime runtime'
+cols2show = 'status jobid jobname starttime endtime runtime'
+
+# Set the column to colorize for jobs that are always failing
+# -----------------------------------------------------------
+alwaysfailcolumn = 'jobname'  # Column to colorize for "always failing jobs" - column name, row, none
 
 # HTML colors
 # -----------
@@ -99,6 +107,8 @@ goodjobcolor = '#00f000'        # Background color of the Status cell for "OK" j
 badjobcolor = '#cc3300'         # Background color of the Status cell for "Bad" jobs
 warnjobcolor = '#ffc800'        # Background color of the Status cell for "Backup OK -- with warnings" jobs
 errorjobcolor = '#cc3300'       # Background color of the Status cell for jobs with errors
+alwaysfailcolor = '#ff9999'     # Background color of the entire row for "always failing in the past 'days' days" jobs
+alwaysfailcolor = '#ebd32a'     # Background color of the entire row for "always failing in the past 'days' days" jobs
 
 # HTML fonts
 # ----------
@@ -111,24 +121,8 @@ fontsizesumlog = '10px'         # Font size of job summaries and bad job logs
 # Nothing should need to be modified below this line
 # --------------------------------------------------
 
-# Set some variables
-# ------------------
-progname='Bacula Backup Report'
-version = '1.9.5'
-reldate = 'June 9, 2021'
-prog_info = '<p style="font-size: 8px;">' \
-          + progname + ' - v' + version \
-          + ' - baculabackupreport.py<br>' \
-          + 'By: Bill Arlofski waa@revpol.com (c) ' \
-          + reldate
-badjobset = {'A', 'D', 'E', 'f', 'I'}
-valid_db_set = {'pgsql', 'mysql', 'maria'}
-valid_col_set = {
-    'jobname', 'client', 'status', 'joberrors', 
-    'type', 'level', 'jobfiles', 'jobbytes', 
-    'starttime', 'endtime', 'runtime', 'jobid'
-    }
-
+# Import the required modules
+# ---------------------------
 import os
 import re
 import sys
@@ -136,8 +130,26 @@ import smtplib
 from docopt import docopt
 from socket import gaierror
 
+# Set some variables
+# ------------------
+progname='Bacula Backup Report'
+version = '1.9.6'
+reldate = 'June 13, 2021'
+prog_info = '<p style="font-size: 8px;">' \
+          + progname + ' - v' + version \
+          + ' - baculabackupreport.py<br>' \
+          + 'By: Bill Arlofski waa@revpol.com (c) ' \
+          + reldate + '</body></html>'
+badjobset = {'A', 'D', 'E', 'f', 'I'}
+valid_db_set = {'pgsql', 'mysql', 'maria'}
+valid_col_set = [
+    'jobid', 'jobname', 'client', 'status',
+    'joberrors', 'type', 'level', 'jobfiles',
+    'jobbytes', 'starttime', 'endtime', 'runtime'
+    ]
+
 def usage():
-    'Should be self-explanatory.'
+    'Show the instructions'
     print(doc_str)
     sys.exit(1)
 
@@ -158,7 +170,7 @@ def print_opt_errors(opt):
     'Print the command line option passed and the reason it is incorrect.'
     if opt in {'server', 'dbname', 'dbhost', 'dbuser', 'smtpserver'}:
         return '\nThe \'' + opt + '\' variable must not be empty.'
-    elif opt in {'time', 'smtpport', 'dbport'}:
+    elif opt in {'time', 'days', 'smtpport', 'dbport'}:
         return '\nThe \'' + opt + '\' variable must not be empty and must be an integer.'
     elif opt in {'email', 'fromemail'}:
         return '\nThe \'' + opt + '\' variable is either empty or it does not look like a valid email address.'
@@ -212,7 +224,7 @@ def translate_job_type(jobtype, jobid, priorjobid, jobstatus):
         # though nothing is migrated. https://bugs.bacula.org/view.php?id=2619
         # --------------------------------------------------------------------------------------
         if 'pn_jobids' in globals() and migrated_id(jobid) != '0':
-            return "Migrated to " + migrated_id(jobid)
+            return 'Migrated to ' + migrated_id(jobid)
         elif 'pn_jobids' in globals() and migrated_id(jobid) == '0':
             return 'Nothing to migrate'
         else:
@@ -279,7 +291,7 @@ def translate_job_level(joblevel, jobtype):
     return {' ': '----', '-': 'Base', 'A': 'VVol', 'C': 'VCat', 'd': 'VD2C',
             'D': 'Diff', 'f': 'VFul', 'F': 'Full', 'I': 'Incr', 'O': 'VV2C', 'V': 'Init'}[joblevel]
 
-def html_format_cell(content, bgcolor = jobtablejobcolor, star = '', col = '', jobstatus = '', jobtype = ''):
+def html_format_cell(content, bgcolor = '', star = '', col = '', jobstatus = '', jobtype = ''):
     'Format/modify some table cells based on settings and conditions.'
     # Set default tdo and tdc to wrap each cell
     # -----------------------------------------
@@ -287,35 +299,41 @@ def html_format_cell(content, bgcolor = jobtablejobcolor, star = '', col = '', j
     tdc = '</td>'
 
     # Colorize the Status cell?
-    # -------------------------
-    if colorstatusbg == 'yes' and col == 'status':
-        if jobrow['jobstatus'] == 'C':
-            bgcolor = createdjobcolor
-        elif jobrow['jobstatus'] == 'E':
-            bgcolor = errorjobcolor
-        elif jobrow['jobstatus'] == 'T':
-            if jobrow['joberrors'] == 0:
-                bgcolor = goodjobcolor
-            else:
+    # Even if yes, don't override the table
+    # row bgcolor if alwaysfailcolumn is 'row'
+    # ----------------------------------------
+    if not (alwaysfail == 'yes' and alwaysfailcolumn == 'row'):
+        if colorstatusbg == 'yes' and col == 'status':
+            if jobrow['jobstatus'] == 'C':
+                bgcolor = createdjobcolor
+            elif jobrow['jobstatus'] == 'E':
+                bgcolor = errorjobcolor
+            elif jobrow['jobstatus'] == 'T':
+                if jobrow['joberrors'] == 0:
+                    bgcolor = goodjobcolor
+                else:
+                    bgcolor = warnjobcolor
+            elif jobrow['jobstatus'] in badjobset:
+                bgcolor = badjobcolor
+            elif jobrow['jobstatus'] == 'R':
+                bgcolor = runningjobcolor
+            elif jobrow['jobstatus'] == 'I':
                 bgcolor = warnjobcolor
-        elif jobrow['jobstatus'] in badjobset:
-            bgcolor = badjobcolor
-        elif jobrow['jobstatus'] == 'R':
-            bgcolor = runningjobcolor
-        elif jobrow['jobstatus'] == 'I':
-            bgcolor = warnjobcolor
         tdo = '<td align="center" bgcolor="' + bgcolor + '">'
+
+    if alwaysfail == 'yes' and col == alwaysfailcolumn:
+        tdo = '<td align="center" bgcolor="' + alwaysfailcolor + '">'
 
     # Center the Client name and Job name?
     # -------------------------------------
-    if col == 'name' and centerjobname != 'yes':
+    if col == 'jobname' and centerjobname != 'yes':
         tdo = '<td align="left">'
     if col == 'client' and centerclientname != 'yes':
         tdo = '<td align="left">'
 
     # Set the Job name and Status cells bold?
     # ---------------------------------------
-    if col == 'name' and boldjobname == 'yes':
+    if col == 'jobname' and boldjobname == 'yes':
         tdo += '<b>'
         tdc = '</b>' + tdc
     if col == 'status' and boldstatus == 'yes':
@@ -376,7 +394,7 @@ def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, s
     # Thank you to Aleksandr Varnin for this short and simple to implement solution
     # https://blog.mailtrap.io/sending-emails-in-python-tutorial-with-code-examples
     # -----------------------------------------------------------------------------
-    message = f'''Content-Type: text/html\nMIME-Version: 1.0\nTo: {email}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}'''
+    message = f"""Content-Type: text/html\nMIME-Version: 1.0\nTo: {email}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}"""
     try:
         with smtplib.SMTP(smtpserver, smtpport) as server:
             if smtpuser != '' and smtppass != '':
@@ -393,9 +411,16 @@ def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, s
         print('Error was: ' + str(e))
         sys.exit(1)
 
+# def add_cp_mg_to_alljobids(copymigratejobids):
+#     'For each Copy/Migration Ctrl jobid (c,g), find the job it copied/migrated, and append it to the alljobids list'
+# TODO - See notes. This feature will be for jobs that have been
+#        copied/migrated, but their original, inherited 'endtime'
+#        is older than the 'time' hours we initially queried for
+# ---------------------------------------------------------------
+
 doc_str = """
 Usage:
-    baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-c <client>] [-j <jobname>]
+    baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-d <days>] [-c <client>] [-j <jobname>]
                           [--dbtype <dbtype>] [--dbport <dbport>] [--dbhost <dbhost>] [--dbname <dbname>]
                           [--dbuser <dbuser>] [--dbpass <dbpass>]
                           [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
@@ -407,6 +432,7 @@ Options:
     -f, --fromemail <fromemail>       Email address to be set in the From: field of the email
     -s, --server <server>             Name of the Bacula Server [default: Bacula]
     -t, --time <time>                 Time to report on in hours [default: 24]
+    -d, --days <days>                 Days to check for "Always failing jobs" [default: 7]
     -c, --client <client>             Client to report on using SQL 'LIKE client' [default: %] (all clients)
     -j, --jobname <jobname>           Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
     --dbtype (pgsql | mysql | maria)  Database type [default: pgsql]
@@ -430,16 +456,37 @@ Notes:
 
 """
 
-# def add_cp_mg_to_alljobids(copymigratejobids):
-#     'For each Copy/Migration Ctrl jobid (c,g), find the job it copied/migrated, and append it to the alljobids list'
-# TODO - See notes. This feature will be for jobs that have been
-#        copied/migrated, but their original, inherited 'endtime'
-#        is older than the 'time' hours we initially queried for
-# ---------------------------------------------------------------
-
 # Assign command line variables using docopt
 # ------------------------------------------
 args = docopt(doc_str, version='\n' + progname + ' - v' + version + '\n' + reldate + '\n')
+
+# Verify that the columns in cols2show are
+# all valid and that the alwaysfailcolumn
+# is also valid before we do anything else
+# ----------------------------------------
+c2sl = cols2show.split()
+if not all(item in valid_col_set for item in c2sl):
+    print('\nThe \'cols2show\' variable is not valid!\n')
+    print('Current \'cols2show\' : ' + cols2show)
+    print('Valid columns are: ' + ' '.join(valid_col_set))
+    usage()
+
+if (alwaysfailcolumn not in c2sl or alwaysfailcolumn not in valid_col_set) and alwaysfailcolumn not in ('row', 'none'):
+    print('\n\'alwaysfailcolumn\' name \'' + alwaysfailcolumn + '\' not valid or not in cols2show.')
+    print('\nValid settings for \'alwaysfailcolumn\' are: ' + ' '.join(valid_col_set) + ' none row')
+    print('\nWith current \'cols2show\' setting, valid settings for \'alwaysfailcolumn\' are: ' + cols2show + ' none row')
+    usage()
+elif alwaysfailcolumn == 'row':
+    alwaysfailcolumn_str = 'entire row'
+else:
+    if alwaysfailcolumn == 'joberrors':
+        alwaysfailcolumn_str = 'errors column'
+    elif alwaysfailcolumn == 'jobfiles':
+        alwaysfailcolumn_str = 'files column'
+    elif alwaysfailcolumn == 'jobbytes':
+        alwaysfailcolumn_str = 'bytes column'
+    else:
+        alwaysfailcolumn_str = alwaysfailcolumn + ' column'
 
 # Set the default ports for the different databases if not set on command line
 # ----------------------------------------------------------------------------
@@ -454,7 +501,7 @@ elif args['--dbtype'] not in valid_db_set:
 # Need to assign/re-assign args[] vars based on cli vs env vs defaults
 # --------------------------------------------------------------------
 for ced_tup in [
-    ('--time', 'TIME'), ('--email', 'EMAIL'),
+    ('--time', 'TIME'), ('--days', 'DAYS'), ('--email', 'EMAIL'),
     ('--client', 'CLIENT'), ('--server', 'SERVER'),
     ('--dbtype', 'DBTYPE'), ('--dbport', 'DBPORT'),
     ('--dbhost', 'DBHOST'), ('--dbname', 'DBNAME'),
@@ -484,6 +531,11 @@ if not args['--time'].isnumeric():
     usage()
 else:
     time = args['--time']
+if not args['--days'].isnumeric():
+    print(print_opt_errors('days'))
+    usage()
+else:
+    days = args['--days']
 if not args['--smtpport'].isnumeric():
     print(print_opt_errors('smtpport'))
     usage()
@@ -553,9 +605,9 @@ if args['--smtppass'] == None:
 else:
     smtppass = args['--smtppass']
 
-# Connect to database and
-# query for all matching jobs
-# ---------------------------
+# Connect to database and query for all
+# matching jobs in the past 'time' hours
+# --------------------------------------
 try:
     db_connect()
     if dbtype == 'pgsql':
@@ -564,7 +616,7 @@ try:
             PriorJobId, AGE(EndTime, StartTime) AS RunTime \
             FROM Job \
             INNER JOIN Client on Job.ClientID=Client.ClientID \
-            WHERE (EndTime >= CURRENT_TIMESTAMP(2) - cast('" + time + "HOUR' as INTERVAL) \
+            WHERE (EndTime >= CURRENT_TIMESTAMP(2) - cast('" + time + " HOUR' as INTERVAL) \
             OR (JobStatus='R' OR JobStatus='C')) \
             AND Client.Name LIKE '" + client + "' \
             AND Job.Name LIKE '" + jobname + "' \
@@ -632,8 +684,8 @@ runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in 
 ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] in ('c', 'g')]
 vrfy_jobids = [r['jobid'] for r in alljobrows if r['type'] =='V']
 
-# Silly OCD string manipulations
-# ------------------------------
+# More silly OCD string manipulations
+# -----------------------------------
 hour = 'hour' if time == 1 else 'hours'
 jobstr = 'all jobs' if jobname == '%' else 'jobname \'' + jobname + '\''
 clientstr = 'all clients' if client == '%' else 'client \'' + client + '\''
@@ -652,6 +704,35 @@ else:
     # More silly OCD string manipulations
     # -----------------------------------
     job = 'job' if numjobs == 1 else 'jobs'
+
+# Get a list of jobs that have always failed for the
+# past 'days' days so that we can display a column
+# or their entire row in the 'alwaysfailcolor' color
+# --------------------------------------------------
+try:
+    db_connect()
+    if dbtype == 'pgsql':
+        query_str = "SELECT JobId, REPLACE(Job.Name,' ','_') AS JobName, JobStatus \
+        FROM Job WHERE endtime >= (NOW()) - (INTERVAL '" + days + " DAY') ORDER BY jobid DESC;"
+    elif dbtype in ('mysql', 'maria'):
+        query_str = "SELECT jobid, REPLACE(CAST(Job.name as CHAR(50)),' ','_') AS jobname, \
+        CAST(jobstatus as CHAR(1)) AS jobstatus FROM Job \
+        WHERE (endtime >= DATE_ADD(NOW(), INTERVAL -" + days + " DAY) ORDER BY jobid DESC;"
+    cur.execute(query_str)
+    alldaysjobrows = cur.fetchall()
+except:
+    print('Problem communicating with database \'' + dbname + '\' while fetching all jobs for "Always failing jobs" list.')
+    sys.exit(1)
+finally:
+    if (conn):
+        cur.close()
+        conn.close()
+
+# These are specific only to the "Always failing jobs" features
+# -------------------------------------------------------------
+good_days_jobs = [r['jobname'] for r in alldaysjobrows if r['jobstatus'] == 'T']
+unique_bad_days_jobs = {r['jobname'] for r in alldaysjobrows if r['jobstatus'] not in ('T', 'R', 'C')}
+always_fail_jobs = list(set(unique_bad_days_jobs).difference(good_days_jobs))
 
 # Do we append the 'Running or Created' message to the Subject?
 # -------------------------------------------------------------
@@ -800,58 +881,93 @@ else:
     badjoblogs = ''
 
 # Start creating the msg to send
-# First create the table header from the columns
-# in the cols2show variable in the order defined
-# ----------------------------------------------
-c2sl = cols2show.split()
+# ------------------------------
+# First create a dictionary of column name to html strings
+# so that they may be used in any order in the jobs table
+# --------------------------------------------------------
 col_hdr_dict = {
-    'jobid': '<td align="center"><b>Job ID</b></td>',
-    'jobname': '<td align="center"><b>Job Name</b></td>',
-    'client': '<td align="center"><b>Client</b></td>',
-    'status': '<td align="center"><b>Status</b></td>',
+    'jobid':     '<td align="center"><b>Job ID</b></td>',
+    'jobname':   '<td align="center"><b>Job Name</b></td>',
+    'client':    '<td align="center"><b>Client</b></td>',
+    'status':    '<td align="center"><b>Status</b></td>',
     'joberrors': '<td align="center"><b>Errors</b></td>',
-    'type': '<td align="center"><b>Type</b></td>',
-    'level': '<td align="center"><b>Level</b></td>',
-    'jobfiles': '<td align="center"><b>Files</b></td>',
-    'jobbytes': '<td align="center"><b>Bytes</b></td>',
+    'type':      '<td align="center"><b>Type</b></td>',
+    'level':     '<td align="center"><b>Level</b></td>',
+    'jobfiles':  '<td align="center"><b>Files</b></td>',
+    'jobbytes':  '<td align="center"><b>Bytes</b></td>',
     'starttime': '<td align="center"><b>Start Time</b></td>',
-    'endtime': '<td align="center"><b>End Time</b></td>',
-    'runtime': '<td align="center"><b>Run Time</b></td>'
+    'endtime':   '<td align="center"><b>End Time</b></td>',
+    'runtime':   '<td align="center"><b>Run Time</b></td>'
     }
 
 msg = '<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' \
     + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
-    + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n' \
-    + '<table width="100%" align="center" border="1" cellpadding="2" cellspacing="0">' \
-    + '<tr bgcolor="' + jobtableheadercolor + '">'
+    + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n'
 
+# Are we going to be highlighting Jobs that are always failing?
+# If yes, let's build the banner and add it to the to beginning
+# -------------------------------------------------------------
+if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
+    # Some silly OCD string manipulations
+    # -----------------------------------
+    if len(always_fail_jobs) == 1:
+        job = 'job'
+        have = 'has'
+    else:
+        job = 'jobs'
+        have = 'have'
+    msg += '<br><table align="left" border="0" cellpadding="2" cellspacing="0">' \
+        +'<tr><td style="font-size: 14px;" bgcolor="' + alwaysfailcolor \
+        + '"><b>The ' + str(len(always_fail_jobs)) + ' ' + job + ' who\'s ' \
+        + alwaysfailcolumn_str + ' has this background color ' + have \
+        + ' always failed in the past ' + days + ' days</b></td></tr></table><br><br>'
+
+# Create the table header from the columns in the
+# cols2show variable in the order they are defined
+# ------------------------------------------------
+msg += '<table width="100%" align="center" border="1" cellpadding="2" cellspacing="0">' \
+    + '<tr bgcolor="' + jobtableheadercolor + '">'
 for colname in c2sl:
     if colname not in valid_col_set:
         print('\nColumn name \'' + colname + '\' not valid. Exiting!\n')
-        sys.exit(1)
+        print('Valid columns are: ' + ', '.join(valid_col_set))
+        usage()
     msg += col_hdr_dict[colname]
 msg += '</tr>\n'
 
-# Build the jobs table from the columns in
-# the colstoshow variable in the order defined
-# --------------------------------------------
+# Build the jobs table from the columns in the
+# cols2show variable in the order they are defined
+# ------------------------------------------------
 for jobrow in alljobrows:
-    msg = msg + '<tr bgcolor="' + jobtablejobcolor + '">'
+    # If this job is always failing, set the alwaysfail variable
+    # ----------------------------------------------------------
+    if len(always_fail_jobs) != 0 and jobrow['jobname'] in always_fail_jobs:
+        alwaysfail = 'yes'
+    else:
+        alwaysfail = 'no'
+
+    # Set the job row's bgcolor
+    # -------------------------
+    if alwaysfail == 'yes' and alwaysfailcolumn == 'row':
+        msg += '<tr bgcolor="' + alwaysfailcolor + '">'
+    else:
+        msg += '<tr bgcolor="' + jobtablejobcolor + '">'
+
     for colname in c2sl:
         if colname == 'jobid':
-            msg += html_format_cell(str(jobrow['jobid']), star = '*' if starbadjobids == 'yes' and jobrow['jobstatus'] in badjobset else '')
+            msg += html_format_cell(str(jobrow['jobid']), col = 'jobid', star = '*' if starbadjobids == 'yes' and jobrow['jobstatus'] in badjobset else '')
         elif colname == 'jobname':
-            msg += html_format_cell(jobrow['jobname'], col = 'name')
+            msg += html_format_cell(jobrow['jobname'], col = 'jobname')
         elif colname == 'client':
             msg += html_format_cell(jobrow['client'], col = 'client')
         elif colname == 'status':
             msg+= html_format_cell(translate_job_status(jobrow['jobstatus'], jobrow['joberrors']), col = 'status')
         elif colname == 'joberrors':
-            msg += html_format_cell(str('{:,}'.format(jobrow['joberrors'])))
+            msg += html_format_cell(str('{:,}'.format(jobrow['joberrors'])), col = 'joberrors')
         elif colname == 'type':
-            msg += html_format_cell(translate_job_type(jobrow['type'], jobrow['jobid'], jobrow['priorjobid'], jobrow['jobstatus']))
+            msg += html_format_cell(translate_job_type(jobrow['type'], jobrow['jobid'], jobrow['priorjobid'], jobrow['jobstatus']), col = 'type')
         elif colname == 'level':
-            msg += html_format_cell(translate_job_level(jobrow['level'], jobrow['type']))
+            msg += html_format_cell(translate_job_level(jobrow['level'], jobrow['type']), col = 'level')
         elif colname == 'jobfiles':
             msg += html_format_cell(str('{:,}'.format(jobrow['jobfiles'])), jobtype = jobrow['type'], jobstatus = jobrow['jobstatus'], col = 'jobfiles') 
         elif colname == 'jobbytes':

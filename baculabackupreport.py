@@ -90,7 +90,7 @@ badjobsicon = '=?utf-8?Q?=F0=9F=9F=A5?='     # utf-8 'red square' subject icon w
 cols2show = 'jobid jobname client status joberrors type level jobfiles jobbytes starttime endtime runtime'
 # cols2show = 'jobname jobid client status joberrors type level jobfiles jobbytes starttime runtime'
 # cols2show = 'jobname jobid status type level jobfiles jobbytes starttime runtime'
-cols2show = 'status jobid jobname starttime endtime runtime'
+# cols2show = 'status jobid jobname starttime endtime runtime'
 
 # Set the column to colorize for jobs that are always failing
 # -----------------------------------------------------------
@@ -133,8 +133,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.9.6'
-reldate = 'June 13, 2021'
+version = '1.9.7'
+reldate = 'June 14, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - baculabackupreport.py<br>' \
@@ -667,6 +667,7 @@ finally:
 # Assign some lists, lengths, and totals to variables for later
 # -------------------------------------------------------------
 alljobids = [r['jobid'] for r in alljobrows]
+alljobnames = [r['jobname'] for r in alljobrows]
 badjobids = [r['jobid'] for r in alljobrows if r['jobstatus'] in badjobset]
 numjobs = len(alljobrows)
 numbadjobs = len(badjobids)
@@ -721,7 +722,7 @@ try:
     cur.execute(query_str)
     alldaysjobrows = cur.fetchall()
 except:
-    print('Problem communicating with database \'' + dbname + '\' while fetching all jobs for "Always failing jobs" list.')
+    print('Problem communicating with database \'' + dbname + '\' while fetching "Always failing jobs" list.')
     sys.exit(1)
 finally:
     if (conn):
@@ -732,7 +733,7 @@ finally:
 # -------------------------------------------------------------
 good_days_jobs = [r['jobname'] for r in alldaysjobrows if r['jobstatus'] == 'T']
 unique_bad_days_jobs = {r['jobname'] for r in alldaysjobrows if r['jobstatus'] not in ('T', 'R', 'C')}
-always_fail_jobs = list(set(unique_bad_days_jobs).difference(good_days_jobs))
+always_fail_jobs = set(unique_bad_days_jobs.difference(good_days_jobs)).intersection(alljobnames)
 
 # Do we append the 'Running or Created' message to the Subject?
 # -------------------------------------------------------------
@@ -749,7 +750,7 @@ subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
         + str(jobswitherrors) + ' with errors, for ' + clientstr + ', and ' \
         + jobstr + runningorcreatedsubject
 if addsubjecticon == 'yes':
-        subject = set_subject_icon() + ' ' + subject
+    subject = set_subject_icon() + ' ' + subject
 
 # For each Copy/Migration Control Job (c, g),
 # get the Job summary text from the log table

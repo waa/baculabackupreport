@@ -68,3 +68,10 @@ Notes:
 
 #### Sample four: Shows the tail end of the (optional) summary/totals table followed by the (optional) 'bad' Jobs logs:
 ![baculabackupreport-Sample_4-2021-05-06_16-49](https://user-images.githubusercontent.com/108133/117374978-65690280-ae8b-11eb-8b8a-3e7b82a1f0f7.png)
+
+#### Sample five: Shows the "always failing jobs" feature. Jobs that have been only/always failing in the past "-d days" (default 7) can have any column or their entire row  highlighted.
+![AlwaysFailingJobsBannerExample-2021-06-14_17-36](https://user-images.githubusercontent.com/108133/121972471-6f0e4180-cd38-11eb-8a42-3fdfe0d90f19.png)
+
+#### Sample six: Shows the "always failing jobs" feature along with the ability to choose any columns and display them in any order
+![AlwaysFailingJobsBannerAndColumnExample-2021-06-14_17-36](https://user-images.githubusercontent.com/108133/121972574-a67cee00-cd38-11eb-9266-b7b9617d8eab.png)
+

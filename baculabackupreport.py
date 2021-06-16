@@ -56,18 +56,18 @@
 
 # Toggles and other formatting settings
 # -------------------------------------
-centerjobname = 'yes'                        # Center the Job Name in HTML emails?
-centerclientname = 'yes'                     # Center the Client Name in HTML emails?
-boldjobname = 'yes'                          # Bold the Job Name in HTML emails?
-boldstatus = 'yes'                           # Bold the Status in HTML emails?
-emailsummary = 'yes'                         # Print a short summary after the Job list table? (Total Jobs, Files, Bytes, etc)
-emailjobsummaries = 'no'                     # Email all Job summaries? Be careful with this, it can generate very large emails
-emailbadlogs = 'no'                          # Email logs of bad Jobs? Be careful with this, it can generate very large emails.
-addsubjecticon = 'yes'                       # Prepend the email Subject with UTF-8 icons? See (no|good|warn|bad)jobsicon variables below
-addsubjectrunningorcreated = 'yes'           # Append "(## Jobs still runnning/queued)" to Subject if running or queued Jobs > 0?
-starbadjobids = 'no'                         # Wrap bad Jobs jobids with asterisks "*"?
-sortfield = 'JobId'                          # Which catalog DB field to sort on? hint: multiple,fields,work,here
-sortorder = 'DESC'                           # Which direction to sort?
+centerjobname = 'yes'               # Center the Job Name in HTML emails?
+centerclientname = 'yes'            # Center the Client Name in HTML emails?
+boldjobname = 'yes'                 # Bold the Job Name in HTML emails?
+boldstatus = 'yes'                  # Bold the Status in HTML emails?
+emailsummary = 'yes'                # Print a short summary after the Job list table? (Total Jobs, Files, Bytes, etc)
+emailjobsummaries = 'no'            # Email all Job summaries? Be careful with this, it can generate very large emails
+emailbadlogs = 'no'                 # Email logs of bad Jobs? Be careful with this, it can generate very large emails.
+addsubjecticon = 'yes'              # Prepend the email Subject with UTF-8 icons? See (no|good|warn|bad)jobsicon variables below
+addsubjectrunningorcreated = 'yes'  # Append "(## Jobs still runnning/queued)" to Subject if running or queued Jobs > 0?
+starbadjobids = 'no'                # Wrap bad Jobs jobids with asterisks "*"?
+sortfield = 'JobId'                 # Which catalog DB field to sort on? hint: multiple,fields,work,here
+sortorder = 'DESC'                  # Which direction to sort?
 
 # Set some utf-8 icon to prepend the subject with
 # https://www.utf8-chartable.de/unicode-utf8-table.pl
@@ -88,6 +88,8 @@ badjobsicon = '=?utf-8?Q?=F0=9F=9F=A5?='     # utf-8 'red square' subject icon w
 # Set the columns to display and their order
 # ------------------------------------------
 cols2show = 'jobid jobname client status joberrors type level jobfiles jobbytes starttime endtime runtime'
+# cols2show = 'jobid jobname client status joberrors type level jobfiles jobbytes endtime runtime'
+# cols2show = 'jobid jobname status joberrors type level jobfiles jobbytes endtime runtime'
 # cols2show = 'jobname jobid client status joberrors type level jobfiles jobbytes starttime runtime'
 # cols2show = 'jobname jobid status type level jobfiles jobbytes starttime runtime'
 # cols2show = 'status jobid jobname starttime endtime runtime'
@@ -98,17 +100,16 @@ alwaysfailcolumn = 'jobname'  # Column to colorize for "always failing jobs" - c
 
 # HTML colors
 # -----------
-colorstatusbg = 'yes'           # Colorize the Status cell's background?
-jobtablejobcolor = '#d4d4d4'    # Background color for the job rows in the HTML table
-jobtableheadercolor= '#b0b0b0'  # Background color for the HTML table's header
-runningjobcolor = '#4d79ff'     # Background color of the Status cell for "Running" jobs
-createdjobcolor = '#add8e6'     # Background color of the Status cell for "Created, but not yet running" jobs
-goodjobcolor = '#00f000'        # Background color of the Status cell for "OK" jobs
-badjobcolor = '#cc3300'         # Background color of the Status cell for "Bad" jobs
-warnjobcolor = '#ffc800'        # Background color of the Status cell for "Backup OK -- with warnings" jobs
-errorjobcolor = '#cc3300'       # Background color of the Status cell for jobs with errors
-alwaysfailcolor = '#ff9999'     # Background color of the entire row for "always failing in the past 'days' days" jobs
-alwaysfailcolor = '#ebd32a'     # Background color of the entire row for "always failing in the past 'days' days" jobs
+colorstatusbg = 'yes'            # Colorize the Status cell's background?
+jobtablejobcolor = '#d4d4d4'     # Background color for the job rows in the HTML table
+jobtableheadercolor = '#b0b0b0'  # Background color for the HTML table's header
+runningjobcolor = '#4d79ff'      # Background color of the Status cell for "Running" jobs
+createdjobcolor = '#add8e6'      # Background color of the Status cell for "Created, but not yet running" jobs
+goodjobcolor = '#00f000'         # Background color of the Status cell for "OK" jobs
+badjobcolor = '#cc3300'          # Background color of the Status cell for "Bad" jobs
+warnjobcolor = '#ffc800'         # Background color of the Status cell for "Backup OK -- with warnings" jobs
+errorjobcolor = '#cc3300'        # Background color of the Status cell for jobs with errors
+alwaysfailcolor = '#ebd32a'      # Background color of the entire row for "always failing in the past 'days' days" jobs
 
 # HTML fonts
 # ----------
@@ -133,20 +134,38 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.9.7'
-reldate = 'June 14, 2021'
+version = '1.9.8'
+reldate = 'June 15, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - baculabackupreport.py<br>' \
           + 'By: Bill Arlofski waa@revpol.com (c) ' \
           + reldate + '</body></html>'
 badjobset = {'A', 'D', 'E', 'f', 'I'}
-valid_db_set = {'pgsql', 'mysql', 'maria'}
-valid_col_set = [
+valid_db_lst = ['pgsql', 'mysql', 'maria']
+valid_col_lst = [
     'jobid', 'jobname', 'client', 'status',
     'joberrors', 'type', 'level', 'jobfiles',
     'jobbytes', 'starttime', 'endtime', 'runtime'
     ]
+
+# Create a dictionary of column name to html strings
+# so that they may be used in any order in the jobs table
+# -------------------------------------------------------
+col_hdr_dict = {
+    'jobid':     '<td align="center"><b>Job ID</b></td>',
+    'jobname':   '<td align="center"><b>Job Name</b></td>',
+    'client':    '<td align="center"><b>Client</b></td>',
+    'status':    '<td align="center"><b>Status</b></td>',
+    'joberrors': '<td align="center"><b>Errors</b></td>',
+    'type':      '<td align="center"><b>Type</b></td>',
+    'level':     '<td align="center"><b>Level</b></td>',
+    'jobfiles':  '<td align="center"><b>Files</b></td>',
+    'jobbytes':  '<td align="center"><b>Bytes</b></td>',
+    'starttime': '<td align="center"><b>Start Time</b></td>',
+    'endtime':   '<td align="center"><b>End Time</b></td>',
+    'runtime':   '<td align="center"><b>Run Time</b></td>'
+    }
 
 def usage():
     'Show the instructions'
@@ -175,7 +194,7 @@ def print_opt_errors(opt):
     elif opt in {'email', 'fromemail'}:
         return '\nThe \'' + opt + '\' variable is either empty or it does not look like a valid email address.'
     elif opt == 'dbtype':
-        return '\nThe \'' + opt + '\' variable must not be empty, and must be one of: ' + ', '.join(valid_db_set)
+        return '\nThe \'' + opt + '\' variable must not be empty, and must be one of: ' + ', '.join(valid_db_lst)
 
 def db_connect():
     'Connect to the db using the appropriate database connector and create the right cursor'
@@ -219,10 +238,10 @@ def translate_job_type(jobtype, jobid, priorjobid, jobstatus):
 
     if jobtype == 'M':
         # Part of this is a workaround for what I consider to be a bug in Bacula for jobs of
-        # type 'B' which meet the criteria to be 'eligible' for migration, but have 0 file/bytes
+        # type 'B' which meet the criteria to be 'eligible' for migration, but have 0 files/bytes
         # The original backup Job's type gets changed from 'B' (Backup) to 'M' (Migrated), even
         # though nothing is migrated. https://bugs.bacula.org/view.php?id=2619
-        # --------------------------------------------------------------------------------------
+        # ---------------------------------------------------------------------------------------
         if 'pn_jobids' in globals() and migrated_id(jobid) != '0':
             return 'Migrated to ' + migrated_id(jobid)
         elif 'pn_jobids' in globals() and migrated_id(jobid) == '0':
@@ -450,8 +469,8 @@ Options:
     -v, --version                     Print the script name and version
 
 Notes:
-* Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
 * Only the email variable is required. It must be set on the command line or via an environment variable
+* Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
 * Variable assignment precedence is: command line > environment variable > default
 
 """
@@ -465,15 +484,15 @@ args = docopt(doc_str, version='\n' + progname + ' - v' + version + '\n' + relda
 # is also valid before we do anything else
 # ----------------------------------------
 c2sl = cols2show.split()
-if not all(item in valid_col_set for item in c2sl):
+if not all(item in valid_col_lst for item in c2sl):
     print('\nThe \'cols2show\' variable is not valid!\n')
-    print('Current \'cols2show\' : ' + cols2show)
-    print('Valid columns are: ' + ' '.join(valid_col_set))
+    print('Current \'cols2show\': ' + cols2show)
+    print('Valid columns are: ' + ' '.join(valid_col_lst))
     usage()
 
-if (alwaysfailcolumn not in c2sl or alwaysfailcolumn not in valid_col_set) and alwaysfailcolumn not in ('row', 'none'):
+if (alwaysfailcolumn not in c2sl or alwaysfailcolumn not in valid_col_lst) and alwaysfailcolumn not in ('row', 'none'):
     print('\n\'alwaysfailcolumn\' name \'' + alwaysfailcolumn + '\' not valid or not in cols2show.')
-    print('\nValid settings for \'alwaysfailcolumn\' are: ' + ' '.join(valid_col_set) + ' none row')
+    print('\nValid settings for \'alwaysfailcolumn\' are: ' + ' '.join(valid_col_lst) + ' none row')
     print('\nWith current \'cols2show\' setting, valid settings for \'alwaysfailcolumn\' are: ' + cols2show + ' none row')
     usage()
 elif alwaysfailcolumn == 'row':
@@ -494,7 +513,7 @@ if args['--dbtype'] == 'pgsql' and args['--dbport'] == None:
     args['--dbport'] = '5432'
 elif args['--dbtype'] in ('mysql', 'maria') and args['--dbport'] == None:
     args['--dbport'] = '3306'
-elif args['--dbtype'] not in valid_db_set:
+elif args['--dbtype'] not in valid_db_lst:
     print(print_opt_errors('dbtype'))
     usage()
 
@@ -546,19 +565,17 @@ if not args['--server']:
     usage()
 else:
     server = args['--server']
-# waa - 20210607 - This test is no longer needed, it is now caught above
-#                  We just need to test for the dbtype and import the
-#                  correct db module
-if not args['--dbtype'] or args['--dbtype'] not in valid_db_set:
-    print(print_opt_errors('dbtype'))
-    usage()
-else:
-    dbtype = args['--dbtype']
-    if dbtype == 'pgsql':
-        import psycopg2
-        import psycopg2.extras
-    elif dbtype in ('mysql', 'maria'):
-        import mysql.connector
+# dbtype is already tested and
+# verified above, just assign
+# and check the type to assign
+# correct connector and cursor
+# ----------------------------
+dbtype = args['--dbtype']
+if dbtype == 'pgsql':
+    import psycopg2
+    import psycopg2.extras
+elif dbtype in ('mysql', 'maria'):
+    import mysql.connector
 if not args['--dbport'].isnumeric():
     print(print_opt_errors('dbport'))
     usage()
@@ -718,19 +735,19 @@ try:
     elif dbtype in ('mysql', 'maria'):
         query_str = "SELECT jobid, REPLACE(CAST(Job.name as CHAR(50)),' ','_') AS jobname, \
         CAST(jobstatus as CHAR(1)) AS jobstatus FROM Job \
-        WHERE (endtime >= DATE_ADD(NOW(), INTERVAL -" + days + " DAY) ORDER BY jobid DESC;"
+        WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + days + " DAY) ORDER BY jobid DESC;"
     cur.execute(query_str)
     alldaysjobrows = cur.fetchall()
 except:
-    print('Problem communicating with database \'' + dbname + '\' while fetching "Always failing jobs" list.')
+    print('Problem communicating with database \'' + dbname + '\' while fetching "always failing jobs" list.')
     sys.exit(1)
 finally:
     if (conn):
         cur.close()
         conn.close()
 
-# These are specific only to the "Always failing jobs" features
-# -------------------------------------------------------------
+# These are specific to the 'always failing jobs' features
+# --------------------------------------------------------
 good_days_jobs = [r['jobname'] for r in alldaysjobrows if r['jobstatus'] == 'T']
 unique_bad_days_jobs = {r['jobname'] for r in alldaysjobrows if r['jobstatus'] not in ('T', 'R', 'C')}
 always_fail_jobs = set(unique_bad_days_jobs.difference(good_days_jobs)).intersection(alljobnames)
@@ -883,24 +900,6 @@ else:
 
 # Start creating the msg to send
 # ------------------------------
-# First create a dictionary of column name to html strings
-# so that they may be used in any order in the jobs table
-# --------------------------------------------------------
-col_hdr_dict = {
-    'jobid':     '<td align="center"><b>Job ID</b></td>',
-    'jobname':   '<td align="center"><b>Job Name</b></td>',
-    'client':    '<td align="center"><b>Client</b></td>',
-    'status':    '<td align="center"><b>Status</b></td>',
-    'joberrors': '<td align="center"><b>Errors</b></td>',
-    'type':      '<td align="center"><b>Type</b></td>',
-    'level':     '<td align="center"><b>Level</b></td>',
-    'jobfiles':  '<td align="center"><b>Files</b></td>',
-    'jobbytes':  '<td align="center"><b>Bytes</b></td>',
-    'starttime': '<td align="center"><b>Start Time</b></td>',
-    'endtime':   '<td align="center"><b>End Time</b></td>',
-    'runtime':   '<td align="center"><b>Run Time</b></td>'
-    }
-
 msg = '<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' \
     + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
     + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n'
@@ -929,9 +928,9 @@ if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
 msg += '<table width="100%" align="center" border="1" cellpadding="2" cellspacing="0">' \
     + '<tr bgcolor="' + jobtableheadercolor + '">'
 for colname in c2sl:
-    if colname not in valid_col_set:
+    if colname not in valid_col_lst:
         print('\nColumn name \'' + colname + '\' not valid. Exiting!\n')
-        print('Valid columns are: ' + ', '.join(valid_col_set))
+        print('Valid columns are: ' + ', '.join(valid_col_lst))
         usage()
     msg += col_hdr_dict[colname]
 msg += '</tr>\n'
@@ -947,8 +946,8 @@ for jobrow in alljobrows:
     else:
         alwaysfail = 'no'
 
-    # Set the job row's bgcolor
-    # -------------------------
+    # Set the job row's default bgcolor
+    # ---------------------------------
     if alwaysfail == 'yes' and alwaysfailcolumn == 'row':
         msg += '<tr bgcolor="' + alwaysfailcolor + '">'
     else:
@@ -1015,8 +1014,8 @@ if emailsummary == 'yes':
 else:
     summary = ''
 
-# Build the final message & send the email
-# ----------------------------------------
+# Build the final message and send the email
+# ------------------------------------------
 msg = msg + summary + prog_info + jobsummaries + badjoblogs
 send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
 

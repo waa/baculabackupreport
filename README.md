@@ -5,7 +5,7 @@
 
 ```
 Usage:
-    baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-c <client>] [-j <jobname>]
+    baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-d <days>] [-c <client>] [-j <jobname>]
                           [--dbtype <dbtype>] [--dbport <dbport>] [--dbhost <dbhost>] [--dbname <dbname>]
                           [--dbuser <dbuser>] [--dbpass <dbpass>]
                           [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
@@ -17,6 +17,7 @@ Options:
     -f, --fromemail <fromemail>       Email address to be set in the From: field of the email
     -s, --server <server>             Name of the Bacula Server [default: Bacula]
     -t, --time <time>                 Time to report on in hours [default: 24]
+    -d, --days <days>                 Days to check for "Always failing jobs" [default: 7]$
     -c, --client <client>             Client to report on using SQL 'LIKE client' [default: %] (all clients)
     -j, --jobname <jobname>           Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
     --dbtype (pgsql | mysql | maria)  Database type [default: pgsql]
@@ -34,8 +35,8 @@ Options:
     -v, --version                     Print the script name and version
 
 Notes:
-* Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
 * Only the email variable is required. It must be set on the command line or via an environment variable
+* Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
 * Variable assignment precedence is: command line > environment variable > default
 
 ```

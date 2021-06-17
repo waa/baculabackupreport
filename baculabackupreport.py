@@ -27,7 +27,7 @@
 # ---------------------------------------------------------------------------
 # BSD 2-Clause License
 #
-# Copyright (c) 2021, William A. Arlofski waa-at-revpol-dot-com
+# Copyright (c) 2021, William A. Arlofski waa@revpol.com
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -101,7 +101,7 @@ alwaysfailcolumn = 'jobname'  # Column to colorize for "always failing jobs" - c
 # HTML colors
 # -----------
 colorstatusbg = 'yes'            # Colorize the Status cell's background?
-jobtablejobcolor = '#d4d4d4'     # Background color for the job rows in the HTML table
+jobtablerowcolor = '#d4d4d4'     # Background color for the job rows in the HTML table
 jobtableheadercolor = '#b0b0b0'  # Background color for the HTML table's header
 runningjobcolor = '#4d79ff'      # Background color of the Status cell for "Running" jobs
 createdjobcolor = '#add8e6'      # Background color of the Status cell for "Created, but not yet running" jobs
@@ -114,9 +114,9 @@ alwaysfailcolor = '#ebd32a'      # Background color of the entire row for "alway
 # HTML fonts
 # ----------
 fontfamily = 'Verdana, Arial, Helvetica, sans-serif'  # Font family to use for HTML emails
-fontsize = '16px'               # Font size to use for email title (title removed from email for now)
-fontsizejobinfo = '12px'        # Font size to use for job information inside of table
-fontsizesumlog = '10px'         # Font size of job summaries and bad job logs
+fontsize = '16px'         # Font size to use for email title (title removed from email for now)
+fontsizejobinfo = '12px'  # Font size to use for job information inside of table
+fontsizesumlog = '10px'   # Font size of job summaries and bad job logs
 
 # --------------------------------------------------
 # Nothing should need to be modified below this line
@@ -134,8 +134,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.9.8'
-reldate = 'June 15, 2021'
+version = '1.9.9'
+reldate = 'June 17, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - baculabackupreport.py<br>' \
@@ -725,7 +725,7 @@ else:
 
 # Get a list of jobs that have always failed for the
 # past 'days' days so that we can display a column
-# or their entire row in the 'alwaysfailcolor' color
+# or the entire row in the 'alwaysfailcolor' color
 # --------------------------------------------------
 try:
     db_connect()
@@ -951,7 +951,7 @@ for jobrow in alljobrows:
     if alwaysfail == 'yes' and alwaysfailcolumn == 'row':
         msg += '<tr bgcolor="' + alwaysfailcolor + '">'
     else:
-        msg += '<tr bgcolor="' + jobtablejobcolor + '">'
+        msg += '<tr bgcolor="' + jobtablerowcolor + '">'
 
     for colname in c2sl:
         if colname == 'jobid':

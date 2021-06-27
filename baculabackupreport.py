@@ -54,6 +54,13 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # ----------------------------------------------------------------------------
 
+# External GUI link settings
+# --------------------------
+webgui = 'none'                    # Which web interface? Choices: bweb, none
+webguisvc = 'http'                 # Use encrypted connection or not. (ie: http or https)
+webguihost = 'bacula.example.com'  # FQDN or IP address of the web gui host
+webguiport = '9180'                # TCP port the web gui is bound to
+
 # Toggles and other formatting settings
 # -------------------------------------
 centerjobname = 'yes'               # Center the Job Name in HTML emails?
@@ -134,14 +141,16 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.9.9'
-reldate = 'June 17, 2021'
+version = '1.9.10'
+reldate = 'June 26, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
-          + ' - baculabackupreport.py<br>' \
-          + 'By: Bill Arlofski waa@revpol.com (c) ' \
+          + ' - <a href="https://github.com/waa/" \
+          + target="_blank">baculabackupreport.py</a>' \
+          + '<br>By: Bill Arlofski waa@revpol.com (c) ' \
           + reldate + '</body></html>'
 badjobset = {'A', 'D', 'E', 'f', 'I'}
+valid_webgui_lst = [ 'bweb' ]
 valid_db_lst = ['pgsql', 'mysql', 'maria']
 valid_col_lst = [
     'jobid', 'jobname', 'client', 'status',
@@ -149,9 +158,9 @@ valid_col_lst = [
     'jobbytes', 'starttime', 'endtime', 'runtime'
     ]
 
-# Create a dictionary of column name to html strings
-# so that they may be used in any order in the jobs table
-# -------------------------------------------------------
+# Create a dictionary of column name to html strings so
+# that they may be used in any order in the jobs table
+# -----------------------------------------------------
 col_hdr_dict = {
     'jobid':     '<td align="center"><b>Job ID</b></td>',
     'jobname':   '<td align="center"><b>Job Name</b></td>',
@@ -228,7 +237,7 @@ def migrated_id(jobid):
         if pn_jobids[t][0] == str(jobid):
             return pn_jobids[t][1]
 
-def translate_job_type(jobtype, jobid, priorjobid, jobstatus):
+def translate_job_type(jobtype, jobid, priorjobid):
     'Job type is stored in the catalog as a single character. Do some special things for Copy and Migration jobs.'
     if jobtype == 'C' and priorjobid != '0':
         return 'Copy of ' + str(priorjobid)
@@ -250,9 +259,9 @@ def translate_job_type(jobtype, jobid, priorjobid, jobstatus):
             return 'Migrated'
 
     if jobtype == 'c':
-        if jobstatus in ('R', 'C'):
+        if jobrow['jobstatus'] in ('R', 'C'):
             return 'Copy Ctrl'
-        if jobstatus in badjobset:
+        if jobrow['jobstatus'] in badjobset:
             return 'Copy Ctrl: Failed'
         if '0' in pn_jobids[str(jobid)]:
             # This covers when the 'main' copy control job finds no eligable
@@ -265,9 +274,9 @@ def translate_job_type(jobtype, jobid, priorjobid, jobstatus):
             return 'Copy Ctrl: ' + pn_jobids[str(jobid)][0] + '->' + pn_jobids[str(jobid)][1]
 
     if jobtype == 'g':
-        if jobstatus in ('R', 'C'):
+        if jobrow['jobstatus'] in ('R', 'C'):
             return 'Migration Ctrl'
-        if jobstatus in badjobset:
+        if jobrow['jobstatus'] in badjobset:
             return 'Migration Ctrl: Failed'
         if '0' in pn_jobids[str(jobid)]:
             return 'Migration Ctrl: No jobs to migrate'
@@ -310,7 +319,7 @@ def translate_job_level(joblevel, jobtype):
     return {' ': '----', '-': 'Base', 'A': 'VVol', 'C': 'VCat', 'd': 'VD2C',
             'D': 'Diff', 'f': 'VFul', 'F': 'Full', 'I': 'Incr', 'O': 'VV2C', 'V': 'Init'}[joblevel]
 
-def html_format_cell(content, bgcolor = '', star = '', col = '', jobstatus = '', jobtype = ''):
+def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     'Format/modify some table cells based on settings and conditions.'
     # Set default tdo and tdc to wrap each cell
     # -----------------------------------------
@@ -344,7 +353,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobstatus = '',
         tdo = '<td align="center" bgcolor="' + alwaysfailcolor + '">'
 
     # Center the Client name and Job name?
-    # -------------------------------------
+    # ------------------------------------
     if col == 'jobname' and centerjobname != 'yes':
         tdo = '<td align="left">'
     if col == 'client' and centerclientname != 'yes':
@@ -359,6 +368,42 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobstatus = '',
         tdo += '<b>'
         tdc = '</b>' + tdc
 
+    # Web gui URL link stuff
+    # ----------------------
+    if webgui in valid_webgui_lst:
+        # If a webgui is enabled, make each jobid
+        # a URL link to the Job log in the web gui
+        # ----------------------------------------
+        if col == 'jobid':
+            if webgui == 'bweb':
+                content = '<a href="' + webguisvc + '://' + webguihost + ':' \
+                        + webguiport + '/cgi-bin/bweb/bweb.pl?action=job_zoom&jobid=' \
+                        + str(content) + '">' + str(content) + '</a>'
+            elif webgui == 'baculum':
+                # Baculum support coming soon
+                # ---------------------------
+                pass
+            else:
+                pass
+
+        # Make the alwaysfailcolumn a URL link to the Job history page
+        # Use the always failing 'days' variable for number of days of history
+        # If alwaysfailcolumn is 'row', then we automatically link the jobname
+        # --------------------------------------------------------------------
+        if alwaysfail == 'yes' and (col == alwaysfailcolumn or (alwaysfailcolumn == 'row' and col == 'jobname')):
+            if webgui == 'bweb':
+                age = int(days) * 86400
+                # Regardless of alwaysfailcolumn, the link needs to be to the jobname
+                content = '<a href="' + webguisvc + '://' + webguihost + ':' \
+                        + webguiport + '/cgi-bin/bweb/bweb.pl?age=' + str(age) \
+                        + '&job=' + jobrow['jobname'] + '&action=job">' + content + '</a>'
+            elif webgui == 'baculum':
+                # Baculum support coming soon
+                # ---------------------------
+                pass
+            else:
+                pass
+
     # Some specific modifications for Running or Created Jobs,
     # or special Jobs (Copy/Migration/Admin/etc) where no real
     # client is used, or when the Job is still running, there
@@ -366,9 +411,9 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobstatus = '',
     # --------------------------------------------------------
     if content == '----' or ((col == 'client' or col == 'runtime') and content == 'None'):
         content = '<hr width="20%">'
-    if content == 'None' and col == 'endtime' and jobstatus == 'R':
+    if content == 'None' and col == 'endtime' and jobrow['jobstatus'] == 'R':
         content = 'Still Running'
-    if jobstatus == 'C' and col == 'endtime':
+    if jobrow['jobstatus'] == 'C' and col == 'endtime':
         content = 'Created, not yet running'
 
     # Jobs with status: Created, Running ('C', 'R'), or
@@ -376,7 +421,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobstatus = '',
     # ('D', 'c, 'g') will never have a value for jobfiles
     # nor jobbytes in the db, so we set them to a 20% hr
     # ---------------------------------------------------
-    if (jobstatus in ('R', 'C') or jobtype in ('D', 'c', 'g')) and col in ('jobfiles', 'jobbytes'):
+    if (jobrow['jobstatus'] in ('R', 'C') or jobtype in ('D', 'c', 'g')) and col in ('jobfiles', 'jobbytes'):
         content = '<hr width="20%">'
 
     # Return the wrapped and modified cell content
@@ -490,22 +535,36 @@ if not all(item in valid_col_lst for item in c2sl):
     print('Valid columns are: ' + ' '.join(valid_col_lst))
     usage()
 
-if (alwaysfailcolumn not in c2sl or alwaysfailcolumn not in valid_col_lst) and alwaysfailcolumn not in ('row', 'none'):
-    print('\n\'alwaysfailcolumn\' name \'' + alwaysfailcolumn + '\' not valid or not in cols2show.')
+if alwaysfailcolumn not in c2sl and alwaysfailcolumn not in ('row', 'none'):
+    print('\nThe \'alwaysfailcolumn\' name \'' + alwaysfailcolumn + '\' not valid or not in cols2show.')
     print('\nValid settings for \'alwaysfailcolumn\' are: ' + ' '.join(valid_col_lst) + ' none row')
     print('\nWith current \'cols2show\' setting, valid settings for \'alwaysfailcolumn\' are: ' + cols2show + ' none row')
     usage()
 elif alwaysfailcolumn == 'row':
     alwaysfailcolumn_str = 'entire row'
 else:
-    if alwaysfailcolumn == 'joberrors':
-        alwaysfailcolumn_str = 'errors column'
+    # jobid will be URL linked to job so it
+    # cannot also be linked to job history
+    # -------------------------------------
+    if alwaysfailcolumn == 'jobid':
+        alwaysfailcolumn = 'jobname'
+        alwaysfailcolumn_str = 'Job Name column'
+    elif alwaysfailcolumn == 'jobname':
+        alwaysfailcolumn_str = 'Job Name column'
+    elif alwaysfailcolumn == 'joberrors':
+        alwaysfailcolumn_str = 'Errors column'
     elif alwaysfailcolumn == 'jobfiles':
-        alwaysfailcolumn_str = 'files column'
+        alwaysfailcolumn_str = 'Files column'
     elif alwaysfailcolumn == 'jobbytes':
-        alwaysfailcolumn_str = 'bytes column'
+        alwaysfailcolumn_str = 'Bytes column'
+    elif alwaysfailcolumn == 'starttime':
+        alwaysfailcolumn_str = 'Start Time column'
+    elif alwaysfailcolumn == 'endtime':
+        alwaysfailcolumn_str = 'End Time column'
+    elif alwaysfailcolumn == 'runtime':
+        alwaysfailcolumn_str = 'Run Time column'
     else:
-        alwaysfailcolumn_str = alwaysfailcolumn + ' column'
+        alwaysfailcolumn_str = alwaysfailcolumn.title() + ' column'
 
 # Set the default ports for the different databases if not set on command line
 # ----------------------------------------------------------------------------
@@ -965,17 +1024,17 @@ for jobrow in alljobrows:
         elif colname == 'joberrors':
             msg += html_format_cell(str('{:,}'.format(jobrow['joberrors'])), col = 'joberrors')
         elif colname == 'type':
-            msg += html_format_cell(translate_job_type(jobrow['type'], jobrow['jobid'], jobrow['priorjobid'], jobrow['jobstatus']), col = 'type')
+            msg += html_format_cell(translate_job_type(jobrow['type'], jobrow['jobid'], jobrow['priorjobid']), col = 'type')
         elif colname == 'level':
             msg += html_format_cell(translate_job_level(jobrow['level'], jobrow['type']), col = 'level')
         elif colname == 'jobfiles':
-            msg += html_format_cell(str('{:,}'.format(jobrow['jobfiles'])), jobtype = jobrow['type'], jobstatus = jobrow['jobstatus'], col = 'jobfiles') 
+            msg += html_format_cell(str('{:,}'.format(jobrow['jobfiles'])), jobtype = jobrow['type'], col = 'jobfiles') 
         elif colname == 'jobbytes':
-            msg += html_format_cell(str('{:,}'.format(jobrow['jobbytes'])), jobtype = jobrow['type'], jobstatus = jobrow['jobstatus'], col = 'jobbytes')
+            msg += html_format_cell(str('{:,}'.format(jobrow['jobbytes'])), jobtype = jobrow['type'], col = 'jobbytes')
         elif colname == 'starttime':
-            msg += html_format_cell(str(jobrow['starttime']), col = 'starttime', jobstatus = jobrow['jobstatus'])
+            msg += html_format_cell(str(jobrow['starttime']), col = 'starttime')
         elif colname == 'endtime':
-            msg += html_format_cell(str(jobrow['endtime']), col = 'endtime', jobstatus = jobrow['jobstatus'])
+            msg += html_format_cell(str(jobrow['endtime']), col = 'endtime')
         elif colname == 'runtime':
             msg += html_format_cell(str(jobrow['runtime']), col = 'runtime')
     msg += '</tr>\n'

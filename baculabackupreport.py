@@ -56,10 +56,10 @@
 
 # External GUI link settings
 # --------------------------
-webgui = 'none'                    # Which web interface? Choices: bweb, none
-webguisvc = 'http'                 # Use encrypted connection or not. (ie: http or https)
+webgui = 'none'                    # Which web interface to generate links for? (bweb, baculum, none)
+webguisvc = 'http'                 # Use encrypted connection or not (ie: http or https)
 webguihost = 'bacula.example.com'  # FQDN or IP address of the web gui host
-webguiport = '9180'                # TCP port the web gui is bound to
+webguiport = '0000'                # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
 
 # Toggles and other formatting settings
 # -------------------------------------
@@ -69,9 +69,9 @@ boldjobname = 'yes'                 # Bold the Job Name in HTML emails?
 boldstatus = 'yes'                  # Bold the Status in HTML emails?
 emailsummary = 'yes'                # Print a short summary after the Job list table? (Total Jobs, Files, Bytes, etc)
 emailjobsummaries = 'no'            # Email all Job summaries? Be careful with this, it can generate very large emails
-emailbadlogs = 'no'                 # Email logs of bad Jobs? Be careful with this, it can generate very large emails.
+emailbadlogs = 'no'                 # Email logs of bad Jobs? Be careful with this, it can generate very large emails
 addsubjecticon = 'yes'              # Prepend the email Subject with UTF-8 icons? See (no|good|warn|bad)jobsicon variables below
-addsubjectrunningorcreated = 'yes'  # Append "(## Jobs still runnning/queued)" to Subject if running or queued Jobs > 0?
+addsubjectrunningorcreated = 'yes'  # Append "(# Jobs still runnning/queued)" to Subject if running or queued Jobs > 0?
 starbadjobids = 'no'                # Wrap bad Jobs jobids with asterisks "*"?
 sortfield = 'JobId'                 # Which catalog DB field to sort on? hint: multiple,fields,work,here
 sortorder = 'DESC'                  # Which direction to sort?
@@ -80,7 +80,7 @@ sortorder = 'DESC'                  # Which direction to sort?
 # https://www.utf8-chartable.de/unicode-utf8-table.pl
 # ---------------------------------------------------
 nojobsicon = '=?utf-8?Q?=F0=9F=9A=AB?='      # utf-8 'no entry sign' subject icon when no Jobs have been run
-goodjobsicon = '=?utf-8?Q?=F0=9F=9F=A9?='    # utf-8 'green square' subject icon when there are Jobs with errors etc
+goodjobsicon = '=?utf-8?Q?=F0=9F=9F=A9?='    # utf-8 'green square' subject icon when all Jobs were "OK"
 # goodjobsicon = '=?UTF-8?Q?=E2=9C=85?='     # utf-8 'white checkmark in green box' subject icon when all Jobs were "OK"
 # goodjobsicon = '=?UTF-8?Q?=E2=98=BA?='     # utf-8 'smiley face' subject icon when all Jobs were "OK"
 warnjobsicon = '=?UTF-8?Q?=F0=9F=9F=A7?='    # utf-8 'orange square' subject icon when all jobs are "OK", but some have errors/warnings
@@ -95,11 +95,7 @@ badjobsicon = '=?utf-8?Q?=F0=9F=9F=A5?='     # utf-8 'red square' subject icon w
 # Set the columns to display and their order
 # ------------------------------------------
 cols2show = 'jobid jobname client status joberrors type level jobfiles jobbytes starttime endtime runtime'
-# cols2show = 'jobid jobname client status joberrors type level jobfiles jobbytes endtime runtime'
-# cols2show = 'jobid jobname status joberrors type level jobfiles jobbytes endtime runtime'
-# cols2show = 'jobname jobid client status joberrors type level jobfiles jobbytes starttime runtime'
-# cols2show = 'jobname jobid status type level jobfiles jobbytes starttime runtime'
-# cols2show = 'status jobid jobname starttime endtime runtime'
+# cols2show = 'status jobid jobname type level starttime endtime runtime'
 
 # Set the column to colorize for jobs that are always failing
 # -----------------------------------------------------------
@@ -141,8 +137,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.9.10'
-reldate = 'June 26, 2021'
+version = '1.10'
+reldate = 'June 29, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -150,7 +146,7 @@ prog_info = '<p style="font-size: 8px;">' \
           + '<br>By: Bill Arlofski waa@revpol.com (c) ' \
           + reldate + '</body></html>'
 badjobset = {'A', 'D', 'E', 'f', 'I'}
-valid_webgui_lst = [ 'bweb' ]
+valid_webgui_lst = [ 'bweb', 'baculum' ]
 valid_db_lst = ['pgsql', 'mysql', 'maria']
 valid_col_lst = [
     'jobid', 'jobname', 'client', 'status',
@@ -380,27 +376,28 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
                         + webguiport + '/cgi-bin/bweb/bweb.pl?action=job_zoom&jobid=' \
                         + str(content) + '">' + str(content) + '</a>'
             elif webgui == 'baculum':
-                # Baculum support coming soon
-                # ---------------------------
-                pass
+                content = '<a href="' + webguisvc + '://' + webguihost + ':' \
+                        + webguiport + '/web/job/history/' + str(content) + '">' \
+                        + str(content) + '</a>'
             else:
                 pass
 
-        # Make the alwaysfailcolumn a URL link to the Job history page
-        # Use the always failing 'days' variable for number of days of history
-        # If alwaysfailcolumn is 'row', then we automatically link the jobname
-        # --------------------------------------------------------------------
+        # Make the alwaysfailcolumn a URL link to the Job's history page
+        # For BWeb, use the always failing 'days' variable for days of history
+        # For Baculum, link to the 'Job Details' page which has a Job History link
+        # If alwaysfailcolumn is 'row', then the jobname is automatically linked
+        # ------------------------------------------------------------------------
         if alwaysfail == 'yes' and (col == alwaysfailcolumn or (alwaysfailcolumn == 'row' and col == 'jobname')):
             if webgui == 'bweb':
                 age = int(days) * 86400
                 # Regardless of alwaysfailcolumn, the link needs to be to the jobname
+                # -------------------------------------------------------------------
                 content = '<a href="' + webguisvc + '://' + webguihost + ':' \
                         + webguiport + '/cgi-bin/bweb/bweb.pl?age=' + str(age) \
                         + '&job=' + jobrow['jobname'] + '&action=job">' + content + '</a>'
             elif webgui == 'baculum':
-                # Baculum support coming soon
-                # ---------------------------
-                pass
+                content = '<a href="' + webguisvc + '://' + webguihost + ':' \
+                        + webguiport + '/web/job/' + jobrow['jobname'] + '">' + content + '</a>'
             else:
                 pass
 
@@ -761,8 +758,8 @@ runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in 
 ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] in ('c', 'g')]
 vrfy_jobids = [r['jobid'] for r in alljobrows if r['type'] =='V']
 
-# More silly OCD string manipulations
-# -----------------------------------
+# Silly OCD string manipulations
+# ------------------------------
 hour = 'hour' if time == 1 else 'hours'
 jobstr = 'all jobs' if jobname == '%' else 'jobname \'' + jobname + '\''
 clientstr = 'all clients' if client == '%' else 'client \'' + client + '\''
@@ -831,8 +828,8 @@ if addsubjecticon == 'yes':
 # For each Copy/Migration Control Job (c, g),
 # get the Job summary text from the log table
 # -------------------------------------------
-# - cji = Control Job Information
-# -------------------------------
+# cji = Control Job Information
+# -----------------------------
 if len(ctrl_jobids) != 0:
     try:
         db_connect()
@@ -862,8 +859,8 @@ if len(ctrl_jobids) != 0:
 
 # For each Verify Job (V), get the Job summary text from the log table
 # --------------------------------------------------------------------
-# - vji = Verify Job Information
-# ------------------------------
+# vji = Verify Job Information
+# ----------------------------
 if len(vrfy_jobids) != 0:
     try:
         db_connect()
@@ -967,8 +964,8 @@ msg = '<html><head><meta http-equiv="Content-Type" content="text/html; charset=u
 # If yes, let's build the banner and add it to the to beginning
 # -------------------------------------------------------------
 if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
-    # Some silly OCD string manipulations
-    # -----------------------------------
+    # Some more silly OCD string manipulations
+    # ----------------------------------------
     if len(always_fail_jobs) == 1:
         job = 'job'
         have = 'has'

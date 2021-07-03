@@ -56,10 +56,10 @@
 
 # External GUI link settings
 # --------------------------
-webgui = 'none'                    # Which web interface to generate links for? (bweb, baculum, none)
-webguisvc = 'http'                 # Use encrypted connection or not (ie: http or https)
-webguihost = 'bacula.example.com'  # FQDN or IP address of the web gui host
-webguiport = '0000'                # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
+webgui = 'baculum'       # Which web interface to generate links for? (bweb, baculum, none)
+webguisvc = 'http'       # Use encrypted connection or not (ie: http or https)
+webguihost = '10.1.1.4'  # FQDN or IP address of the web gui host
+webguiport = '9095'      # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
 
 # Toggles and other formatting settings
 # -------------------------------------
@@ -79,18 +79,18 @@ sortorder = 'DESC'                  # Which direction to sort?
 # Set some utf-8 icon to prepend the subject with
 # https://www.utf8-chartable.de/unicode-utf8-table.pl
 # ---------------------------------------------------
-nojobsicon = '=?utf-8?Q?=F0=9F=9A=AB?='      # utf-8 'no entry sign' subject icon when no Jobs have been run
-goodjobsicon = '=?utf-8?Q?=F0=9F=9F=A9?='    # utf-8 'green square' subject icon when all Jobs were "OK"
-# goodjobsicon = '=?UTF-8?Q?=E2=9C=85?='     # utf-8 'white checkmark in green box' subject icon when all Jobs were "OK"
-# goodjobsicon = '=?UTF-8?Q?=E2=98=BA?='     # utf-8 'smiley face' subject icon when all Jobs were "OK"
-warnjobsicon = '=?UTF-8?Q?=F0=9F=9F=A7?='    # utf-8 'orange square' subject icon when all jobs are "OK", but some have errors/warnings
-# warnjobsicon = '=?UTF-8?Q?=F0=9F=9F=A8?='  # utf-8 'yellow square' subject icon when all jobs are "OK", but some have errors/warnings
-badjobsicon = '=?utf-8?Q?=F0=9F=9F=A5?='     # utf-8 'red square' subject icon when there are Jobs with errors etc
-# badjobsicon = '=?utf-8?Q?=E2=9B=94?='      # utf-8 'red circle with white hypehn' subject icon when there are Jobs with errors etc
-# badjobsicon = '=?utf-8?Q?=E2=9C=96?='      # utf-8 'black bold X' subject icon when there are Jobs with errors etc
-# badjobsicon = '=?utf-8?Q?=E2=9D=8C?='      # utf-8 'red X' subject icon when there are Jobs with errors etc
-# badjobsicon = '=?utf-8?Q?=E2=9D=97?='      # utf-8 'red !' subject icon when there are Jobs with errors etc
-# badjobsicon = '=?utf-8?Q?=E2=98=B9?='      # utf-8 'sad face' subject icon when there are Jobs with errors etc
+nojobsicon = '=?utf-8?Q?=F0=9F=9A=AB?='       # utf-8 'no entry sign' icon when no Jobs have been run
+goodjobsicon = '=?utf-8?Q?=F0=9F=9F=A9?='     # utf-8 'green square' icon when all Jobs were "OK"
+# goodjobsicon = '=?UTF-8?Q?=E2=9C=85?='      # utf-8 'white checkmark in green box' icon
+# goodjobsicon = '=?UTF-8?Q?=E2=98=BA?='      # utf-8 'smiley face' icon
+warnjobsicon = '=?UTF-8?Q?=F0=9F=9F=A7?='     # utf-8 'orange square' icon when all jobs are "OK", but some have errors/warnings
+# warnjobsicon = '=?UTF-8?Q?=F0=9F=9F=A8?='   # utf-8 'yellow square' icon
+badjobsicon = '=?utf-8?Q?=F0=9F=9F=A5?='      # utf-8 'red square' icon
+# badjobsicon = '=?utf-8?Q?=E2=9C=96?='       # utf-8 'black bold X' icon
+# badjobsicon = '=?utf-8?Q?=E2=9D=8C?='       # utf-8 'red X' icon
+# badjobsicon = '=?utf-8?Q?=E2=9D=97?='       # utf-8 'red !' icon
+# badjobsicon = '=?utf-8?Q?=E2=98=B9?='       # utf-8 'sad face'
+alwaysfailjobsicon = '=?utf-8?Q?=E2=9B=94?='  # utf-8 'red circle with white hyphen' icon when there are "always failing" Jobs
 
 # Set the columns to display and their order
 # ------------------------------------------
@@ -137,8 +137,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.10'
-reldate = 'June 29, 2021'
+version = '1.11'
+reldate = 'July 2, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -299,7 +299,10 @@ def set_subject_icon():
         subjecticon = nojobsicon
     else:
         if numbadjobs != 0:
-           subjecticon = badjobsicon
+           if len(always_fail_jobs) !=0:
+               subjecticon = alwaysfailjobsicon
+           else:
+               subjecticon = badjobsicon
         elif jobswitherrors != 0:
            subjecticon = warnjobsicon
         else:
@@ -326,7 +329,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     # Even if yes, don't override the table
     # row bgcolor if alwaysfailcolumn is 'row'
     # ----------------------------------------
-    if not (alwaysfail == 'yes' and alwaysfailcolumn == 'row'):
+    if not (alwaysfailjob == 'yes' and alwaysfailcolumn == 'row'):
         if colorstatusbg == 'yes' and col == 'status':
             if jobrow['jobstatus'] == 'C':
                 bgcolor = createdjobcolor
@@ -345,7 +348,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
                 bgcolor = warnjobcolor
         tdo = '<td align="center" bgcolor="' + bgcolor + '">'
 
-    if alwaysfail == 'yes' and col == alwaysfailcolumn:
+    if alwaysfailjob == 'yes' and col == alwaysfailcolumn:
         tdo = '<td align="center" bgcolor="' + alwaysfailcolor + '">'
 
     # Center the Client name and Job name?
@@ -387,7 +390,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
         # For Baculum, link to the 'Job Details' page which has a Job History link
         # If alwaysfailcolumn is 'row', then the jobname is automatically linked
         # ------------------------------------------------------------------------
-        if alwaysfail == 'yes' and (col == alwaysfailcolumn or (alwaysfailcolumn == 'row' and col == 'jobname')):
+        if alwaysfailjob == 'yes' and (col == alwaysfailcolumn or (alwaysfailcolumn == 'row' and col == 'jobname')):
             if webgui == 'bweb':
                 age = int(days) * 86400
                 # Regardless of alwaysfailcolumn, the link needs to be to the jobname
@@ -995,16 +998,16 @@ msg += '</tr>\n'
 # cols2show variable in the order they are defined
 # ------------------------------------------------
 for jobrow in alljobrows:
-    # If this job is always failing, set the alwaysfail variable
-    # ----------------------------------------------------------
+    # If this job is always failing, set the alwaysfailjob variable
+    # -------------------------------------------------------------
     if len(always_fail_jobs) != 0 and jobrow['jobname'] in always_fail_jobs:
-        alwaysfail = 'yes'
+        alwaysfailjob = 'yes'
     else:
-        alwaysfail = 'no'
+        alwaysfailjob = 'no'
 
     # Set the job row's default bgcolor
     # ---------------------------------
-    if alwaysfail == 'yes' and alwaysfailcolumn == 'row':
+    if alwaysfailjob == 'yes' and alwaysfailcolumn == 'row':
         msg += '<tr bgcolor="' + alwaysfailcolor + '">'
     else:
         msg += '<tr bgcolor="' + jobtablerowcolor + '">'

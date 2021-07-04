@@ -56,10 +56,10 @@
 
 # External GUI link settings
 # --------------------------
-webgui = 'baculum'       # Which web interface to generate links for? (bweb, baculum, none)
-webguisvc = 'http'       # Use encrypted connection or not (ie: http or https)
-webguihost = '10.1.1.4'  # FQDN or IP address of the web gui host
-webguiport = '9095'      # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
+webgui = 'none'         # Which web interface to generate links for? (bweb, baculum, none)
+webguisvc = 'http'      # Use encrypted connection or not (ie: http or https)
+webguihost = '0.0.0.0'  # FQDN or IP address of the web gui host
+webguiport = '9095'     # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
 
 # Toggles and other formatting settings
 # -------------------------------------
@@ -103,16 +103,26 @@ alwaysfailcolumn = 'jobname'  # Column to colorize for "always failing jobs" - c
 
 # HTML colors
 # -----------
-colorstatusbg = 'yes'            # Colorize the Status cell's background?
-jobtablerowcolor = '#d4d4d4'     # Background color for the job rows in the HTML table
-jobtableheadercolor = '#b0b0b0'  # Background color for the HTML table's header
-runningjobcolor = '#4d79ff'      # Background color of the Status cell for "Running" jobs
-createdjobcolor = '#add8e6'      # Background color of the Status cell for "Created, but not yet running" jobs
-goodjobcolor = '#00f000'         # Background color of the Status cell for "OK" jobs
-badjobcolor = '#cc3300'          # Background color of the Status cell for "Bad" jobs
-warnjobcolor = '#ffc800'         # Background color of the Status cell for "Backup OK -- with warnings" jobs
-errorjobcolor = '#cc3300'        # Background color of the Status cell for jobs with errors
-alwaysfailcolor = '#ebd32a'      # Background color of the entire row for "always failing in the past 'days' days" jobs
+colorstatusbg = 'yes'                    # Colorize the Status cell's background?
+jobtablerowevencolor = '#ffffff'         # Background color for the even job rows in the HTML table
+jobtableroweventxtcolor = '#000000'      # Text color for the even job rows in the HTML table
+jobtablerowoddcolor = '#f1f1f1'          # Background color for the odd job rows in the HTML table
+jobtablerowoddtxtcolor = '#000000'       # Text color for the odd job rows in the HTML table
+jobtableheadercolor = '#ad3939'          # Background color for the HTML job table's header
+jobtableheadertxtcolor = '#ffffff'       # Text color for the HTML job table's header
+summarytablerowevencolor = '#ffffff'     # Background color for the even summary rows in the HTML table
+summarytableroweventxtcolor = '#000000'  # Text color for the even summary rows in the HTML table
+summarytablerowoddcolor = '#f1f1f1'      # Background color for the odd summary rows in the HTML table
+summarytablerowoddtxtcolor = '#000000'   # Text color for the odd summary rows in the HTML table
+summarytableheadercolor = '#ad3939'      # Background color for the HTML summary table's header
+summarytableheadertxtcolor = '#ffffff'   # Text color for the HTML summary table's header
+runningjobcolor = '#4d79ff'              # Background color of the Status cell for "Running" jobs
+createdjobcolor = '#add8e6'              # Background color of the Status cell for "Created, but not yet running" jobs
+goodjobcolor = '#00f000'                 # Background color of the Status cell for "OK" jobs
+badjobcolor = '#cc3300'                  # Background color of the Status cell for "Bad" jobs
+warnjobcolor = '#ffc800'                 # Background color of the Status cell for "Backup OK -- with warnings" jobs
+errorjobcolor = '#cc3300'                # Background color of the Status cell for jobs with errors
+alwaysfailcolor = '#ebd32a'              # Background color of the 'alwaysfailcolumn', or entire row for jobs "always failing in the past 'days'" 
 
 # HTML fonts
 # ----------
@@ -120,6 +130,24 @@ fontfamily = 'Verdana, Arial, Helvetica, sans-serif'  # Font family to use for H
 fontsize = '16px'         # Font size to use for email title (title removed from email for now)
 fontsizejobinfo = '12px'  # Font size to use for job information inside of table
 fontsizesumlog = '10px'   # Font size of job summaries and bad job logs
+
+# HTML styles
+# -----------
+alwaysfailstyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0; background-color: %s;' % alwaysfailcolor
+jobtablestyle = 'width: 100%; border-collapse: collapse;'
+jobtableheaderstyle =  'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (jobtableheadercolor, jobtableheadertxtcolor)
+jobtableheadercellstyle =  'padding: 6px'
+jobtablerowevenstyle = 'background-color: %s; color: %s;' % (jobtablerowevencolor, jobtableroweventxtcolor)
+jobtablerowoddstyle = 'background-color: %s; color: %s;' % (jobtablerowoddcolor, jobtablerowoddtxtcolor)
+jobtablecellstyle = 'text-align: center; padding: 5px;'
+jobtablealwaysfailrowstyle = 'background-color: %s;' % alwaysfailcolor
+jobtablealwaysfailcellstyle = 'text-align: center; background-color: %s;' % alwaysfailcolor
+summarytablestyle = 'width: 25%; margin-top: 20px; border-collapse: collapse;'
+summarytableheaderstyle =  'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (summarytableheadercolor, summarytableheadertxtcolor)
+summarytableheadercellstyle =  'padding: 6px;'
+summarytablerowevenstyle = 'font-weight: bold; background-color: %s; color: %s;' % (summarytablerowevencolor, summarytableroweventxtcolor)
+summarytablerowoddstyle = 'font-weight: bold; background-color: %s; color: %s;' % (summarytablerowoddcolor, summarytablerowoddtxtcolor)
+summarytablecellstyle = 'text-align: center; padding: 5px;'
 
 # --------------------------------------------------
 # Nothing should need to be modified below this line
@@ -137,8 +165,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.11'
-reldate = 'July 2, 2021'
+version = '1.12'
+reldate = 'July 4, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -158,18 +186,18 @@ valid_col_lst = [
 # that they may be used in any order in the jobs table
 # -----------------------------------------------------
 col_hdr_dict = {
-    'jobid':     '<td align="center"><b>Job ID</b></td>',
-    'jobname':   '<td align="center"><b>Job Name</b></td>',
-    'client':    '<td align="center"><b>Client</b></td>',
-    'status':    '<td align="center"><b>Status</b></td>',
-    'joberrors': '<td align="center"><b>Errors</b></td>',
-    'type':      '<td align="center"><b>Type</b></td>',
-    'level':     '<td align="center"><b>Level</b></td>',
-    'jobfiles':  '<td align="center"><b>Files</b></td>',
-    'jobbytes':  '<td align="center"><b>Bytes</b></td>',
-    'starttime': '<td align="center"><b>Start Time</b></td>',
-    'endtime':   '<td align="center"><b>End Time</b></td>',
-    'runtime':   '<td align="center"><b>Run Time</b></td>'
+    'jobid':     '<th style="' + jobtableheadercellstyle + '">Job ID</th>',
+    'jobname':   '<th style="' + jobtableheadercellstyle + '">Job Name</th>',
+    'client':    '<th style="' + jobtableheadercellstyle + '">Client</th>',
+    'status':    '<th style="' + jobtableheadercellstyle + '">Status</th>',
+    'joberrors': '<th style="' + jobtableheadercellstyle + '">Errors</th>',
+    'type':      '<th style="' + jobtableheadercellstyle + '">Type</th>',
+    'level':     '<th style="' + jobtableheadercellstyle + '">Level</th>',
+    'jobfiles':  '<th style="' + jobtableheadercellstyle + '">Files</th>',
+    'jobbytes':  '<th style="' + jobtableheadercellstyle + '">Bytes</th>',
+    'starttime': '<th style="' + jobtableheadercellstyle + '">Start Time</th>',
+    'endtime':   '<th style="' + jobtableheadercellstyle + '">End Time</th>',
+    'runtime':   '<th style="' + jobtableheadercellstyle + '">Run Time</th>'
     }
 
 def usage():
@@ -289,7 +317,7 @@ def translate_job_type(jobtype, jobid, priorjobid):
 
 def translate_job_status(jobstatus, joberrors):
     'jobstatus is stored in the catalog as a single character, replace with words.'
-    return {'A': 'Aborted', 'C': 'Created', 'D': 'Verify Diffs',
+    return {'A': 'Canceled', 'C': 'Created', 'D': 'Verify Diffs',
             'E': 'Errors', 'f': 'Failed', 'I': 'Incomplete',
             'R': 'Running', 'T': ('-OK-', 'OK/Warnings')[joberrors > 0]}[jobstatus]
 
@@ -322,7 +350,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     'Format/modify some table cells based on settings and conditions.'
     # Set default tdo and tdc to wrap each cell
     # -----------------------------------------
-    tdo = '<td align="center">'
+    tdo = '<td style="' + jobtablecellstyle + '">'
     tdc = '</td>'
 
     # Colorize the Status cell?
@@ -346,17 +374,20 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
                 bgcolor = runningjobcolor
             elif jobrow['jobstatus'] == 'I':
                 bgcolor = warnjobcolor
-        tdo = '<td align="center" bgcolor="' + bgcolor + '">'
+        if bgcolor:
+            tdo = '<td style="' + jobtablecellstyle + 'background-color: ' + bgcolor + ';">'
+        else:
+            tdo = '<td style="' + jobtablecellstyle + '">'
 
     if alwaysfailjob == 'yes' and col == alwaysfailcolumn:
-        tdo = '<td align="center" bgcolor="' + alwaysfailcolor + '">'
+        tdo = '<td style="' + jobtablealwaysfailcellstyle + '">'
 
     # Center the Client name and Job name?
     # ------------------------------------
     if col == 'jobname' and centerjobname != 'yes':
-        tdo = '<td align="left">'
+        tdo = '<td style="text-align: center;">'
     if col == 'client' and centerclientname != 'yes':
-        tdo = '<td align="left">'
+        tdo = '<td style="text-align: center;">'
 
     # Set the Job name and Status cells bold?
     # ---------------------------------------
@@ -959,7 +990,7 @@ else:
 
 # Start creating the msg to send
 # ------------------------------
-msg = '<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' \
+msg = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' \
     + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
     + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n'
 
@@ -975,17 +1006,16 @@ if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
     else:
         job = 'jobs'
         have = 'have'
-    msg += '<br><table align="left" border="0" cellpadding="2" cellspacing="0">' \
-        +'<tr><td style="font-size: 14px;" bgcolor="' + alwaysfailcolor \
-        + '"><b>The ' + str(len(always_fail_jobs)) + ' ' + job + ' who\'s ' \
+    msg += '<p style="' + alwaysfailstyle + '">' \
+        + 'The ' + str(len(always_fail_jobs)) + ' ' + job + ' who\'s ' \
         + alwaysfailcolumn_str + ' has this background color ' + have \
-        + ' always failed in the past ' + days + ' days</b></td></tr></table><br><br>'
+        + ' always failed in the past ' + days + ' days</p>'
 
 # Create the table header from the columns in the
 # cols2show variable in the order they are defined
 # ------------------------------------------------
-msg += '<table width="100%" align="center" border="1" cellpadding="2" cellspacing="0">' \
-    + '<tr bgcolor="' + jobtableheadercolor + '">'
+msg += '<table style="' + jobtablestyle + '">' \
+    + '<tr style="' + jobtableheaderstyle + '">'
 for colname in c2sl:
     if colname not in valid_col_lst:
         print('\nColumn name \'' + colname + '\' not valid. Exiting!\n')
@@ -997,6 +1027,7 @@ msg += '</tr>\n'
 # Build the jobs table from the columns in the
 # cols2show variable in the order they are defined
 # ------------------------------------------------
+counter = 0
 for jobrow in alljobrows:
     # If this job is always failing, set the alwaysfailjob variable
     # -------------------------------------------------------------
@@ -1008,9 +1039,12 @@ for jobrow in alljobrows:
     # Set the job row's default bgcolor
     # ---------------------------------
     if alwaysfailjob == 'yes' and alwaysfailcolumn == 'row':
-        msg += '<tr bgcolor="' + alwaysfailcolor + '">'
+        msg += '<tr style="' + jobtablealwaysfailrowstyle +'">'
     else:
-        msg += '<tr bgcolor="' + jobtablerowcolor + '">'
+        if counter % 2 == 0:
+             msg += '<tr style="' + jobtablerowevenstyle + '">'
+        else :
+             msg += '<tr style="' + jobtablerowoddstyle + '">'
 
     for colname in c2sl:
         if colname == 'jobid':
@@ -1038,38 +1072,37 @@ for jobrow in alljobrows:
         elif colname == 'runtime':
             msg += html_format_cell(str(jobrow['runtime']), col = 'runtime')
     msg += '</tr>\n'
+    counter += 1
 msg += '</table>'
 
 # Email the summary table?
 # ------------------------
 if emailsummary == 'yes':
-    summary = '<br><hr align="left" width="25%">' \
-            + '<table width="25%">' \
-            + '<tr><td><b>Total Jobs</b></td><td align="center"><b>:</b></td> <td align="right"><b>' \
-            + '{:,}'.format(numjobs) + '</b></td></tr>' \
-            + '<tr><td><b>Bad Jobs</b></td><td align="center"><b>:</b></td> <td align="right"><b>' \
-            + '{:,}'.format(numbadjobs) + ' </b></td></tr>' \
-            + '<tr><td><b>Jobs with Errors</b></td><td align="center"><b>:</b></td> <td align="right"><b>' \
-            + '{:,}'.format(jobswitherrors) + ' </b></td></tr>' \
-            + '<tr><td><b>Total Job Errors</b></td><td align="center"><b>:</b></td> <td align="right"><b>' \
-            + '{:,}'.format(totaljoberrors) + ' </b></td></tr>' \
-            + '<tr><td><b>Total Backup Files</b></td><td align="center"><b>:</b></td> <td align="right"><b>' \
-            + '{:,}'.format(total_backup_files) + '</b></td></tr>' \
-            + '<tr><td><b>Total Backup Bytes</b></td><td align="center"><b>:</b></td> <td align="right"><b>' \
-            + humanbytes(total_backup_bytes) + '</b></td></tr>' \
-            + '<tr><td><b>Total Restore Files</b></td><td align="center"><b>:</b></td> <td align="right"><b>' \
-            + '{:,}'.format(total_restore_files) + '</b></td></tr>\n' \
-            + '<tr><td><b>Total Restore Bytes</b></td><td align="center"><b>:</b></td> <td align="right"><b>' \
-            + humanbytes(total_restore_bytes) + '</b></td></tr>' \
-            + '<tr><td><b>Total Copied Files</b></td><td align="center"><b>:</b></td> <td align="right"><b>' \
-            + '{:,}'.format(total_copied_files) + '</b></td></tr>\n' \
-            + '<tr><td><b>Total Copied Bytes</b></td><td align="center"><b>:</b></td> <td align="right"><b>' \
-            + humanbytes(total_copied_bytes) + '</b></td></tr>' \
-            + '<tr><td><b>Total Verify Files</b></td><td align="center"><b>:</b></td> <td align="right"><b>' \
-            + '{:,}'.format(total_verify_files) + '</b></td></tr>' \
-            + '<tr><td><b>Total Verify Bytes</b></td><td align="center"><b>:</b></td> <td align="right"><b>' \
-            + humanbytes(total_verify_bytes) + '</b></td></tr></table>' \
-            + '<hr align="left" width="25%">'
+    emailsummarydata = [
+        {'label': 'Total Jobs', 'data': '{:,}'.format(numjobs)},
+        {'label': 'Bad Jobs', 'data': '{:,}'.format(numbadjobs)},
+        {'label': 'Jobs with Errors', 'data': '{:,}'.format(jobswitherrors)},
+        {'label': 'Total Job Errors', 'data': '{:,}'.format(totaljoberrors)},
+        {'label': 'Total Backup Files', 'data': '{:,}'.format(total_backup_files)},
+        {'label': 'Total Backup Bytes', 'data': humanbytes(total_backup_bytes)},
+        {'label': 'Total Restore Files', 'data': '{:,}'.format(total_restore_files)},
+        {'label': 'Total Restore Bytes', 'data': humanbytes(total_restore_bytes)},
+        {'label': 'Total Copied Files', 'data': '{:,}'.format(total_copied_files)},
+        {'label': 'Total Copied Bytes', 'data': humanbytes(total_copied_bytes)},
+        {'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)},
+        {'label': 'Total Verify Bytes', 'data': humanbytes(total_verify_bytes)}
+    ]
+
+    summary = '<table style="' + summarytablestyle + '">' \
+            + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' + summarytableheadercellstyle + '">Summary</th></tr>'
+    counter = 0
+    for value in emailsummarydata:
+        summary += '<tr style="' + (summarytablerowevenstyle if counter % 2 == 0 else summarytablerowoddstyle) + '">' \
+                + '<td style="' + summarytablecellstyle + 'text-align: left;">' + value['label'] + '</td>' \
+                + '<td style="' + summarytablecellstyle + 'text-align: right;">' + value['data'] + '</td>' \
+                + '</tr>'
+        counter += 1
+    summary += '</table>'
 else:
     summary = ''
 

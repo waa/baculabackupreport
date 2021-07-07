@@ -56,10 +56,10 @@
 
 # External GUI link settings
 # --------------------------
-webgui = 'none'         # Which web interface to generate links for? (bweb, baculum, none)
-webguisvc = 'http'      # Use encrypted connection or not (ie: http or https)
-webguihost = '0.0.0.0'  # FQDN or IP address of the web gui host
-webguiport = '9095'     # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
+webgui = ''      # Which web interface to generate links for? (bweb, baculum, none)
+webguisvc = ''   # Use encrypted connection or not (ie: http or https)
+webguihost = ''  # FQDN or IP address of the web gui host
+webguiport = ''  # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
 
 # Toggles and other formatting settings
 # -------------------------------------
@@ -135,19 +135,19 @@ fontsizesumlog = '10px'   # Font size of job summaries and bad job logs
 # -----------
 alwaysfailstyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0; background-color: %s;' % alwaysfailcolor
 jobtablestyle = 'width: 100%; border-collapse: collapse;'
-jobtableheaderstyle =  'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (jobtableheadercolor, jobtableheadertxtcolor)
-jobtableheadercellstyle =  'padding: 6px'
+jobtableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (jobtableheadercolor, jobtableheadertxtcolor)
+jobtableheadercellstyle = 'padding: 6px'
 jobtablerowevenstyle = 'background-color: %s; color: %s;' % (jobtablerowevencolor, jobtableroweventxtcolor)
 jobtablerowoddstyle = 'background-color: %s; color: %s;' % (jobtablerowoddcolor, jobtablerowoddtxtcolor)
 jobtablecellstyle = 'text-align: center; padding: 5px;'
 jobtablealwaysfailrowstyle = 'background-color: %s;' % alwaysfailcolor
 jobtablealwaysfailcellstyle = 'text-align: center; background-color: %s;' % alwaysfailcolor
 summarytablestyle = 'width: 25%; margin-top: 20px; border-collapse: collapse;'
-summarytableheaderstyle =  'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (summarytableheadercolor, summarytableheadertxtcolor)
-summarytableheadercellstyle =  'padding: 6px;'
+summarytableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (summarytableheadercolor, summarytableheadertxtcolor)
+summarytableheadercellstyle = 'padding: 6px;'
 summarytablerowevenstyle = 'font-weight: bold; background-color: %s; color: %s;' % (summarytablerowevencolor, summarytableroweventxtcolor)
 summarytablerowoddstyle = 'font-weight: bold; background-color: %s; color: %s;' % (summarytablerowoddcolor, summarytablerowoddtxtcolor)
-summarytablecellstyle = 'text-align: center; padding: 5px;'
+summarytablecellstyle = 'padding: 5px;'
 
 # --------------------------------------------------
 # Nothing should need to be modified below this line
@@ -165,8 +165,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.12'
-reldate = 'July 4, 2021'
+version = '1.13'
+reldate = 'July 7, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -1100,7 +1100,7 @@ if emailsummary == 'yes':
         summary += '<tr style="' + (summarytablerowevenstyle if counter % 2 == 0 else summarytablerowoddstyle) + '">' \
                 + '<td style="' + summarytablecellstyle + 'text-align: left;">' + value['label'] + '</td>' \
                 + '<td style="' + summarytablecellstyle + 'text-align: right;">' + value['data'] + '</td>' \
-                + '</tr>'
+                + '</tr>\n'
         counter += 1
     summary += '</table>'
 else:

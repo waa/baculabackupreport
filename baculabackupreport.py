@@ -56,10 +56,10 @@
 
 # External GUI link settings
 # --------------------------
-webgui = 'baculum'       # Which web interface to generate links for? (bweb, baculum, none)
-webguisvc = 'http'       # Use encrypted connection or not (ie: http or https)
-webguihost = '10.1.1.4'  # FQDN or IP address of the web gui host
-webguiport = '9095'      # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
+webgui = 'none'  # Which web interface to generate links for? (bweb, baculum, none)
+webguisvc = ''   # Use encrypted connection or not (ie: http or https)
+webguihost = ''  # FQDN or IP address of the web gui host
+webguiport = ''  # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
 
 # Toggles and other formatting settings
 # -------------------------------------

@@ -56,10 +56,10 @@
 
 # External GUI link settings
 # --------------------------
-webgui = ''      # Which web interface to generate links for? (bweb, baculum, none)
-webguisvc = ''   # Use encrypted connection or not (ie: http or https)
-webguihost = ''  # FQDN or IP address of the web gui host
-webguiport = ''  # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
+webgui = 'baculum'       # Which web interface to generate links for? (bweb, baculum, none)
+webguisvc = 'http'       # Use encrypted connection or not (ie: http or https)
+webguihost = '10.1.1.4'  # FQDN or IP address of the web gui host
+webguiport = '9095'      # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
 
 # Toggles and other formatting settings
 # -------------------------------------
@@ -165,8 +165,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.13'
-reldate = 'July 7, 2021'
+version = '1.14'
+reldate = 'July 13, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -308,10 +308,7 @@ def translate_job_type(jobtype, jobid, priorjobid):
             return 'Migration Ctrl: ' + pn_jobids[str(jobid)][0] + '->' + pn_jobids[str(jobid)][1]
 
     if jobtype == 'V':
-        if '0' in v_jobids[str(jobid)]:
-            return 'Verify: No job to verify'
-        else:
-            return 'Verify of ' + v_jobids[str(jobid)]
+        return 'Verify of ' + v_jobids[str(jobid)]
 
     return {'B': 'Backup', 'D': 'Admin', 'R': 'Restore'}[jobtype]
 
@@ -545,6 +542,7 @@ Options:
     -v, --version                     Print the script name and version
 
 Notes:
+* Edit variables at top of script to customize output
 * Only the email variable is required. It must be set on the command line or via an environment variable
 * Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
 * Variable assignment precedence is: command line > environment variable > default
@@ -771,8 +769,8 @@ finally:
 # Crazy?  Is it worth it? Will anyone care?
 #--------------------------------------------------------------------------
 
-# Assign some lists, lengths, and totals to variables for later
-# -------------------------------------------------------------
+# Assign some lists, lengths, and totals to variables
+# ---------------------------------------------------
 alljobids = [r['jobid'] for r in alljobrows]
 alljobnames = [r['jobname'] for r in alljobrows]
 badjobids = [r['jobid'] for r in alljobrows if r['jobstatus'] in badjobset]

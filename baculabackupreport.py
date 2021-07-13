@@ -278,7 +278,7 @@ def translate_job_type(jobtype, jobid, priorjobid):
         if 'pn_jobids' in globals() and migrated_id(jobid) != '0':
             return 'Migrated to ' + migrated_id(jobid)
         elif 'pn_jobids' in globals() and migrated_id(jobid) == '0':
-            return 'Nothing to migrate'
+            return 'Migrated/Nothing to migrate'
         else:
             return 'Migrated'
 

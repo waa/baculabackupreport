@@ -165,7 +165,7 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.14'
+version = '1.15'
 reldate = 'July 13, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
@@ -278,7 +278,7 @@ def translate_job_type(jobtype, jobid, priorjobid):
         if 'pn_jobids' in globals() and migrated_id(jobid) != '0':
             return 'Migrated to ' + migrated_id(jobid)
         elif 'pn_jobids' in globals() and migrated_id(jobid) == '0':
-            return 'Migrated/Nothing to migrate'
+            return 'Migrated (No data to migrate)'
         else:
             return 'Migrated'
 
@@ -287,13 +287,11 @@ def translate_job_type(jobtype, jobid, priorjobid):
             return 'Copy Ctrl'
         if jobrow['jobstatus'] in badjobset:
             return 'Copy Ctrl: Failed'
-        if '0' in pn_jobids[str(jobid)]:
-            # This covers when the 'main' copy control job finds no eligable
-            # jobs to copy at all both 'Prev JobId' and 'Next JobId' are '0'
-            if pn_jobids[str(jobid)][0] == '0':
-                return 'Copy Ctrl: No jobs to copy'
+        if pn_jobids[str(jobid)][1] == '0':
+            if pn_jobids[str(jobid)][0] != '0':
+                return 'Copy Ctrl: ' + pn_jobids[str(jobid)][0] + ' (No files to copy)'
             else:
-                return 'Copy Ctrl: ' + pn_jobids[str(jobid)][0] + '->No files to copy'
+                return 'Copy Ctrl: No jobs to copy'
         else:
             return 'Copy Ctrl: ' + pn_jobids[str(jobid)][0] + '->' + pn_jobids[str(jobid)][1]
 
@@ -302,8 +300,11 @@ def translate_job_type(jobtype, jobid, priorjobid):
             return 'Migration Ctrl'
         if jobrow['jobstatus'] in badjobset:
             return 'Migration Ctrl: Failed'
-        if '0' in pn_jobids[str(jobid)]:
-            return 'Migration Ctrl: No jobs to migrate'
+        if pn_jobids[str(jobid)][1] == '0':
+            if pn_jobids[str(jobid)][0] != '0':
+                return 'Migration Ctrl: ' + pn_jobids[str(jobid)][0] + ' (No data to migrate)'
+            else:
+                return 'Migration Ctrl: No jobs to migrate'
         else:
             return 'Migration Ctrl: ' + pn_jobids[str(jobid)][0] + '->' + pn_jobids[str(jobid)][1]
 

@@ -165,7 +165,7 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.15'
+version = '1.16'
 reldate = 'July 13, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
@@ -174,6 +174,7 @@ prog_info = '<p style="font-size: 8px;">' \
           + '<br>By: Bill Arlofski waa@revpol.com (c) ' \
           + reldate + '</body></html>'
 badjobset = {'A', 'D', 'E', 'f', 'I'}
+all_jobtype_lst = ['B', 'C', 'c', 'D', 'g', 'M', 'R', 'V']
 valid_webgui_lst = [ 'bweb', 'baculum' ]
 valid_db_lst = ['pgsql', 'mysql', 'maria']
 valid_col_lst = [
@@ -228,6 +229,8 @@ def print_opt_errors(opt):
         return '\nThe \'' + opt + '\' variable is either empty or it does not look like a valid email address.'
     elif opt == 'dbtype':
         return '\nThe \'' + opt + '\' variable must not be empty, and must be one of: ' + ', '.join(valid_db_lst)
+    elif opt == 'jobtype':
+        return '\nThe \'' + opt + '\' variable must be one or more of the following characters: ' + ''.join(all_jobtype_lst)
 
 def db_connect():
     'Connect to the db using the appropriate database connector and create the right cursor'
@@ -513,7 +516,7 @@ def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, s
 
 doc_str = """
 Usage:
-    baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-d <days>] [-c <client>] [-j <jobname>]
+    baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-d <days>] [-c <client>] [-j <jobname>] [-y <jobtype>]
                           [--dbtype <dbtype>] [--dbport <dbport>] [--dbhost <dbhost>] [--dbname <dbname>]
                           [--dbuser <dbuser>] [--dbpass <dbpass>]
                           [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
@@ -528,6 +531,7 @@ Options:
     -d, --days <days>                 Days to check for "Always failing jobs" [default: 7]
     -c, --client <client>             Client to report on using SQL 'LIKE client' [default: %] (all clients)
     -j, --jobname <jobname>           Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
+    -y, --jobtype <jobtype>           Type of job to report on. [default: DBRCcMgV] (all job types)
     --dbtype (pgsql | mysql | maria)  Database type [default: pgsql]
     --dbport <dbport>                 Database port (defaults pgsql 5432, mysql & maria 3306)
     --dbhost <dbhost>                 Database host [default: localhost]
@@ -614,14 +618,19 @@ for ced_tup in [
     ('--dbtype', 'DBTYPE'), ('--dbport', 'DBPORT'),
     ('--dbhost', 'DBHOST'), ('--dbname', 'DBNAME'),
     ('--dbuser', 'DBUSER'), ('--dbpass', 'DBPASS'),
-    ('--jobname', 'JOBNAME'), ('--smtpport', 'SMTPPORT'),
+    ('--jobname', 'JOBNAME'), ('--jobtype', 'JOBTYPE'),
     ('--smtpuser', 'SMTPUSER'), ('--smtppass', 'SMTPPASS'),
-    ('--fromemail', 'FROMEMAIL'), ('--smtpserver', 'SMTPSERVER')
+    ('--smtpserver', 'SMTPSERVER'), ('--smtpport', 'SMTPPORT'),
+    ('--fromemail', 'FROMEMAIL')
     ]:
     args[ced_tup[0]] = cli_vs_env_vs_default_vars(ced_tup[0], ced_tup[1])
 
 # Do some basic sanity checking on variables
 # ------------------------------------------
+jobtypeset = set(args['--jobtype'])
+if not jobtypeset.issubset(set(all_jobtype_lst)):
+    print(print_opt_errors('jobtype'))
+    usage()
 if args['--email'] is None or '@' not in args['--email']:
     print(print_opt_errors('email'))
     usage()
@@ -726,6 +735,7 @@ try:
             OR (JobStatus='R' OR JobStatus='C')) \
             AND Client.Name LIKE '" + client + "' \
             AND Job.Name LIKE '" + jobname + "' \
+            AND Type IN ('" + "','".join(jobtypeset) + "') \
             ORDER BY " + sortfield + " " + sortorder + ";"
     elif dbtype in ('mysql', 'maria'):
         query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
@@ -738,6 +748,7 @@ try:
             OR (jobstatus='R' OR jobstatus='C')) \
             AND Client.Name LIKE '" + client + "' \
             AND Job.Name LIKE '" + jobname + "' \
+            AND type IN ('" + "','".join(jobtypeset) + "') \
             ORDER BY " + sortfield + " " + sortorder + ";"
     cur.execute(query_str)
     alljobrows = cur.fetchall()

@@ -165,7 +165,7 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.16'
+version = '1.17'
 reldate = 'July 13, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
@@ -209,11 +209,7 @@ def usage():
 def cli_vs_env_vs_default_vars(var_name, env_name):
     'Assign/re-assign args[] vars based on if they came from cli, env, or defaults.'
     if var_name in sys.argv:
-        if args['--dbname'] == '':
-            print(print_opt_errors('dbname'))
-            usage()
-        else:
-            return args[var_name]
+        return args[var_name]
     elif env_name in os.environ and os.environ[env_name] != '':
         return os.environ[env_name]
     else:
@@ -804,15 +800,16 @@ vrfy_jobids = [r['jobid'] for r in alljobrows if r['type'] =='V']
 
 # Silly OCD string manipulations
 # ------------------------------
-hour = 'hour' if time == 1 else 'hours'
+hour = 'hour' if time == '1' else 'hours'
 jobstr = 'all jobs' if jobname == '%' else 'jobname \'' + jobname + '\''
 clientstr = 'all clients' if client == '%' else 'client \'' + client + '\''
+jobtypestr = 'all jobtypes' if set(all_jobtype_lst).issubset(jobtypeset) else 'jobtypes: ' + ','.join(jobtypeset)
 
 # If there are no jobs to report
 # on, just send the email & exit
 # ------------------------------
 if numjobs == 0:
-    subject = server + ' - No jobs found for ' + clientstr + ' in the past ' + time + ' ' + hour + ' for ' + jobstr
+    subject = server + ' - No jobs found for ' + clientstr + ' in the past ' + time + ' ' + hour + ' for ' + jobstr + ', and ' + jobtypestr
     if addsubjecticon == 'yes':
         subject = set_subject_icon() + ' ' + subject
     msg = 'These are not the droids you are looking for.'
@@ -865,7 +862,7 @@ else:
 subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
         + str(time) + ' ' + hour + ': ' + str(numbadjobs) + ' bad, ' \
         + str(jobswitherrors) + ' with errors, for ' + clientstr + ', and ' \
-        + jobstr + runningorcreatedsubject
+        + jobstr + ', and ' + jobtypestr + runningorcreatedsubject
 if addsubjecticon == 'yes':
     subject = set_subject_icon() + ' ' + subject
 

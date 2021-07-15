@@ -788,10 +788,12 @@ total_backup_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'B']
 total_backup_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'B'])
 total_restore_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'R'])
 total_restore_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'R'])
-total_verify_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'V'])
-total_verify_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'V'])
 total_copied_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'C'])
 total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'C'])
+total_migrated_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'M'])
+total_migrated_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'M'])
+total_verify_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'V'])
+total_verify_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'V'])
 jobswitherrors = len([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in ('R', 'C')])
@@ -1096,6 +1098,8 @@ if emailsummary == 'yes':
         {'label': 'Total Restore Bytes', 'data': humanbytes(total_restore_bytes)},
         {'label': 'Total Copied Files', 'data': '{:,}'.format(total_copied_files)},
         {'label': 'Total Copied Bytes', 'data': humanbytes(total_copied_bytes)},
+        {'label': 'Total Migrated Files', 'data': '{:,}'.format(total_migrated_files)},
+        {'label': 'Total Migrated Bytes', 'data': humanbytes(total_migrated_bytes)},
         {'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)},
         {'label': 'Total Verify Bytes', 'data': humanbytes(total_verify_bytes)}
     ]

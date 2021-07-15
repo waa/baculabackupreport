@@ -63,22 +63,30 @@ webguiport = ''  # TCP port the web gui is bound to (Defaults: bweb 9180, baculu
 
 # Toggles and other formatting settings
 # -------------------------------------
-centerjobname = 'yes'               # Center the Job Name in HTML emails?
-centerclientname = 'yes'            # Center the Client Name in HTML emails?
-boldjobname = 'yes'                 # Bold the Job Name in HTML emails?
-boldstatus = 'yes'                  # Bold the Status in HTML emails?
-emailsummary = 'yes'                # Print a short summary after the Job list table? (Total Jobs, Files, Bytes, etc)
-emailjobsummaries = 'no'            # Email all Job summaries? Be careful with this, it can generate very large emails
-emailbadlogs = 'no'                 # Email logs of bad Jobs? Be careful with this, it can generate very large emails
-addsubjecticon = 'yes'              # Prepend the email Subject with UTF-8 icons? See (no|good|warn|bad)jobsicon variables below
-addsubjectrunningorcreated = 'yes'  # Append "(# Jobs still runnning/queued)" to Subject if running or queued Jobs > 0?
-starbadjobids = 'no'                # Wrap bad Jobs jobids with asterisks "*"?
-sortfield = 'JobId'                 # Which catalog DB field to sort on? hint: multiple,fields,work,here
-sortorder = 'DESC'                  # Which direction to sort?
+centerjobname = 'yes'     # Center the Job Name in HTML emails?
+centerclientname = 'yes'  # Center the Client Name in HTML emails?
+boldjobname = 'yes'       # Bold the Job Name in HTML emails?
+boldstatus = 'yes'        # Bold the Status in HTML emails?
+starbadjobids = 'no'      # Wrap bad Jobs jobids with asterisks "*"?
+sortfield = 'JobId'       # Which catalog DB field to sort on? hint: multiple,fields,work,here
+sortorder = 'DESC'        # Which direction to sort?
 
-# Set some utf-8 icon to prepend the subject with
+# Job summary table settings
+# --------------------------
+emailsummary = 'bottom'   # Print a short summary after the Job list table? (top, bottom, both, none)
+restore_stats = 'yes'     # Print Restore Files/Bytes in summary table?
+copied_stats = 'yes'      # Print Copied Files/Bytes in the summary table?
+migrated_stats = 'yes'    # Print Migrated Files/Bytes in the summary table?
+verify_stats = 'yes'      # Print Verified Files/Bytes in the summary table?
+emailjobsummaries = 'no'  # Email all Job summaries? Be careful with this, it can generate very large emails
+emailbadlogs = 'no'       # Email logs of bad Jobs? Be careful with this, it can generate very large emails
+
+# Email subject settings including some example utf-8
+# icons to prepend the subject with. Examples from:
 # https://www.utf8-chartable.de/unicode-utf8-table.pl
 # ---------------------------------------------------
+addsubjecticon = 'yes'                        # Prepend the email Subject with UTF-8 icons? See (no|good|warn|bad)jobsicon variables below
+addsubjectrunningorcreated = 'yes'            # Append "(# Jobs still runnning/queued)" to Subject if running or queued Jobs > 0?
 nojobsicon = '=?utf-8?Q?=F0=9F=9A=AB?='       # utf-8 'no entry sign' icon when no Jobs have been run
 goodjobsicon = '=?utf-8?Q?=F0=9F=9F=A9?='     # utf-8 'green square' icon when all Jobs were "OK"
 # goodjobsicon = '=?UTF-8?Q?=E2=9C=85?='      # utf-8 'white checkmark in green box' icon
@@ -95,7 +103,6 @@ alwaysfailjobsicon = '=?utf-8?Q?=E2=9B=94?='  # utf-8 'red circle with white hyp
 # Set the columns to display and their order
 # ------------------------------------------
 cols2show = 'jobid jobname client status joberrors type level jobfiles jobbytes starttime endtime runtime'
-# cols2show = 'status jobid jobname type level starttime endtime runtime'
 
 # Set the column to colorize for jobs that are always failing
 # -----------------------------------------------------------
@@ -165,8 +172,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.17'
-reldate = 'July 13, 2021'
+version = '1.18'
+reldate = 'July 14, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -175,7 +182,8 @@ prog_info = '<p style="font-size: 8px;">' \
           + reldate + '</body></html>'
 badjobset = {'A', 'D', 'E', 'f', 'I'}
 all_jobtype_lst = ['B', 'C', 'c', 'D', 'g', 'M', 'R', 'V']
-valid_webgui_lst = [ 'bweb', 'baculum' ]
+valid_webgui_lst = ['bweb', 'baculum']
+valid_email_summary_lst = ['top', 'bottom', 'both', 'none']
 valid_db_lst = ['pgsql', 'mysql', 'maria']
 valid_col_lst = [
     'jobid', 'jobname', 'client', 'status',
@@ -227,6 +235,8 @@ def print_opt_errors(opt):
         return '\nThe \'' + opt + '\' variable must not be empty, and must be one of: ' + ', '.join(valid_db_lst)
     elif opt == 'jobtype':
         return '\nThe \'' + opt + '\' variable must be one or more of the following characters: ' + ''.join(all_jobtype_lst)
+    elif opt == 'emailsummary':
+        return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_email_summary_lst)
 
 def db_connect():
     'Connect to the db using the appropriate database connector and create the right cursor'
@@ -524,7 +534,7 @@ Options:
     -f, --fromemail <fromemail>       Email address to be set in the From: field of the email
     -s, --server <server>             Name of the Bacula Server [default: Bacula]
     -t, --time <time>                 Time to report on in hours [default: 24]
-    -d, --days <days>                 Days to check for "Always failing jobs" [default: 7]
+    -d, --days <days>                 Days to check for "always failing jobs" [default: 7]
     -c, --client <client>             Client to report on using SQL 'LIKE client' [default: %] (all clients)
     -j, --jobname <jobname>           Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
     -y, --jobtype <jobtype>           Type of job to report on. [default: DBRCcMgV] (all job types)
@@ -621,8 +631,14 @@ for ced_tup in [
     ]:
     args[ced_tup[0]] = cli_vs_env_vs_default_vars(ced_tup[0], ced_tup[1])
 
-# Do some basic sanity checking on variables
-# ------------------------------------------
+# Verify the emailsummary variable is valid
+# -----------------------------------------
+if emailsummary not in valid_email_summary_lst:
+    print(print_opt_errors('emailsummary'))
+    usage()
+
+# Do some basic sanity checking on variables cli and ENV variables
+# ----------------------------------------------------------------
 jobtypeset = set(args['--jobtype'])
 if not jobtypeset.issubset(set(all_jobtype_lst)):
     print(print_opt_errors('jobtype'))
@@ -786,14 +802,6 @@ numjobs = len(alljobrows)
 numbadjobs = len(badjobids)
 total_backup_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'B'])
 total_backup_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'B'])
-total_restore_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'R'])
-total_restore_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'R'])
-total_copied_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'C'])
-total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'C'])
-total_migrated_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'M'])
-total_migrated_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'M'])
-total_verify_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'V'])
-total_verify_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'V'])
 jobswitherrors = len([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in ('R', 'C')])
@@ -1063,7 +1071,7 @@ for jobrow in alljobrows:
         elif colname == 'client':
             msg += html_format_cell(jobrow['client'], col = 'client')
         elif colname == 'status':
-            msg+= html_format_cell(translate_job_status(jobrow['jobstatus'], jobrow['joberrors']), col = 'status')
+            msg += html_format_cell(translate_job_status(jobrow['jobstatus'], jobrow['joberrors']), col = 'status')
         elif colname == 'joberrors':
             msg += html_format_cell(str('{:,}'.format(jobrow['joberrors'])), col = 'joberrors')
         elif colname == 'type':
@@ -1086,23 +1094,44 @@ msg += '</table>'
 
 # Email the summary table?
 # ------------------------
-if emailsummary == 'yes':
+if emailsummary != 'none':
+    # Create the list of basic (non optional) information
+    # ---------------------------------------------------
     emailsummarydata = [
         {'label': 'Total Jobs', 'data': '{:,}'.format(numjobs)},
         {'label': 'Bad Jobs', 'data': '{:,}'.format(numbadjobs)},
         {'label': 'Jobs with Errors', 'data': '{:,}'.format(jobswitherrors)},
         {'label': 'Total Job Errors', 'data': '{:,}'.format(totaljoberrors)},
         {'label': 'Total Backup Files', 'data': '{:,}'.format(total_backup_files)},
-        {'label': 'Total Backup Bytes', 'data': humanbytes(total_backup_bytes)},
-        {'label': 'Total Restore Files', 'data': '{:,}'.format(total_restore_files)},
-        {'label': 'Total Restore Bytes', 'data': humanbytes(total_restore_bytes)},
-        {'label': 'Total Copied Files', 'data': '{:,}'.format(total_copied_files)},
-        {'label': 'Total Copied Bytes', 'data': humanbytes(total_copied_bytes)},
-        {'label': 'Total Migrated Files', 'data': '{:,}'.format(total_migrated_files)},
-        {'label': 'Total Migrated Bytes', 'data': humanbytes(total_migrated_bytes)},
-        {'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)},
-        {'label': 'Total Verify Bytes', 'data': humanbytes(total_verify_bytes)}
+        {'label': 'Total Backup Bytes', 'data': humanbytes(total_backup_bytes)}
     ]
+
+    # Not everyone runs Copy, Migration, Verify jobs
+    # Restores are (or should be) infrequent
+    # Create variables for some optional statistics
+    # and append the corresponding label and data to
+    # the emailsummarydata list to be iterated through
+    # ------------------------------------------------
+    if restore_stats == 'yes':
+        total_restore_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'R'])
+        total_restore_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'R'])
+        emailsummarydata.append({'label': 'Total Restore Files', 'data': '{:,}'.format(total_restore_files)})
+        emailsummarydata.append({'label': 'Total Restore Bytes', 'data': humanbytes(total_restore_bytes)})
+    if copied_stats == 'yes':
+        total_copied_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'C'])
+        total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'C'])
+        emailsummarydata.append({'label': 'Total Copied Files', 'data': '{:,}'.format(total_copied_files)})
+        emailsummarydata.append({'label': 'Total Copied Bytes', 'data': humanbytes(total_copied_bytes)})
+    if migrated_stats == 'yes':
+        total_migrated_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'M'])
+        total_migrated_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'M'])
+        emailsummarydata.append({'label': 'Total Migrated Files', 'data': '{:,}'.format(total_migrated_files)})
+        emailsummarydata.append({'label': 'Total Migrated Bytes', 'data': humanbytes(total_migrated_bytes)})
+    if verify_stats == 'yes':
+        total_verify_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'V'])
+        total_verify_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'V'])
+        emailsummarydata.append({'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)})
+        emailsummarydata.append({'label': 'Total Verify Bytes', 'data': humanbytes(total_verify_bytes)})
 
     summary = '<table style="' + summarytablestyle + '">' \
             + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' + summarytableheadercellstyle + '">Summary</th></tr>'
@@ -1114,12 +1143,16 @@ if emailsummary == 'yes':
                 + '</tr>\n'
         counter += 1
     summary += '</table>'
-else:
-    summary = ''
 
 # Build the final message and send the email
 # ------------------------------------------
-msg = msg + summary + prog_info + jobsummaries + badjoblogs
+if emailsummary == 'top':
+    msg = summary + '</br>' + msg
+elif emailsummary == 'bottom':
+    msg = msg + summary
+elif emailsummary == 'both':
+    msg = summary + '</br>' + msg + summary
+msg = msg + jobsummaries + badjoblogs + prog_info
 send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
 
 

@@ -502,10 +502,10 @@ def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, s
                 server.login(smtpuser, smtppass)
             server.sendmail(fromemail, email, message)
     except (gaierror, ConnectionRefusedError):
-        print('Failed to connect to the server. Bad connection settings?')
+        print('Failed to connect to the SMTP server. Bad connection settings?')
         sys.exit(1)
     except smtplib.SMTPServerDisconnected:
-        print('Failed to connect to the server. Wrong user/password?')
+        print('Failed to connect to the SMTP server. Wrong user/password?')
         sys.exit(1)
     except smtplib.SMTPException as e:
         print('Error occurred while communicating with SMTP server ' + smtpserver + ':' + str(smtpport))

@@ -68,8 +68,7 @@ centerclientname = 'yes'  # Center the Client Name in HTML emails?
 boldjobname = 'yes'       # Bold the Job Name in HTML emails?
 boldstatus = 'yes'        # Bold the Status in HTML emails?
 starbadjobids = 'no'      # Wrap bad Jobs jobids with asterisks "*"?
-sortfield = 'JobId'       # Which catalog DB field to sort on? hint: multiple,fields,work,here
-sortorder = 'DESC'        # Which direction to sort?
+sortorder = 'DESC'        # Which direction to sort jobids by? (ASC or DESC)
 
 # Job summary table settings
 # --------------------------
@@ -172,15 +171,15 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.18'
-reldate = 'July 14, 2021'
+version = '1.19'
+reldate = 'July 26, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
           + target="_blank">baculabackupreport.py</a>' \
           + '<br>By: Bill Arlofski waa@revpol.com (c) ' \
           + reldate + '</body></html>'
-badjobset = {'A', 'D', 'E', 'f', 'I'}
+bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 all_jobtype_lst = ['B', 'C', 'c', 'D', 'g', 'M', 'R', 'V']
 valid_webgui_lst = ['bweb', 'baculum']
 valid_email_summary_lst = ['top', 'bottom', 'both', 'none']
@@ -266,9 +265,9 @@ def v_job_id(vrfy_jobid):
 
 def migrated_id(jobid):
     'For a given Migrated job, return the jobid that it was migrated to.'
-    for t in pn_jobids:
-        if pn_jobids[t][0] == str(jobid):
-            return pn_jobids[t][1]
+    for t in pn_jobids_dict:
+        if pn_jobids_dict[t][0] == str(jobid):
+            return pn_jobids_dict[t][1]
 
 def translate_job_type(jobtype, jobid, priorjobid):
     'Job type is stored in the catalog as a single character. Do some special things for Copy and Migration jobs.'
@@ -284,9 +283,9 @@ def translate_job_type(jobtype, jobid, priorjobid):
         # The original backup Job's type gets changed from 'B' (Backup) to 'M' (Migrated), even
         # though nothing is migrated. https://bugs.bacula.org/view.php?id=2619
         # ---------------------------------------------------------------------------------------
-        if 'pn_jobids' in globals() and migrated_id(jobid) != '0':
+        if 'pn_jobids_dict' in globals() and migrated_id(jobid) != '0':
             return 'Migrated to ' + migrated_id(jobid)
-        elif 'pn_jobids' in globals() and migrated_id(jobid) == '0':
+        elif 'pn_jobids_dict' in globals() and migrated_id(jobid) == '0':
             return 'Migrated (No data to migrate)'
         else:
             return 'Migrated'
@@ -294,28 +293,28 @@ def translate_job_type(jobtype, jobid, priorjobid):
     if jobtype == 'c':
         if jobrow['jobstatus'] in ('R', 'C'):
             return 'Copy Ctrl'
-        if jobrow['jobstatus'] in badjobset:
+        if jobrow['jobstatus'] in bad_job_set:
             return 'Copy Ctrl: Failed'
-        if pn_jobids[str(jobid)][1] == '0':
-            if pn_jobids[str(jobid)][0] != '0':
-                return 'Copy Ctrl: ' + pn_jobids[str(jobid)][0] + ' (No files to copy)'
+        if pn_jobids_dict[str(jobid)][1] == '0':
+            if pn_jobids_dict[str(jobid)][0] != '0':
+                return 'Copy Ctrl: ' + pn_jobids_dict[str(jobid)][0] + ' (No files to copy)'
             else:
                 return 'Copy Ctrl: No jobs to copy'
         else:
-            return 'Copy Ctrl: ' + pn_jobids[str(jobid)][0] + '->' + pn_jobids[str(jobid)][1]
+            return 'Copy Ctrl: ' + pn_jobids_dict[str(jobid)][0] + '->' + pn_jobids_dict[str(jobid)][1]
 
     if jobtype == 'g':
         if jobrow['jobstatus'] in ('R', 'C'):
             return 'Migration Ctrl'
-        if jobrow['jobstatus'] in badjobset:
+        if jobrow['jobstatus'] in bad_job_set:
             return 'Migration Ctrl: Failed'
-        if pn_jobids[str(jobid)][1] == '0':
-            if pn_jobids[str(jobid)][0] != '0':
-                return 'Migration Ctrl: ' + pn_jobids[str(jobid)][0] + ' (No data to migrate)'
+        if pn_jobids_dict[str(jobid)][1] == '0':
+            if pn_jobids_dict[str(jobid)][0] != '0':
+                return 'Migration Ctrl: ' + pn_jobids_dict[str(jobid)][0] + ' (No data to migrate)'
             else:
                 return 'Migration Ctrl: No jobs to migrate'
         else:
-            return 'Migration Ctrl: ' + pn_jobids[str(jobid)][0] + '->' + pn_jobids[str(jobid)][1]
+            return 'Migration Ctrl: ' + pn_jobids_dict[str(jobid)][0] + '->' + pn_jobids_dict[str(jobid)][1]
 
     if jobtype == 'V':
         return 'Verify of ' + v_jobids[str(jobid)]
@@ -375,7 +374,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
                     bgcolor = goodjobcolor
                 else:
                     bgcolor = warnjobcolor
-            elif jobrow['jobstatus'] in badjobset:
+            elif jobrow['jobstatus'] in bad_job_set:
                 bgcolor = badjobcolor
             elif jobrow['jobstatus'] == 'R':
                 bgcolor = runningjobcolor
@@ -748,7 +747,7 @@ try:
             AND Client.Name LIKE '" + client + "' \
             AND Job.Name LIKE '" + jobname + "' \
             AND Type IN ('" + "','".join(jobtypeset) + "') \
-            ORDER BY " + sortfield + " " + sortorder + ";"
+            ORDER BY jobid " + sortorder + ";"
     elif dbtype in ('mysql', 'maria'):
         query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
             REPLACE(CAST(Job.name as CHAR(50)),' ','_') AS jobname, CAST(jobstatus as CHAR(1)) AS jobstatus, \
@@ -761,7 +760,7 @@ try:
             AND Client.Name LIKE '" + client + "' \
             AND Job.Name LIKE '" + jobname + "' \
             AND type IN ('" + "','".join(jobtypeset) + "') \
-            ORDER BY " + sortfield + " " + sortorder + ";"
+            ORDER BY jobid " + sortorder + ";"
     cur.execute(query_str)
     alljobrows = cur.fetchall()
 except:
@@ -772,41 +771,10 @@ finally:
         cur.close()
         conn.close()
 
+# Assign the numjobs variable ASAP to be able to short-circuit everything
+# and just send the 'no jobs run' email without doing any additional work
 # -----------------------------------------------------------------------
-# TODO/NOTE:  What about Copy/Migration jobs which
-#             Copy/Migrate jobs older than 'time'?
-#
-# These "new" 'copied' jobs will not appear in the listing because they
-# inherit the end time of the original backup job. Do we consider them
-# to be within 'time' time because they are new, even though they retain
-# the endtime of the job they are a copy of?  Good question?? I say 'yes'
-#
-# Idea: For each job of type=(c|g), query the log table, and find the new
-# backup jobids from the Summary field.
-#
-# Then, for each of these "New Backup JobIds" we identify, we query the DB
-# as in the cur.execute() above (will be a more simple query, minus the 'R'
-# and 'C' and time restrictions in the INNER JOIN)
-#
-# Then, add the results to the list of alljobrows to work on... uff...
-#
-# Crazy?  Is it worth it? Will anyone care?
-#--------------------------------------------------------------------------
-
-# Assign some lists, lengths, and totals to variables
-# ---------------------------------------------------
-alljobids = [r['jobid'] for r in alljobrows]
-alljobnames = [r['jobname'] for r in alljobrows]
-badjobids = [r['jobid'] for r in alljobrows if r['jobstatus'] in badjobset]
 numjobs = len(alljobrows)
-numbadjobs = len(badjobids)
-total_backup_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'B'])
-total_backup_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'B'])
-jobswitherrors = len([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
-totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
-runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in ('R', 'C')])
-ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] in ('c', 'g')]
-vrfy_jobids = [r['jobid'] for r in alljobrows if r['type'] =='V']
 
 # Silly OCD string manipulations
 # ------------------------------
@@ -829,6 +797,20 @@ else:
     # More silly OCD string manipulations
     # -----------------------------------
     job = 'job' if numjobs == 1 else 'jobs'
+
+# Assign the rest of the lists, lengths, and totals to variables
+# --------------------------------------------------------------
+alljobids = [r['jobid'] for r in alljobrows]
+alljobnames = [r['jobname'] for r in alljobrows]
+badjobids = [r['jobid'] for r in alljobrows if r['jobstatus'] in bad_job_set]
+numbadjobs = len(badjobids)
+total_backup_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'B'])
+total_backup_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'B'])
+jobswitherrors = len([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
+totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
+runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in ('R', 'C')])
+ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] in ('c', 'g')]
+vrfy_jobids = [r['jobid'] for r in alljobrows if r['type'] =='V']
 
 # Get a list of jobs that have always failed for the
 # past 'days' days so that we can display a column
@@ -901,12 +883,72 @@ if len(ctrl_jobids) != 0:
         if (conn):
             cur.close()
             conn.close()
-    # For each row of the returned cji_rows (Ctrl Jobs), add to
-    # the pn_jobids dict as [CtrlJobid: ('PrevJobId', 'NewJobId')]
-    # ------------------------------------------------------------
-    pn_jobids = {}
+
+    # For each row of the returned cji_rows (Ctrl Jobs), add to the
+    # pn_jobids_dict dict of tuples as [CtrlJobid: ('PrevJobId', 'NewJobId')]
+    # -----------------------------------------------------------------------
+    pn_jobids_dict = {}
     for cji in cji_rows:
-        pn_jobids[str(cji['jobid'])] = (pn_job_id(cji, 'Prev'), pn_job_id(cji, 'New'))
+        pn_jobids_dict[str(cji['jobid'])] = (pn_job_id(cji, 'Prev'), pn_job_id(cji, 'New'))
+
+    # If we have some jobs that have been copied or migrated, but they fall outside
+    # of the "-t hours" set, then we need to gather information about these jobs so
+    # that we can include them in the job listing, otherwise is is confusing to see
+    # copy/migration Ctrl jobs referencing Previous/New jobids that are not in the
+    # listing.
+
+    # Now that we have the Previous/New jobids of copy/migrated jobs in the
+    # pn_jobids_dict dictionary, now we need to get information about them and
+    # add the new job rows to the alljobrows list
+    # - Need to make sure they are not duplicated, so the pn_jobids_lst of jobids
+    #   will make sure any pn_jobids selected are not already in alljobids
+    # - We will then append the new query results to the alljobrows listing then
+    #   sort it by jobid according to the sortorder variable (ASC|DESC)
+    # ---------------------------------------------------------------------------
+    pn_jobids_lst = []
+    for ctrl_job_id in pn_jobids_dict:
+        if pn_jobids_dict[ctrl_job_id][0] != '0' and int(pn_jobids_dict[ctrl_job_id][0]) not in alljobids and pn_jobids_dict[ctrl_job_id][0] not in pn_jobids_lst:
+            pn_jobids_lst.append(pn_jobids_dict[ctrl_job_id][0])
+        if pn_jobids_dict[ctrl_job_id][1] != '0' and int(pn_jobids_dict[ctrl_job_id][1]) not in alljobids and pn_jobids_dict[ctrl_job_id][1] not in pn_jobids_lst:
+            pn_jobids_lst.append(pn_jobids_dict[ctrl_job_id][1])
+    pn_jobids_lst = sorted(pn_jobids_lst)
+
+    # -----------------------------------------------------------------------------
+    if len(pn_jobids_lst) != 0:
+        pn_jid_query_str = ','.join(pn_jobids_lst)
+        # Connect to database again and query for all the
+        # previous or new jobs identified in pn_jobids_lst
+        # ------------------------------------------------
+        try:
+            db_connect()
+            if dbtype == 'pgsql':
+                query_str = "SELECT JobId, REPLACE(Job.Name,' ','_') AS JobName, \
+                    JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
+                    PriorJobId, AGE(EndTime, StartTime) AS RunTime \
+                    FROM Job \
+                    WHERE JobId in (" + pn_jid_query_str + ");"
+            elif dbtype in ('mysql', 'maria'):
+                query_str = "SELECT jobid,  REPLACE(CAST(Job.name as CHAR(50)),' ','_') AS jobname, \
+                    CAST(jobstatus as CHAR(1)) AS jobstatus, joberrors, CAST(type as CHAR(1)) AS type, \
+                    CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
+                    starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime \
+                    FROM Job \
+                    WHERE JobId in (" + pn_jid_query_str + ");"
+            cur.execute(query_str)
+            prev_new_jobrows = cur.fetchall()
+        except:
+            print('Problem communicating with database \'' + dbname + '\' while fetching previous and new jobs outside of "-t hours" range.')
+            sys.exit(1)
+        finally:
+            if (conn):
+                cur.close()
+                conn.close()
+        for row in prev_new_jobrows:
+            alljobrows.append(row)
+        if sortorder == 'ASC':
+            alljobrows.sort()
+        else:
+            alljobrows.sort(reverse=True)
 
 # For each Verify Job (V), get the Job summary text from the log table
 # --------------------------------------------------------------------
@@ -1065,7 +1107,7 @@ for jobrow in alljobrows:
 
     for colname in c2sl:
         if colname == 'jobid':
-            msg += html_format_cell(str(jobrow['jobid']), col = 'jobid', star = '*' if starbadjobids == 'yes' and jobrow['jobstatus'] in badjobset else '')
+            msg += html_format_cell(str(jobrow['jobid']), col = 'jobid', star = '*' if starbadjobids == 'yes' and jobrow['jobstatus'] in bad_job_set else '')
         elif colname == 'jobname':
             msg += html_format_cell(jobrow['jobname'], col = 'jobname')
         elif colname == 'client':

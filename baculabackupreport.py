@@ -76,7 +76,7 @@ emailsummary = 'bottom'   # Print a short summary after the Job list table? (top
 restore_stats = 'yes'     # Print Restore Files/Bytes in summary table?
 copied_stats = 'yes'      # Print Copied Files/Bytes in the summary table?
 migrated_stats = 'yes'    # Print Migrated Files/Bytes in the summary table?
-verify_stats = 'yes'      # Print Verified Files/Bytes in the summary table?
+verified_stats = 'yes'      # Print Verified Files/Bytes in the summary table?
 emailjobsummaries = 'no'  # Email all Job summaries? Be careful with this, it can generate very large emails
 emailbadlogs = 'no'       # Email logs of bad Jobs? Be careful with this, it can generate very large emails
 
@@ -100,7 +100,9 @@ badjobsicon = '=?utf-8?Q?=F0=9F=9F=A5?='      # utf-8 'red square' icon
 alwaysfailjobsicon = '=?utf-8?Q?=E2=9B=94?='  # utf-8 'red circle with white hyphen' icon when there are "always failing" Jobs
 
 # Set the columns to display and their order
-# ------------------------------------------
+# Recommend to always include jobid, status, endtime
+# as these may have special formatting applied by default
+# -------------------------------------------------------
 cols2show = 'jobid jobname client status joberrors type level jobfiles jobbytes starttime endtime runtime'
 
 # Set the column to colorize for jobs that are always failing
@@ -139,6 +141,7 @@ fontsizesumlog = '10px'   # Font size of job summaries and bad job logs
 
 # HTML styles
 # -----------
+jobsolderthantimestyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0;'
 alwaysfailstyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0; background-color: %s;' % alwaysfailcolor
 jobtablestyle = 'width: 100%; border-collapse: collapse;'
 jobtableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (jobtableheadercolor, jobtableheadertxtcolor)
@@ -171,7 +174,7 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.19'
+version = '1.20'
 reldate = 'July 26, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
@@ -460,6 +463,14 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     # ---------------------------------------------------
     if (jobrow['jobstatus'] in ('R', 'C') or jobtype in ('D', 'c', 'g')) and col in ('jobfiles', 'jobbytes'):
         content = '<hr width="20%">'
+
+
+    # If the copied/migrated job is
+    # outside of the "-t hours" set,
+    # precede its endtime with an asterisk
+    # ------------------------------------
+    if col == 'endtime' and str(jobrow['jobid']) in pn_jobids_lst:
+        tdo += '* '
 
     # Return the wrapped and modified cell content
     # --------------------------------------------
@@ -1053,6 +1064,14 @@ msg = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" cont
     + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
     + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n'
 
+# Do we have any copied or migrated jobs that have an endtime
+# outside of the "-t hours" setting? If yes, then add a notice
+# explaining that their endtime will be preceded by an asterisk
+# -------------------------------------------------------------
+if len(pn_jobids_lst) != 0:
+    msg += '<p style="' + jobsolderthantimestyle + '">Copied/Migrated jobs older than ' \
+        + time + ' ' + hour + ' have their End Time preceded by an asterisk (*)</p><br>'
+
 # Are we going to be highlighting Jobs that are always failing?
 # If yes, let's build the banner and add it to the to beginning
 # -------------------------------------------------------------
@@ -1148,12 +1167,12 @@ if emailsummary != 'none':
         {'label': 'Total Backup Bytes', 'data': humanbytes(total_backup_bytes)}
     ]
 
-    # Not everyone runs Copy, Migration, Verify jobs
-    # Restores are (or should be) infrequent
-    # Create variables for some optional statistics
-    # and append the corresponding label and data to
-    # the emailsummarydata list to be iterated through
-    # ------------------------------------------------
+    # - Not everyone runs Copy, Migration, Verify jobs
+    # - Restores are (or should be) infrequent
+    # - Create variables for some optional statistics
+    #   and append the corresponding label and data to
+    #   the emailsummarydata list to be iterated through
+    # --------------------------------------------------
     if restore_stats == 'yes':
         total_restore_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'R'])
         total_restore_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'R'])
@@ -1169,7 +1188,7 @@ if emailsummary != 'none':
         total_migrated_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'M'])
         emailsummarydata.append({'label': 'Total Migrated Files', 'data': '{:,}'.format(total_migrated_files)})
         emailsummarydata.append({'label': 'Total Migrated Bytes', 'data': humanbytes(total_migrated_bytes)})
-    if verify_stats == 'yes':
+    if verified_stats == 'yes':
         total_verify_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'V'])
         total_verify_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'V'])
         emailsummarydata.append({'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)})

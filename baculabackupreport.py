@@ -174,7 +174,7 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.20'
+version = '1.21'
 reldate = 'July 26, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
@@ -469,7 +469,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     # outside of the "-t hours" set,
     # precede its endtime with an asterisk
     # ------------------------------------
-    if col == 'endtime' and str(jobrow['jobid']) in pn_jobids_lst:
+    if col == 'endtime' and 'pn_jobids_lst' in globals() and str(jobrow['jobid']) in pn_jobids_lst:
         tdo += '* '
 
     # Return the wrapped and modified cell content
@@ -1068,7 +1068,7 @@ msg = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" cont
 # outside of the "-t hours" setting? If yes, then add a notice
 # explaining that their endtime will be preceded by an asterisk
 # -------------------------------------------------------------
-if len(pn_jobids_lst) != 0:
+if 'pn_jobids_lst' in globals() and len(pn_jobids_lst) != 0:
     msg += '<p style="' + jobsolderthantimestyle + '">Copied/Migrated jobs older than ' \
         + time + ' ' + hour + ' have their End Time preceded by an asterisk (*)</p><br>'
 

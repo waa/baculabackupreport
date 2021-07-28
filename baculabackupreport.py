@@ -174,8 +174,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.21'
-reldate = 'July 26, 2021'
+version = '1.22'
+reldate = 'July 27, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -933,18 +933,21 @@ if len(ctrl_jobids) != 0:
         try:
             db_connect()
             if dbtype == 'pgsql':
-                query_str = "SELECT JobId, REPLACE(Job.Name,' ','_') AS JobName, \
+                query_str = "SELECT JobId, Client.Name AS Client, REPLACE(Job.Name,' ','_') AS JobName, \
                     JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
                     PriorJobId, AGE(EndTime, StartTime) AS RunTime \
                     FROM Job \
-                    WHERE JobId in (" + pn_jid_query_str + ");"
+                    INNER JOIN Client on Job.ClientID=Client.ClientID \
+                    WHERE JobId IN (" + pn_jid_query_str + ")";
             elif dbtype in ('mysql', 'maria'):
-                query_str = "SELECT jobid,  REPLACE(CAST(Job.name as CHAR(50)),' ','_') AS jobname, \
+                query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
+                    REPLACE(CAST(Job.name as CHAR(50)),' ','_') AS jobname, \
                     CAST(jobstatus as CHAR(1)) AS jobstatus, joberrors, CAST(type as CHAR(1)) AS type, \
                     CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
                     starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime \
                     FROM Job \
-                    WHERE JobId in (" + pn_jid_query_str + ");"
+                    INNER JOIN Client on Job.clientid=Client.clientid \
+                    WHERE JobId IN (" + pn_jid_query_str + ");"
             cur.execute(query_str)
             prev_new_jobrows = cur.fetchall()
         except:
@@ -954,12 +957,21 @@ if len(ctrl_jobids) != 0:
             if (conn):
                 cur.close()
                 conn.close()
+
+        # Now append the prev_new_jobrows
+        # to the alljobrows list of jobs
+        # -------------------------------
         for row in prev_new_jobrows:
             alljobrows.append(row)
-        if sortorder == 'ASC':
-            alljobrows.sort()
+
+        # Now sort the full list of all
+        # jobs based on sortorder variable
+        # --------------------------------
+        sort_up = False if sortorder == 'ASC' else True
+        if dbtype in ('mysql', 'maria'):
+            alljobrows = sorted(alljobrows, key=lambda k: k['jobid'], reverse=sort_up)
         else:
-            alljobrows.sort(reverse=True)
+            alljobrows.sort(reverse=sort_up)
 
 # For each Verify Job (V), get the Job summary text from the log table
 # --------------------------------------------------------------------

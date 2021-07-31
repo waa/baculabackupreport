@@ -185,7 +185,7 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.24'
+version = '1.25'
 reldate = 'July 30, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
@@ -203,14 +203,6 @@ valid_col_lst = [
     'joberrors', 'type', 'level', 'jobfiles',
     'jobbytes', 'starttime', 'endtime', 'runtime'
     ]
-
-# Empty global variable needed here since
-# it is checked for every jobstatus in the
-# translate_job_status() function and it
-# only (normally) gets created when there
-# are running jobs which are waiting on media
-# -------------------------------------------
-job_needs_opr = []
 
 # Create a dictionary of column name to html strings so
 # that they may be used in any order in the jobs table
@@ -347,7 +339,7 @@ def translate_job_status(jobstatus, joberrors):
     'jobstatus is stored in the catalog as a single character, replace with words.'
     return {'A': 'Canceled', 'C': 'Created', 'D': 'Verify Diffs',
             'E': 'Errors', 'f': 'Failed', 'I': 'Incomplete',
-            'R': ('Running', 'Needs Media')[job_needs_opr == 'yes'],
+            'R': ('Running', 'Needs Media')['job_needs_opr_lst' in globals() and job_needs_opr == 'yes'],
             'T': ('-OK-', 'OK/Warnings')[joberrors > 0]}[jobstatus]
 
 def set_subject_icon():
@@ -1041,16 +1033,18 @@ if len(runningjobids) != 0:
     job_needs_opr_lst = []
     for rj in runningjobids:
         log_text = ''
-        # Build the reversed log_text until the first 'Please mount append Volume'
-        # text is found in the job. This is the last time it appears in the logs
-        # Then check the log_text variable to see if any new media has been mounted
-        # which would indicate that this job is actually running and not stuck
-        # waiting on media
-        # -------------------------------------------------------------------------
+        # Build the reversed log_text until the first text indicating that
+        # operator action is required is found in the job. This is the last
+        # time it appears in the logs. Then check the log_text variable to
+        # see if any new media has been mounted which would indicate that
+        # this job is actually running and not stuck waiting on media
+        # -----------------------------------------------------------------
         for rjlt in running_jobs_log_text:
             if str(rjlt[0]) == rj:
                 log_text += rjlt[1]
-                if 'Please mount append Volume' in rjlt[1]:
+                if 'Please mount read Volume' in rjlt[1] or \
+                    'Please mount append Volume' in rjlt[1] or \
+                    'Please use the "label" command' in rjlt[1]:
                     if 'New volume' not in log_text and 'Ready to append' not in log_text:
                         job_needs_opr_lst.append(rj)
                     break

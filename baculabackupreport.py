@@ -92,20 +92,22 @@ include_pnv_jobs = 'yes'  # Include copied, migrated, verified jobs who's endtim
 # icons to prepend the subject with. Examples from:
 # https://www.utf8-chartable.de/unicode-utf8-table.pl
 # ---------------------------------------------------
-addsubjecticon = 'yes'                        # Prepend the email Subject with UTF-8 icons? See (no|good|warn|bad)jobsicon variables below
-addsubjectrunningorcreated = 'yes'            # Append "(# Jobs still runnning/queued)" to Subject if running or queued Jobs > 0?
-nojobsicon = '=?utf-8?Q?=F0=9F=9A=AB?='       # utf-8 'no entry sign' icon when no Jobs have been run
-goodjobsicon = '=?utf-8?Q?=F0=9F=9F=A9?='     # utf-8 'green square' icon when all Jobs were "OK"
-# goodjobsicon = '=?UTF-8?Q?=E2=9C=85?='      # utf-8 'white checkmark in green box' icon
-# goodjobsicon = '=?UTF-8?Q?=E2=98=BA?='      # utf-8 'smiley face' icon
-warnjobsicon = '=?UTF-8?Q?=F0=9F=9F=A7?='     # utf-8 'orange square' icon when all jobs are "OK", but some have errors/warnings
-# warnjobsicon = '=?UTF-8?Q?=F0=9F=9F=A8?='   # utf-8 'yellow square' icon
-badjobsicon = '=?utf-8?Q?=F0=9F=9F=A5?='      # utf-8 'red square' icon
-# badjobsicon = '=?utf-8?Q?=E2=9C=96?='       # utf-8 'black bold X' icon
-# badjobsicon = '=?utf-8?Q?=E2=9D=8C?='       # utf-8 'red X' icon
-# badjobsicon = '=?utf-8?Q?=E2=9D=97?='       # utf-8 'red !' icon
-# badjobsicon = '=?utf-8?Q?=E2=98=B9?='       # utf-8 'sad face'
-alwaysfailjobsicon = '=?utf-8?Q?=E2=9B=94?='  # utf-8 'red circle with white hyphen' icon when there are "always failing" Jobs
+addsubjecticon = 'yes'                          # Prepend the email Subject with UTF-8 icons? See (no|good|warn|bad)jobsicon variables below
+addsubjectrunningorcreated = 'yes'              # Append "(# Jobs still runnning/queued)" to Subject if running or queued Jobs > 0?
+nojobsicon = '=?utf-8?Q?=F0=9F=9A=AB?='         # utf-8 'no entry sign' icon when no Jobs have been run
+goodjobsicon = '=?utf-8?Q?=F0=9F=9F=A9?='       # utf-8 'green square' icon when all Jobs were "OK"
+# goodjobsicon = '=?UTF-8?Q?=E2=9C=85?='        # utf-8 'white checkmark in green box' icon
+# goodjobsicon = '=?UTF-8?Q?=E2=98=BA?='        # utf-8 'smiley face' icon
+warnjobsicon = '=?UTF-8?Q?=F0=9F=9F=A7?='       # utf-8 'orange square' icon when all jobs are "OK", but some have errors/warnings
+# warnjobsicon = '=?UTF-8?Q?=F0=9F=9F=A8?='     # utf-8 'yellow square' icon
+badjobsicon = '=?utf-8?Q?=F0=9F=9F=A5?='        # utf-8 'red square' icon
+# badjobsicon = '=?utf-8?Q?=E2=9C=96?='         # utf-8 'black bold X' icon
+# badjobsicon = '=?utf-8?Q?=E2=9D=8C?='         # utf-8 'red X' icon
+# badjobsicon = '=?utf-8?Q?=E2=9D=97?='         # utf-8 'red !' icon
+# badjobsicon = '=?utf-8?Q?=E2=98=B9?='         # utf-8 'sad face'
+alwaysfailjobsicon = '=?utf-8?Q?=E2=9B=94?='    # utf-8 'red circle with white hyphen' icon when there are "always failing" Jobs
+jobneedsopricon = '=?utf-8?Q?=F0=9F=96=AD?='    # utf-8 'tape cartridge' icon when there are jobs that need operator attention
+# jobneedsopricon = '=?utf-8?Q?=F0=9F=92=BE?='  # utf-8 'floppy' icon
 
 # Set the columns to display and their order
 # Recommended to always include jobid, jobname, status, and endtime
@@ -150,6 +152,7 @@ fontsizesumlog = '10px'   # Font size of job summaries and bad job logs
 # HTML styles
 # -----------
 jobsolderthantimestyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0;'
+jobsneedingoprstyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0;'
 alwaysfailstyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0; background-color: %s;' % alwaysfailcolor
 jobtablestyle = 'width: 100%; border-collapse: collapse;'
 jobtableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (jobtableheadercolor, jobtableheadertxtcolor)
@@ -182,8 +185,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.23'
-reldate = 'July 29, 2021'
+version = '1.24'
+reldate = 'July 30, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -200,6 +203,14 @@ valid_col_lst = [
     'joberrors', 'type', 'level', 'jobfiles',
     'jobbytes', 'starttime', 'endtime', 'runtime'
     ]
+
+# Empty global variable needed here since
+# it is checked for every jobstatus in the
+# translate_job_status() function and it
+# only (normally) gets created when there
+# are running jobs which are waiting on media
+# -------------------------------------------
+job_needs_opr = []
 
 # Create a dictionary of column name to html strings so
 # that they may be used in any order in the jobs table
@@ -336,7 +347,8 @@ def translate_job_status(jobstatus, joberrors):
     'jobstatus is stored in the catalog as a single character, replace with words.'
     return {'A': 'Canceled', 'C': 'Created', 'D': 'Verify Diffs',
             'E': 'Errors', 'f': 'Failed', 'I': 'Incomplete',
-            'R': 'Running', 'T': ('-OK-', 'OK/Warnings')[joberrors > 0]}[jobstatus]
+            'R': ('Running', 'Needs Media')[job_needs_opr == 'yes'],
+            'T': ('-OK-', 'OK/Warnings')[joberrors > 0]}[jobstatus]
 
 def set_subject_icon():
     'Set the utf-8 subject icon.'
@@ -352,6 +364,8 @@ def set_subject_icon():
            subjecticon = warnjobsicon
         else:
             subjecticon = goodjobsicon
+    if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
+        subjecticon += ' (' + jobneedsopricon + ')'
     return subjecticon
 
 def translate_job_level(joblevel, jobtype):
@@ -821,6 +835,7 @@ total_backup_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'B']
 total_backup_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'B'])
 jobswitherrors = len([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
+runningjobids = [str(r['jobid']) for r in alljobrows if r['jobstatus'] == 'R']
 runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in ('R', 'C')])
 ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] in ('c', 'g')]
 vrfy_jobids = [r['jobid'] for r in alljobrows if r['type'] =='V']
@@ -861,15 +876,6 @@ if addsubjectrunningorcreated == 'yes' and runningorcreated != 0:
     runningorcreatedsubject = ' (' + str(runningorcreated) + ' ' + runningjob + ' queued/running)'
 else:
     runningorcreatedsubject = ''
-
-# Create the Subject
-# ------------------
-subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
-        + str(time) + ' ' + hour + ': ' + str(numbadjobs) + ' bad, ' \
-        + str(jobswitherrors) + ' with errors, for ' + clientstr + ', and ' \
-        + jobstr + ', and ' + jobtypestr + runningorcreatedsubject
-if addsubjecticon == 'yes':
-    subject = set_subject_icon() + ' ' + subject
 
 # For each Copy/Migration Control Job (c, g),
 # get the Job summary text from the log table
@@ -939,8 +945,9 @@ if len(vrfy_jobids) != 0:
 # Now that we have the jobids of the Previous/New jobids of Copy/Migrated jobs in the
 # pn_jobids_dict dictionary, and the jobids of Verified jobs in the v_jobids_dict
 # dictionary we can get information about them and add their job rows to alljobrows
-# If this 'include_pnv_jobs' option is disabled, it can be confusing to see Copy,
+# If the 'include_pnv_jobs' option is disabled, it can be confusing to see Copy,
 # Migrate, or Verify jobs referencing jobids they worked on which are not in the listing
+# NOTE: No statisitics (Files, bytes, etc are counted for these jobs that are pull in
 # --------------------------------------------------------------------------------------
 if include_pnv_jobs == 'yes':
     pnv_jobids_lst = []
@@ -1001,6 +1008,52 @@ if include_pnv_jobs == 'yes':
         # jobid based on sortorder variable
         # ---------------------------------
         alljobrows = sorted(alljobrows, key=lambda k: k['jobid'], reverse=True if sortorder == 'DESC' else False)
+
+# Query the database to find Running jobs. These jobs
+# will be checked to see if they are waiting on media
+# ---------------------------------------------------
+if len(runningjobids) != 0:
+    running_jobids_query_str = ','.join(runningjobids)
+    # The 'ORDER BY time DESC' is useful here! It is a nice shortcut for
+    # later to check that no new volumes have been mounted since the last
+    # 'Please mount append Volume' message was written to the log table
+    # -------------------------------------------------------------------
+    try:
+        db_connect()
+        if dbtype == 'pgsql':
+            query_str = 'SELECT jobid, logtext FROM Log \
+            WHERE jobid IN (' + running_jobids_query_str + ') ORDER BY time DESC;'
+        elif dbtype in ('mysql', 'maria'):
+            query_str = 'SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log \
+            WHERE jobid IN (' + running_jobids_query_str + ') ORDER BY time DESC;'
+        cur.execute(query_str)
+        running_jobs_log_text = cur.fetchall()
+    except:
+        print('\nProblem communicating with database \'' + dbname + '\' while fetching all running jobs logs.\n')
+        sys.exit(1)
+    finally:
+        if (conn):
+            cur.close()
+            conn.close()
+
+    # Create 'job_needs_opr_lst'
+    # --------------------------
+    job_needs_opr_lst = []
+    for rj in runningjobids:
+        log_text = ''
+        # Build the reversed log_text until the first 'Please mount append Volume'
+        # text is found in the job. This is the last time it appears in the logs
+        # Then check the log_text variable to see if any new media has been mounted
+        # which would indicate that this job is actually running and not stuck
+        # waiting on media
+        # -------------------------------------------------------------------------
+        for rjlt in running_jobs_log_text:
+            if str(rjlt[0]) == rj:
+                log_text += rjlt[1]
+                if 'Please mount append Volume' in rjlt[1]:
+                    if 'New volume' not in log_text and 'Ready to append' not in log_text:
+                        job_needs_opr_lst.append(rj)
+                    break
 
 # Do we email all job summaries?
 # ------------------------------
@@ -1074,13 +1127,20 @@ msg = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" cont
     + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
     + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n'
 
+# Do we have any Running jobs that are really just sitting
+# there waiting on media, possibly holding up other jobs
+# from making any progress?
+# --------------------------------------------------------
+if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
+    msg += '<p style="' + jobsneedingoprstyle + '">There are running jobs in this list with a status of "Needs Media". These jobs require operator attention.</p><br>'
+
 # Do we have any copied or migrated jobs that have an endtime
 # outside of the "-t hours" setting? If yes, then add a notice
 # explaining that their endtime will be preceded by an asterisk
 # -------------------------------------------------------------
 if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
     msg += '<p style="' + jobsolderthantimestyle + '">Copied/Migrated/Verified jobs older than ' \
-        + time + ' ' + hour + ' have their End Time preceded by an asterisk (*)</p><br>'
+        + time + ' ' + hour + ' have been pulled into this list. Their End Times are preceded by an asterisk (*)</p><br>'
 
 # Are we going to be highlighting Jobs that are always failing?
 # If yes, let's build the banner and add it to the to beginning
@@ -1123,6 +1183,14 @@ for jobrow in alljobrows:
         alwaysfailjob = 'yes'
     else:
         alwaysfailjob = 'no'
+
+    # If this job is in the "running, but needs
+    # operator list", set the job_needs_opr variable
+    # ----------------------------------------------
+    if 'job_needs_opr_lst' in globals() and str(jobrow['jobid']) in job_needs_opr_lst:
+        job_needs_opr = 'yes'
+    else:
+        job_needs_opr = 'no'
 
     # Set the job row's default bgcolor
     # ---------------------------------
@@ -1214,6 +1282,15 @@ if emailsummary != 'none':
                 + '</tr>\n'
         counter += 1
     summary += '</table>'
+
+# Create the Subject
+# ------------------
+subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
+        + str(time) + ' ' + hour + ': ' + str(numbadjobs) + ' bad, ' \
+        + str(jobswitherrors) + ' with errors, for ' + clientstr + ', and ' \
+        + jobstr + ', and ' + jobtypestr + runningorcreatedsubject
+if addsubjecticon == 'yes':
+    subject = set_subject_icon() + ' ' + subject
 
 # Build the final message and send the email
 # ------------------------------------------

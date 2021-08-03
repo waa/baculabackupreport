@@ -185,8 +185,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.25'
-reldate = 'July 30, 2021'
+version = '1.26'
+reldate = 'August 2, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -339,8 +339,8 @@ def translate_job_status(jobstatus, joberrors):
     'jobstatus is stored in the catalog as a single character, replace with words.'
     return {'A': 'Canceled', 'C': 'Created', 'D': 'Verify Diffs',
             'E': 'Errors', 'f': 'Failed', 'I': 'Incomplete',
-            'R': ('Running', 'Needs Media')['job_needs_opr_lst' in globals() and job_needs_opr == 'yes'],
-            'T': ('-OK-', 'OK/Warnings')[joberrors > 0]}[jobstatus]
+            'T': ('-OK-', 'OK/Warnings')[joberrors > 0],
+            'R': ('Running', 'Needs Media')['job_needs_opr_lst' in globals() and job_needs_opr == 'yes']}[jobstatus]
 
 def set_subject_icon():
     'Set the utf-8 subject icon.'
@@ -483,7 +483,8 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     # precede its endtime with an asterisk
     # ------------------------------------
     if col == 'endtime' and 'pnv_jobids_lst' in globals() and str(jobrow['jobid']) in pnv_jobids_lst:
-        tdo += '* '
+        # tdo += '* '
+        content = '* ' + content
 
     # Return the wrapped and modified cell content
     # --------------------------------------------
@@ -829,8 +830,8 @@ jobswitherrors = len([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 runningjobids = [str(r['jobid']) for r in alljobrows if r['jobstatus'] == 'R']
 runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in ('R', 'C')])
-ctrl_jobids = [r['jobid'] for r in alljobrows if r['type'] in ('c', 'g')]
-vrfy_jobids = [r['jobid'] for r in alljobrows if r['type'] =='V']
+ctrl_jobids = [str(r['jobid']) for r in alljobrows if r['type'] in ('c', 'g')]
+vrfy_jobids = [str(r['jobid']) for r in alljobrows if r['type'] =='V']
 
 # Get a list of jobs that have always failed for the
 # past 'days' days so that we can display a column
@@ -878,13 +879,13 @@ if len(ctrl_jobids) != 0:
     try:
         db_connect()
         if dbtype == 'pgsql':
-            query_str = 'SELECT jobid, logtext FROM log WHERE jobid IN (' \
-            + ', '.join([str(x) for x in ctrl_jobids]) + ') AND logtext LIKE \
-            \'%Termination:%\' ORDER BY jobid DESC;'
+            query_str = 'SELECT jobid, logtext FROM log \
+             WHERE jobid IN (' + ','.join(ctrl_jobids) + ') \
+             AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
         elif dbtype in ('mysql', 'maria'):
             query_str = 'SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
-            FROM Log WHERE jobid IN (' + ', '.join([str(x) for x in ctrl_jobids]) \
-            + ') AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+            FROM Log WHERE jobid IN (' + ','.join(ctrl_jobids) + ') \
+            AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
         cur.execute(query_str)
         cji_rows = cur.fetchall()
     except:
@@ -911,13 +912,13 @@ if len(vrfy_jobids) != 0:
     try:
         db_connect()
         if dbtype == 'pgsql':
-            query_str = 'SELECT jobid, logtext FROM log WHERE jobid IN (' \
-            + ', '.join([str(x) for x in vrfy_jobids]) + ') AND logtext LIKE \
+            query_str = 'SELECT jobid, logtext FROM log \
+            WHERE jobid IN (' + ','.join(vrfy_jobids) + ') AND logtext LIKE \
             \'%Termination:%\' ORDER BY jobid DESC;'
         elif dbtype in ('mysql', 'maria'):
             query_str = 'SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
-            FROM Log WHERE jobid IN (' + ', '.join([str(x) for x in vrfy_jobids]) \
-            + ') AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+            FROM Log WHERE jobid IN (' + ','.join(vrfy_jobids) + ') \
+            AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
         cur.execute(query_str)
         vji_rows = cur.fetchall()
     except:
@@ -958,7 +959,6 @@ if include_pnv_jobs == 'yes':
     # rows from the db and append them to alljobrows and sort
     # ---------------------------------------------------------
     if len(pnv_jobids_lst) != 0:
-        pnv_jid_query_str = ','.join(pnv_jobids_lst)
         # Connect to database again and query for the
         # Previous/New/Verified jobs in the pnv_jobids_lst
         # ------------------------------------------------
@@ -970,7 +970,7 @@ if include_pnv_jobs == 'yes':
                     PriorJobId, AGE(EndTime, StartTime) AS RunTime \
                     FROM Job \
                     INNER JOIN Client on Job.ClientID=Client.ClientID \
-                    WHERE JobId IN (" + pnv_jid_query_str + ")";
+                    WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ")";
             elif dbtype in ('mysql', 'maria'):
                 query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
                     CAST(Job.name as CHAR(50)) AS jobname, \
@@ -979,11 +979,11 @@ if include_pnv_jobs == 'yes':
                     starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime \
                     FROM Job \
                     INNER JOIN Client on Job.clientid=Client.clientid \
-                    WHERE JobId IN (" + pnv_jid_query_str + ");"
+                    WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ");"
             cur.execute(query_str)
             pnv_jobrows = cur.fetchall()
         except:
-            print('Problem communicating with database \'' + dbname + '\' while fetching previous and new jobs outside of "-t hours" range.')
+            print('Problem communicating with database \'' + dbname + '\' while fetching previous, new, and verified jobs outside of "-t hours" range.')
             sys.exit(1)
         finally:
             if (conn):
@@ -1005,7 +1005,6 @@ if include_pnv_jobs == 'yes':
 # will be checked to see if they are waiting on media
 # ---------------------------------------------------
 if len(runningjobids) != 0:
-    running_jobids_query_str = ','.join(runningjobids)
     # The 'ORDER BY time DESC' is useful here! It is a nice shortcut for
     # later to check that no new volumes have been mounted since the last
     # 'Please mount append Volume' message was written to the log table
@@ -1014,10 +1013,10 @@ if len(runningjobids) != 0:
         db_connect()
         if dbtype == 'pgsql':
             query_str = 'SELECT jobid, logtext FROM Log \
-            WHERE jobid IN (' + running_jobids_query_str + ') ORDER BY time DESC;'
+            WHERE jobid IN (' + ','.join(runningjobids) + ') ORDER BY time DESC;'
         elif dbtype in ('mysql', 'maria'):
             query_str = 'SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log \
-            WHERE jobid IN (' + running_jobids_query_str + ') ORDER BY time DESC;'
+            WHERE jobid IN (' + ','.join(runningjobids) + ') ORDER BY time DESC;'
         cur.execute(query_str)
         running_jobs_log_text = cur.fetchall()
     except:
@@ -1035,7 +1034,7 @@ if len(runningjobids) != 0:
         log_text = ''
         # Build the reversed log_text until the first text indicating that
         # operator action is required is found in the job. This is the last
-        # time it appears in the logs. Then check the log_text variable to
+        # time it appears in real time. Then check the log_text variable to
         # see if any new media has been mounted which would indicate that
         # this job is actually running and not stuck waiting on media
         # -----------------------------------------------------------------

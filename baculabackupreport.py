@@ -185,7 +185,7 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.26'
+version = '1.27'
 reldate = 'August 2, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
@@ -864,7 +864,7 @@ always_fail_jobs = set(unique_bad_days_jobs.difference(good_days_jobs)).intersec
 
 # Do we append the 'Running or Created' message to the Subject?
 # -------------------------------------------------------------
-if addsubjectrunningorcreated == 'yes' and runningorcreated != 0:
+if runningorcreated != 0 and addsubjectrunningorcreated == 'yes':
     runningjob = 'job' if runningorcreated == 1 else 'jobs'
     runningorcreatedsubject = ' (' + str(runningorcreated) + ' ' + runningjob + ' queued/running)'
 else:
@@ -946,14 +946,20 @@ if include_pnv_jobs == 'yes':
     pnv_jobids_lst = []
     if 'v_jobids_dict' in globals() and len(v_jobids_dict) != 0:
         for v_job_id in v_jobids_dict:
-            if v_jobids_dict[v_job_id] != '0' and int(v_jobids_dict[v_job_id]) not in alljobids and v_jobids_dict[v_job_id] not in pnv_jobids_lst:
-                pnv_jobids_lst.append(v_jobids_dict[v_job_id])
+            if v_jobids_dict[v_job_id] != '0' \
+                and int(v_jobids_dict[v_job_id]) not in alljobids \
+                and v_jobids_dict[v_job_id] not in pnv_jobids_lst:
+                    pnv_jobids_lst.append(v_jobids_dict[v_job_id])
     if 'pn_jobids_dict' in globals() and len(pn_jobids_dict) != 0:
         for ctrl_job_id in pn_jobids_dict:
-            if pn_jobids_dict[ctrl_job_id][0] != '0' and int(pn_jobids_dict[ctrl_job_id][0]) not in alljobids and pn_jobids_dict[ctrl_job_id][0] not in pnv_jobids_lst:
-                pnv_jobids_lst.append(pn_jobids_dict[ctrl_job_id][0])
-            if pn_jobids_dict[ctrl_job_id][1] != '0' and int(pn_jobids_dict[ctrl_job_id][1]) not in alljobids and pn_jobids_dict[ctrl_job_id][1] not in pnv_jobids_lst:
-                pnv_jobids_lst.append(pn_jobids_dict[ctrl_job_id][1])
+            if pn_jobids_dict[ctrl_job_id][0] != '0' \
+                and int(pn_jobids_dict[ctrl_job_id][0]) not in alljobids and \
+                pn_jobids_dict[ctrl_job_id][0] not in pnv_jobids_lst:
+                    pnv_jobids_lst.append(pn_jobids_dict[ctrl_job_id][0])
+            if pn_jobids_dict[ctrl_job_id][1] != '0' \
+                and int(pn_jobids_dict[ctrl_job_id][1]) not in alljobids \
+                and pn_jobids_dict[ctrl_job_id][1] not in pnv_jobids_lst:
+                    pnv_jobids_lst.append(pn_jobids_dict[ctrl_job_id][1])
 
     # If the pnv_jobids_lst is not empty, then we get their job
     # rows from the db and append them to alljobrows and sort
@@ -1033,7 +1039,7 @@ if len(runningjobids) != 0:
     for rj in runningjobids:
         log_text = ''
         # Build the reversed log_text until the first text indicating that
-        # operator action is required is found in the job. This is the last
+        # operator action is required is found in the log. This is the last
         # time it appears in real time. Then check the log_text variable to
         # see if any new media has been mounted which would indicate that
         # this job is actually running and not stuck waiting on media
@@ -1125,7 +1131,8 @@ msg = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" cont
 # from making any progress?
 # --------------------------------------------------------
 if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
-    msg += '<p style="' + jobsneedingoprstyle + '">There are running jobs in this list with a status of "Needs Media". These jobs require operator attention.</p><br>'
+    msg += '<p style="' + jobsneedingoprstyle \
+        + '">There are running jobs in this list with a status of "Needs Media". These jobs require operator attention.</p><br>\n'
 
 # Do we have any copied or migrated jobs that have an endtime
 # outside of the "-t hours" setting? If yes, then add a notice
@@ -1133,7 +1140,7 @@ if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
 # -------------------------------------------------------------
 if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
     msg += '<p style="' + jobsolderthantimestyle + '">Copied/Migrated/Verified jobs older than ' \
-        + time + ' ' + hour + ' have been pulled into this list. Their End Times are preceded by an asterisk (*)</p><br>'
+        + time + ' ' + hour + ' have been pulled into this list. Their End Times are preceded by an asterisk (*)</p><br>\n'
 
 # Are we going to be highlighting Jobs that are always failing?
 # If yes, let's build the banner and add it to the to beginning
@@ -1150,7 +1157,7 @@ if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
     msg += '<p style="' + alwaysfailstyle + '">' \
         + 'The ' + str(len(always_fail_jobs)) + ' ' + job + ' who\'s ' \
         + alwaysfailcolumn_str + ' has this background color ' + have \
-        + ' always failed in the past ' + days + ' days</p>'
+        + ' always failed in the past ' + days + ' days</p>\n'
 
 # Create the table header from the columns in
 # the c2sl list in the order they are defined
@@ -1295,6 +1302,5 @@ elif emailsummary == 'both':
     msg = summary + '</br>' + msg + summary
 msg = msg + jobsummaries + badjoblogs + prog_info
 send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
-
 
 # vim: expandtab tabstop=4 softtabstop=4 shiftwidth=4

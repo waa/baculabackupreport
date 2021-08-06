@@ -185,8 +185,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.27'
-reldate = 'August 2, 2021'
+version = '1.28'
+reldate = 'August 5, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -483,7 +483,6 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     # precede its endtime with an asterisk
     # ------------------------------------
     if col == 'endtime' and 'pnv_jobids_lst' in globals() and str(jobrow['jobid']) in pnv_jobids_lst:
-        # tdo += '* '
         content = '* ' + content
 
     # Return the wrapped and modified cell content
@@ -520,7 +519,9 @@ def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, s
     # Thank you to Aleksandr Varnin for this short and simple to implement solution
     # https://blog.mailtrap.io/sending-emails-in-python-tutorial-with-code-examples
     # -----------------------------------------------------------------------------
-    message = f"""Content-Type: text/html\nMIME-Version: 1.0\nTo: {email}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}"""
+    # f-strings require Python version 3.6 or above
+    # message = f"""Content-Type: text/html\nMIME-Version: 1.0\nTo: {email}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}"""
+    message = "Content-Type: text/html\nMIME-Version: 1.0\nTo: %s\nFrom: %s\nSubject: %s\n\n%s" % (email, fromemail, subject, msg)
     try:
         with smtplib.SMTP(smtpserver, smtpport) as server:
             if smtpuser != '' and smtppass != '':
@@ -539,7 +540,7 @@ def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, s
 
 # Set the string for docopt
 # -------------------------
-doc_str = """
+doc_opt_str = """
 Usage:
     baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-d <days>] [-c <client>] [-j <jobname>] [-y <jobtype>]
                           [--dbtype <dbtype>] [--dbport <dbport>] [--dbhost <dbhost>] [--dbname <dbname>]
@@ -581,7 +582,7 @@ Notes:
 
 # Assign docopt doc string variable
 # ---------------------------------
-args = docopt(doc_str, version='\n' + progname + ' - v' + version + '\n' + reldate + '\n')
+args = docopt(doc_opt_str, version='\n' + progname + ' - v' + version + '\n' + reldate + '\n')
 
 # Verify that the columns in cols2show are
 # all valid and that the alwaysfailcolumn
@@ -831,7 +832,7 @@ totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
 runningjobids = [str(r['jobid']) for r in alljobrows if r['jobstatus'] == 'R']
 runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in ('R', 'C')])
 ctrl_jobids = [str(r['jobid']) for r in alljobrows if r['type'] in ('c', 'g')]
-vrfy_jobids = [str(r['jobid']) for r in alljobrows if r['type'] =='V']
+vrfy_jobids = [str(r['jobid']) for r in alljobrows if r['type'] == 'V']
 
 # Get a list of jobs that have always failed for the
 # past 'days' days so that we can display a column
@@ -869,6 +870,71 @@ if runningorcreated != 0 and addsubjectrunningorcreated == 'yes':
     runningorcreatedsubject = ' (' + str(runningorcreated) + ' ' + runningjob + ' queued/running)'
 else:
     runningorcreatedsubject = ''
+
+# Email the summary table?
+# We need to build this table now to prevent any Copy/Migrate/Verify
+# jobs that are older than "-t hours" which might get pulled into
+# the alljobrows list from having their files/bytes included in
+# the optional stats: restored/copied/verified/migrated
+# ------------------------------------------------------------------
+if emailsummary != 'none':
+    # Create the list of basic (non optional) information
+    # ---------------------------------------------------
+    emailsummarydata = [
+        {'label': 'Total Jobs', 'data': '{:,}'.format(numjobs)},
+        {'label': 'Bad Jobs', 'data': '{:,}'.format(numbadjobs)},
+        {'label': 'Jobs with Errors', 'data': '{:,}'.format(jobswitherrors)},
+        {'label': 'Total Job Errors', 'data': '{:,}'.format(totaljoberrors)},
+        {'label': 'Total Backup Files', 'data': '{:,}'.format(total_backup_files)},
+        {'label': 'Total Backup Bytes', 'data': humanbytes(total_backup_bytes)}
+    ]
+
+    # - Not everyone runs Copy, Migration, Verify jobs
+    # - Restores are (or should be) infrequent
+    # - Create variables for some optional statistics
+    #   and append the corresponding label and data to
+    #   the emailsummarydata list to be iterated through
+    # --------------------------------------------------
+    if restore_stats == 'yes':
+        total_restore_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'R'])
+        total_restore_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'R'])
+        emailsummarydata.append({'label': 'Total Restore Files', 'data': '{:,}'.format(total_restore_files)})
+        emailsummarydata.append({'label': 'Total Restore Bytes', 'data': humanbytes(total_restore_bytes)})
+    if copied_stats == 'yes':
+        total_copied_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'C'])
+        total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'C'])
+        emailsummarydata.append({'label': 'Total Copied Files', 'data': '{:,}'.format(total_copied_files)})
+        emailsummarydata.append({'label': 'Total Copied Bytes', 'data': humanbytes(total_copied_bytes)})
+    if migrated_stats == 'yes':
+        total_migrated_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'M'])
+        total_migrated_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'M'])
+        emailsummarydata.append({'label': 'Total Migrated Files', 'data': '{:,}'.format(total_migrated_files)})
+        emailsummarydata.append({'label': 'Total Migrated Bytes', 'data': humanbytes(total_migrated_bytes)})
+    if verified_stats == 'yes':
+        total_verify_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'V'])
+        total_verify_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'V'])
+        emailsummarydata.append({'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)})
+        emailsummarydata.append({'label': 'Total Verify Bytes', 'data': humanbytes(total_verify_bytes)})
+
+    summary = '<table style="' + summarytablestyle + '">' \
+            + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' + summarytableheadercellstyle + '">Summary</th></tr>'
+    counter = 0
+    for value in emailsummarydata:
+        summary += '<tr style="' + (summarytablerowevenstyle if counter % 2 == 0 else summarytablerowoddstyle) + '">' \
+                + '<td style="' + summarytablecellstyle + 'text-align: left;">' + value['label'] + '</td>' \
+                + '<td style="' + summarytablecellstyle + 'text-align: right;">' + value['data'] + '</td>' \
+                + '</tr>\n'
+        counter += 1
+    summary += '</table>'
+
+# Create the Subject
+# ------------------
+subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
+        + str(time) + ' ' + hour + ': ' + str(numbadjobs) + ' bad, ' \
+        + str(jobswitherrors) + ' with errors, for ' + clientstr + ', and ' \
+        + jobstr + ', and ' + jobtypestr + runningorcreatedsubject
+if addsubjecticon == 'yes':
+    subject = set_subject_icon() + ' ' + subject
 
 # For each Copy/Migration Control Job (c, g),
 # get the Job summary text from the log table
@@ -940,7 +1006,7 @@ if len(vrfy_jobids) != 0:
 # dictionary we can get information about them and add their job rows to alljobrows
 # If the 'include_pnv_jobs' option is disabled, it can be confusing to see Copy,
 # Migrate, or Verify jobs referencing jobids they worked on which are not in the listing
-# NOTE: No statisitics (Files, bytes, etc are counted for these jobs that are pull in
+# NOTE: No statisitics (Files, bytes, etc) are counted for these jobs that are pull in
 # --------------------------------------------------------------------------------------
 if include_pnv_jobs == 'yes':
     pnv_jobids_lst = []
@@ -1013,7 +1079,7 @@ if include_pnv_jobs == 'yes':
 if len(runningjobids) != 0:
     # The 'ORDER BY time DESC' is useful here! It is a nice shortcut for
     # later to check that no new volumes have been mounted since the last
-    # 'Please mount append Volume' message was written to the log table
+    # 'Please mount .* Volume' message was written to the log table
     # -------------------------------------------------------------------
     try:
         db_connect()
@@ -1230,67 +1296,6 @@ for jobrow in alljobrows:
     msg += '</tr>\n'
     counter += 1
 msg += '</table>'
-
-# Email the summary table?
-# ------------------------
-if emailsummary != 'none':
-    # Create the list of basic (non optional) information
-    # ---------------------------------------------------
-    emailsummarydata = [
-        {'label': 'Total Jobs', 'data': '{:,}'.format(numjobs)},
-        {'label': 'Bad Jobs', 'data': '{:,}'.format(numbadjobs)},
-        {'label': 'Jobs with Errors', 'data': '{:,}'.format(jobswitherrors)},
-        {'label': 'Total Job Errors', 'data': '{:,}'.format(totaljoberrors)},
-        {'label': 'Total Backup Files', 'data': '{:,}'.format(total_backup_files)},
-        {'label': 'Total Backup Bytes', 'data': humanbytes(total_backup_bytes)}
-    ]
-
-    # - Not everyone runs Copy, Migration, Verify jobs
-    # - Restores are (or should be) infrequent
-    # - Create variables for some optional statistics
-    #   and append the corresponding label and data to
-    #   the emailsummarydata list to be iterated through
-    # --------------------------------------------------
-    if restore_stats == 'yes':
-        total_restore_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'R'])
-        total_restore_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'R'])
-        emailsummarydata.append({'label': 'Total Restore Files', 'data': '{:,}'.format(total_restore_files)})
-        emailsummarydata.append({'label': 'Total Restore Bytes', 'data': humanbytes(total_restore_bytes)})
-    if copied_stats == 'yes':
-        total_copied_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'C'])
-        total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'C'])
-        emailsummarydata.append({'label': 'Total Copied Files', 'data': '{:,}'.format(total_copied_files)})
-        emailsummarydata.append({'label': 'Total Copied Bytes', 'data': humanbytes(total_copied_bytes)})
-    if migrated_stats == 'yes':
-        total_migrated_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'M'])
-        total_migrated_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'M'])
-        emailsummarydata.append({'label': 'Total Migrated Files', 'data': '{:,}'.format(total_migrated_files)})
-        emailsummarydata.append({'label': 'Total Migrated Bytes', 'data': humanbytes(total_migrated_bytes)})
-    if verified_stats == 'yes':
-        total_verify_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'V'])
-        total_verify_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'V'])
-        emailsummarydata.append({'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)})
-        emailsummarydata.append({'label': 'Total Verify Bytes', 'data': humanbytes(total_verify_bytes)})
-
-    summary = '<table style="' + summarytablestyle + '">' \
-            + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' + summarytableheadercellstyle + '">Summary</th></tr>'
-    counter = 0
-    for value in emailsummarydata:
-        summary += '<tr style="' + (summarytablerowevenstyle if counter % 2 == 0 else summarytablerowoddstyle) + '">' \
-                + '<td style="' + summarytablecellstyle + 'text-align: left;">' + value['label'] + '</td>' \
-                + '<td style="' + summarytablecellstyle + 'text-align: right;">' + value['data'] + '</td>' \
-                + '</tr>\n'
-        counter += 1
-    summary += '</table>'
-
-# Create the Subject
-# ------------------
-subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
-        + str(time) + ' ' + hour + ': ' + str(numbadjobs) + ' bad, ' \
-        + str(jobswitherrors) + ' with errors, for ' + clientstr + ', and ' \
-        + jobstr + ', and ' + jobtypestr + runningorcreatedsubject
-if addsubjecticon == 'yes':
-    subject = set_subject_icon() + ' ' + subject
 
 # Build the final message and send the email
 # ------------------------------------------

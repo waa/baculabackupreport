@@ -185,8 +185,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.28'
-reldate = 'August 5, 2021'
+version = '1.29'
+reldate = 'August 12, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -224,7 +224,7 @@ col_hdr_dict = {
 
 def usage():
     'Show the instructions'
-    print(doc_str)
+    print(doc_opt_str)
     sys.exit(1)
 
 def cli_vs_env_vs_default_vars(var_name, env_name):
@@ -340,7 +340,7 @@ def translate_job_status(jobstatus, joberrors):
     return {'A': 'Canceled', 'C': 'Created', 'D': 'Verify Diffs',
             'E': 'Errors', 'f': 'Failed', 'I': 'Incomplete',
             'T': ('-OK-', 'OK/Warnings')[joberrors > 0],
-            'R': ('Running', 'Needs Media')['job_needs_opr_lst' in globals() and job_needs_opr == 'yes']}[jobstatus]
+            'R': ('Running', 'Needs Media')[job_needs_opr == 'yes']}[jobstatus]
 
 def set_subject_icon():
     'Set the utf-8 subject icon.'
@@ -605,7 +605,8 @@ elif alwaysfailcolumn == 'row':
 else:
     # jobid will be URL linked to job so it
     # cannot also be linked to job history
-    # -------------------------------------
+    # for this 'always failing jobs' feature
+    # --------------------------------------
     if alwaysfailcolumn == 'jobid':
         alwaysfailcolumn = 'jobname'
         alwaysfailcolumn_str = 'Job Name column'
@@ -808,7 +809,8 @@ jobtypestr = 'all jobtypes' if set(all_jobtype_lst).issubset(jobtypeset) else 'j
 # on, just send the email & exit
 # ------------------------------
 if numjobs == 0:
-    subject = server + ' - No jobs found for ' + clientstr + ' in the past ' + time + ' ' + hour + ' for ' + jobstr + ', and ' + jobtypestr
+    subject = server + ' - No jobs found for ' + clientstr + ' in the past ' \
+            + time + ' ' + hour + ' for ' + jobstr + ', and ' + jobtypestr
     if addsubjecticon == 'yes':
         subject = set_subject_icon() + ' ' + subject
     msg = 'These are not the droids you are looking for.'
@@ -863,19 +865,11 @@ good_days_jobs = [r['jobname'] for r in alldaysjobrows if r['jobstatus'] == 'T']
 unique_bad_days_jobs = {r['jobname'] for r in alldaysjobrows if r['jobstatus'] not in ('T', 'R', 'C')}
 always_fail_jobs = set(unique_bad_days_jobs.difference(good_days_jobs)).intersection(alljobnames)
 
-# Do we append the 'Running or Created' message to the Subject?
-# -------------------------------------------------------------
-if runningorcreated != 0 and addsubjectrunningorcreated == 'yes':
-    runningjob = 'job' if runningorcreated == 1 else 'jobs'
-    runningorcreatedsubject = ' (' + str(runningorcreated) + ' ' + runningjob + ' queued/running)'
-else:
-    runningorcreatedsubject = ''
-
 # Email the summary table?
 # We need to build this table now to prevent any Copy/Migrate/Verify
 # jobs that are older than "-t hours" which might get pulled into
-# the alljobrows list from having their files/bytes included in
-# the optional stats: restored/copied/verified/migrated
+# the alljobrows list from having their files/bytes included in the
+# optional stats: restored, copied, verified, migrated files/bytes
 # ------------------------------------------------------------------
 if emailsummary != 'none':
     # Create the list of basic (non optional) information
@@ -926,15 +920,6 @@ if emailsummary != 'none':
                 + '</tr>\n'
         counter += 1
     summary += '</table>'
-
-# Create the Subject
-# ------------------
-subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
-        + str(time) + ' ' + hour + ': ' + str(numbadjobs) + ' bad, ' \
-        + str(jobswitherrors) + ' with errors, for ' + clientstr + ', and ' \
-        + jobstr + ', and ' + jobtypestr + runningorcreatedsubject
-if addsubjecticon == 'yes':
-    subject = set_subject_icon() + ' ' + subject
 
 # For each Copy/Migration Control Job (c, g),
 # get the Job summary text from the log table
@@ -1006,7 +991,7 @@ if len(vrfy_jobids) != 0:
 # dictionary we can get information about them and add their job rows to alljobrows
 # If the 'include_pnv_jobs' option is disabled, it can be confusing to see Copy,
 # Migrate, or Verify jobs referencing jobids they worked on which are not in the listing
-# NOTE: No statisitics (Files, bytes, etc) are counted for these jobs that are pull in
+# NOTE: No statisitics (Files, bytes, etc) are counted for these jobs that are pulled in
 # --------------------------------------------------------------------------------------
 if include_pnv_jobs == 'yes':
     pnv_jobids_lst = []
@@ -1192,38 +1177,37 @@ msg = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" cont
     + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
     + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n'
 
-# Do we have any Running jobs that are really just sitting
-# there waiting on media, possibly holding up other jobs
-# from making any progress?
-# --------------------------------------------------------
+# Are we going to be highlighting Jobs that are always failing?
+# If yes, let's build the banner and add it to the to beginning
+# -------------------------------------------------------------
+if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
+    msg += '<p style="' + alwaysfailstyle + '">' \
+        + 'The ' + str(len(always_fail_jobs)) + ' ' + ('jobs' if len(always_fail_jobs) > 1 else 'job') + ' who\'s ' \
+        + alwaysfailcolumn_str + ' has this background color ' + ('have' if len(always_fail_jobs) > 1 else 'has') \
+        + ' always failed in the past ' + days + ' ' + ('days' if len(always_fail_jobs) > 1 else 'day') + '</p>\n'
+
+# Do we have any Running jobs that are really just
+# sitting there waiting on media, possibly holding
+# up other jobs from making any progress?
+# ------------------------------------------------
 if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
     msg += '<p style="' + jobsneedingoprstyle \
-        + '">There are running jobs in this list with a status of "Needs Media". These jobs require operator attention.</p><br>\n'
+        + '">The ' + str(len(job_needs_opr_lst)) + ' running ' \
+        + ('jobs' if len(job_needs_opr_lst) > 1 else 'job') \
+        + ' in this list with a status of "Needs Media" ' \
+        + ('require' if len(job_needs_opr_lst) > 1 else 'requires') \
+        + ' operator attention.</p><br>\n'
 
 # Do we have any copied or migrated jobs that have an endtime
 # outside of the "-t hours" setting? If yes, then add a notice
 # explaining that their endtime will be preceded by an asterisk
 # -------------------------------------------------------------
 if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
-    msg += '<p style="' + jobsolderthantimestyle + '">Copied/Migrated/Verified jobs older than ' \
-        + time + ' ' + hour + ' have been pulled into this list. Their End Times are preceded by an asterisk (*)</p><br>\n'
-
-# Are we going to be highlighting Jobs that are always failing?
-# If yes, let's build the banner and add it to the to beginning
-# -------------------------------------------------------------
-if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
-    # Some more silly OCD string manipulations
-    # ----------------------------------------
-    if len(always_fail_jobs) == 1:
-        job = 'job'
-        have = 'has'
-    else:
-        job = 'jobs'
-        have = 'have'
-    msg += '<p style="' + alwaysfailstyle + '">' \
-        + 'The ' + str(len(always_fail_jobs)) + ' ' + job + ' who\'s ' \
-        + alwaysfailcolumn_str + ' has this background color ' + have \
-        + ' always failed in the past ' + days + ' days</p>\n'
+    msg += '<p style="' + jobsolderthantimestyle + '">The ' + str(len(pnv_jobids_lst)) \
+        + ' Copied/Migrated/Verified ' + ('jobs' if len(pnv_jobids_lst) > 1 else 'job') + ' older than ' \
+        + time + ' ' + hour + ' pulled into this list ' + ('have' if len(pnv_jobids_lst) > 1 else 'has') \
+        + ' ' + ('their' if len(pnv_jobids_lst) > 1 else 'its') + ' End Time' + ('s' if len(pnv_jobids_lst) > 1 else '') \
+        + ' preceded by an asterisk (*)</p><br>\n'
 
 # Create the table header from the columns in
 # the c2sl list in the order they are defined
@@ -1231,10 +1215,6 @@ if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
 msg += '<table style="' + jobtablestyle + '">' \
     + '<tr style="' + jobtableheaderstyle + '">'
 for colname in c2sl:
-    if colname not in valid_col_lst:
-        print('\nColumn name \'' + colname + '\' not valid. Exiting!\n')
-        print('Valid columns are: ' + ', '.join(valid_col_lst))
-        usage()
     msg += col_hdr_dict[colname]
 msg += '</tr>\n'
 
@@ -1250,13 +1230,9 @@ for jobrow in alljobrows:
     else:
         alwaysfailjob = 'no'
 
-    # If this job is in the "running, but needs
-    # operator list", set the job_needs_opr variable
-    # ----------------------------------------------
-    if 'job_needs_opr_lst' in globals() and str(jobrow['jobid']) in job_needs_opr_lst:
-        job_needs_opr = 'yes'
-    else:
-        job_needs_opr = 'no'
+    # Set the job_needs_opr variable
+    # ------------------------------
+    job_needs_opr = 'yes' if 'job_needs_opr_lst' in globals() and str(jobrow['jobid']) in job_needs_opr_lst else 'no'
 
     # Set the job row's default bgcolor
     # ---------------------------------
@@ -1296,6 +1272,23 @@ for jobrow in alljobrows:
     msg += '</tr>\n'
     counter += 1
 msg += '</table>'
+
+# Do we append the 'Running or Created' message to the Subject?
+# -------------------------------------------------------------
+if runningorcreated != 0 and addsubjectrunningorcreated == 'yes':
+    runningjob = 'job' if runningorcreated == 1 else 'jobs'
+    runningorcreatedsubject = ' (' + str(runningorcreated) + ' ' + runningjob + ' queued/running)'
+else:
+    runningorcreatedsubject = ''
+
+# Create the Subject
+# ------------------
+subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
+        + str(time) + ' ' + hour + ': ' + str(numbadjobs) + ' bad, ' \
+        + str(jobswitherrors) + ' with errors, for ' + clientstr + ', and ' \
+        + jobstr + ', and ' + jobtypestr + runningorcreatedsubject
+if addsubjecticon == 'yes':
+    subject = set_subject_icon() + ' ' + subject
 
 # Build the final message and send the email
 # ------------------------------------------

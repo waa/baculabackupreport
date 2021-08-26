@@ -185,8 +185,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.29'
-reldate = 'August 12, 2021'
+version = '1.30'
+reldate = 'August 26, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -732,26 +732,11 @@ if not args['--smtpserver']:
     usage()
 else:
     smtpserver = args['--smtpserver']
-if args['--dbpass'] == None:
-    dbpass = ''
-else:
-    dbpass = args['--dbpass']
-if not args['--client']:
-    client = '%'
-else:
-    client = args['--client']
-if not args['--jobname']:
-    jobname = '%'
-else:
-    jobname = args['--jobname']
-if args['--smtpuser'] == None:
-    smtpuser = ''
-else:
-    smtpuser = args['--smtpuser']
-if args['--smtppass'] == None:
-    smtppass = ''
-else:
-    smtppass = args['--smtppass']
+dbpass = '' if args['--dbpass'] == None else args['--dbpass']
+client = '%' if not args['--client'] else args['--client']
+jobname = '%' if not args['--jobname'] else args['--jobname']
+smtpuser = '' if args['--smtpuser'] == None else args['--smtpuser']
+smtppass = '' if args['--smtppass'] == None else args['--smtppass']
 
 # Connect to database and query for all
 # matching jobs in the past 'time' hours
@@ -990,7 +975,7 @@ if len(vrfy_jobids) != 0:
 # pn_jobids_dict dictionary, and the jobids of Verified jobs in the v_jobids_dict
 # dictionary we can get information about them and add their job rows to alljobrows
 # If the 'include_pnv_jobs' option is disabled, it can be confusing to see Copy,
-# Migrate, or Verify jobs referencing jobids they worked on which are not in the listing
+# Migrate, or Verify control jobs referencing jobids which are not in the listing
 # NOTE: No statisitics (Files, bytes, etc) are counted for these jobs that are pulled in
 # --------------------------------------------------------------------------------------
 if include_pnv_jobs == 'yes':
@@ -1184,7 +1169,7 @@ if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
     msg += '<p style="' + alwaysfailstyle + '">' \
         + 'The ' + str(len(always_fail_jobs)) + ' ' + ('jobs' if len(always_fail_jobs) > 1 else 'job') + ' who\'s ' \
         + alwaysfailcolumn_str + ' has this background color ' + ('have' if len(always_fail_jobs) > 1 else 'has') \
-        + ' always failed in the past ' + days + ' ' + ('days' if len(always_fail_jobs) > 1 else 'day') + '</p>\n'
+        + ' always failed in the past ' + days + ' ' + ('days' if int(days) > 1 else 'day') + '</p><br>\n'
 
 # Do we have any Running jobs that are really just
 # sitting there waiting on media, possibly holding
@@ -1201,6 +1186,7 @@ if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
 # Do we have any copied or migrated jobs that have an endtime
 # outside of the "-t hours" setting? If yes, then add a notice
 # explaining that their endtime will be preceded by an asterisk
+# so they may be quickly identified.
 # -------------------------------------------------------------
 if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
     msg += '<p style="' + jobsolderthantimestyle + '">The ' + str(len(pnv_jobids_lst)) \
@@ -1225,13 +1211,10 @@ counter = 0
 for jobrow in alljobrows:
     # If this job is always failing, set the alwaysfailjob variable
     # -------------------------------------------------------------
-    if len(always_fail_jobs) != 0 and jobrow['jobname'] in always_fail_jobs:
-        alwaysfailjob = 'yes'
-    else:
-        alwaysfailjob = 'no'
+    alwaysfailjob = 'yes' if len(always_fail_jobs) != 0 and jobrow['jobname'] in always_fail_jobs else 'no'
 
-    # Set the job_needs_opr variable
-    # ------------------------------
+    # If this job is waiting on media, Set the job_needs_opr variable
+    # ---------------------------------------------------------------
     job_needs_opr = 'yes' if 'job_needs_opr_lst' in globals() and str(jobrow['jobid']) in job_needs_opr_lst else 'no'
 
     # Set the job row's default bgcolor

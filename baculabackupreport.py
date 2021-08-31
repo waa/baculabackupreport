@@ -69,6 +69,17 @@ boldjobname = 'yes'       # Bold the Job Name in HTML emails?
 boldstatus = 'yes'        # Bold the Status in HTML emails?
 starbadjobids = 'no'      # Wrap bad Jobs jobids with asterisks "*"?
 sortorder = 'DESC'        # Which direction to sort jobids by? (ASC or DESC)
+showcopiedto = 'yes'      # Show the jobids that Migrated/Backup jobs have been copied to
+print_subject = 'no'      # Print (stdout) the subject of the email being sent
+print_sent = 'no'         # Print (stdout) when the email is successfully sent
+include_pnv_jobs = 'yes'  # Include copied, migrated, verified jobs who's endtime is older than "-t hours"?
+                          # NOTE:
+                          # - Copied/Migrated jobs inherit the endtime of the original backup job which
+                          #   can often be older than the number of hours set. These jobs would not normally
+                          #   be included in the list which can be confusing when Copy/Migration jobs in the
+                          #   list refer to them but they are not listed.
+                          # - Verify jobs can verify any job, even very old ones. This option makes sure
+                          #   verified jobs older than the hours set are also included in the listing.
 
 # Job summary table settings
 # --------------------------
@@ -79,14 +90,6 @@ migrated_stats = 'yes'    # Print Migrated Files/Bytes in the summary table?
 verified_stats = 'yes'    # Print Verified Files/Bytes in the summary table?
 emailjobsummaries = 'no'  # Email all Job summaries? Be careful with this, it can generate very large emails
 emailbadlogs = 'no'       # Email logs of bad Jobs? Be careful with this, it can generate very large emails
-include_pnv_jobs = 'yes'  # Include copied, migrated, verified jobs who's endtime is older than "-t hours"?
-                          # NOTE:
-                          # - Copied/Migrated jobs inherit the endtime of the original backup job which
-                          #   can often be older than the number of hours set. These jobs would not normally
-                          #   be included in the list which can be confusing when Copy/Migration jobs in the
-                          #   list refer to them but they are not listed.
-                          # - Verify jobs can verify any job, even very old ones. This option makes sure
-                          #   verified jobs older than the hours set are included in the listing.
 
 # Email subject settings including some example utf-8
 # icons to prepend the subject with. Examples from:
@@ -185,8 +188,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.30'
-reldate = 'August 26, 2021'
+version = '1.31'
+reldate = 'August 30, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -203,6 +206,48 @@ valid_col_lst = [
     'joberrors', 'type', 'level', 'jobfiles',
     'jobbytes', 'starttime', 'endtime', 'runtime'
     ]
+
+# Set the string for docopt
+# -------------------------
+doc_opt_str = """
+Usage:
+    baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-d <days>] [-c <client>] [-j <jobname>] [-y <jobtype>]
+                          [--dbtype <dbtype>] [--dbport <dbport>] [--dbhost <dbhost>] [--dbname <dbname>]
+                          [--dbuser <dbuser>] [--dbpass <dbpass>]
+                          [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
+    baculabackupreport.py -h | --help
+    baculabackupreport.py -v | --version
+
+Options:
+    -e, --email <email>               Email address to send report to
+    -f, --fromemail <fromemail>       Email address to be set in the From: field of the email
+    -s, --server <server>             Name of the Bacula Server [default: Bacula]
+    -t, --time <time>                 Time to report on in hours [default: 24]
+    -d, --days <days>                 Days to check for "always failing jobs" [default: 7]
+    -c, --client <client>             Client to report on using SQL 'LIKE client' [default: %] (all clients)
+    -j, --jobname <jobname>           Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
+    -y, --jobtype <jobtype>           Type of job to report on. [default: DBRCcMgV] (all job types)
+    --dbtype (pgsql | mysql | maria)  Database type [default: pgsql]
+    --dbport <dbport>                 Database port (defaults pgsql 5432, mysql & maria 3306)
+    --dbhost <dbhost>                 Database host [default: localhost]
+    --dbname <dbname>                 Database name [default: bacula]
+    --dbuser <dbuser>                 Database user [default: bacula]
+    --dbpass <dbpass>                 Database password
+    --smtpserver <smtpserver>         SMTP server [default: localhost]
+    --smtpport <smtpport>             SMTP port [default: 25]
+    -u, --smtpuser <smtpuser>         SMTP user
+    -p, --smtppass <smtppass>         SMTP password
+
+    -h, --help                        Print this help message
+    -v, --version                     Print the script name and version
+
+Notes:
+* Edit variables at top of script to customize output
+* Only the email variable is required. It must be set on the command line or via an environment variable
+* Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
+* Variable assignment precedence is: command line > environment variable > default
+
+"""
 
 # Create a dictionary of column name to html strings so
 # that they may be used in any order in the jobs table
@@ -222,6 +267,8 @@ col_hdr_dict = {
     'runtime':   '<th style="' + jobtableheadercellstyle + '">Run Time</th>'
     }
 
+# Now for some functions
+# ----------------------
 def usage():
     'Show the instructions'
     print(doc_opt_str)
@@ -277,6 +324,19 @@ def v_job_id(vrfy_jobid):
     # -------------------------------------------------------------
     return re.sub('.*Verify JobId: +(.+?)\n.*', '\\1', vrfy_jobid['logtext'], flags = re.DOTALL)
 
+def copied_ids(jobid):
+    'For a given Backup or Migration job, return a comma separated list of jobids that it was copied to.'
+    # print(pn_jobids_dict)
+    # sys.exit()
+    copied_jobids=[]
+    for t in pn_jobids_dict:
+        if pn_jobids_dict[t][0] == str(jobid):
+            copied_jobids.append(pn_jobids_dict[t][1])
+    if len(copied_jobids) == 0:
+        return '0'
+    else:
+        return ','.join(copied_jobids)
+
 def migrated_id(jobid):
     'For a given Migrated job, return the jobid that it was migrated to.'
     for t in pn_jobids_dict:
@@ -284,12 +344,23 @@ def migrated_id(jobid):
             return pn_jobids_dict[t][1]
 
 def translate_job_type(jobtype, jobid, priorjobid):
-    'Job type is stored in the catalog as a single character. Do some special things for Copy and Migration jobs.'
+    'Job type is stored in the catalog as a single character. Do some special things for Backup, Copy, and Migration jobs.'
     if jobtype == 'C' and priorjobid != '0':
         return 'Copy of ' + str(priorjobid)
 
     if jobtype == 'B' and priorjobid != 0:
+        if 'pn_jobids_dict' in globals() and len(copied_ids(jobid)) != 0:
+            if showcopiedto == 'yes':
+                if copied_ids(jobid) != '0':
+                    return 'Migrated from ' + str(priorjobid) + '<br>Copied to ' + copied_ids(jobid)
         return 'Migrated from ' + str(priorjobid)
+
+    if jobtype == 'B':
+        if 'pn_jobids_dict' in globals() and len(copied_ids(jobid)) != 0:
+            if showcopiedto == 'yes':
+                if copied_ids(jobid) != '0':
+                    return 'Backup<br>Copied to ' + copied_ids(jobid)
+        return 'Backup'
 
     if jobtype == 'M':
         # Part of this is a workaround for what I consider to be a bug in Bacula for jobs of
@@ -333,7 +404,7 @@ def translate_job_type(jobtype, jobid, priorjobid):
     if jobtype == 'V':
         return 'Verify of ' + v_jobids_dict[str(jobid)]
 
-    return {'B': 'Backup', 'D': 'Admin', 'R': 'Restore'}[jobtype]
+    return {'D': 'Admin', 'R': 'Restore'}[jobtype]
 
 def translate_job_status(jobstatus, joberrors):
     'jobstatus is stored in the catalog as a single character, replace with words.'
@@ -366,8 +437,8 @@ def translate_job_level(joblevel, jobtype):
     # ---------------------------------
     if jobtype in ('D', 'R', 'g', 'c'):
         return '----'
-    return {' ': '----', '-': 'Base', 'A': 'VVol', 'C': 'VCat', 'd': 'VD2C',
-            'D': 'Diff', 'f': 'VFul', 'F': 'Full', 'I': 'Incr', 'O': 'VV2C', 'V': 'Init'}[joblevel]
+    return {' ': '----', '-': 'Base', 'A': 'Data', 'C': 'VCat', 'd': 'VD2C',
+            'D': 'Diff', 'f': 'VFull', 'F': 'Full', 'I': 'Inc', 'O': 'VV2C', 'V': 'Init'}[joblevel]
 
 def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     'Format/modify some table cells based on settings and conditions.'
@@ -527,6 +598,8 @@ def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, s
             if smtpuser != '' and smtppass != '':
                 server.login(smtpuser, smtppass)
             server.sendmail(fromemail, email, message)
+        if print_sent == 'yes':
+            print('Email successfully sent')
     except (gaierror, ConnectionRefusedError):
         print('Failed to connect to the SMTP server. Bad connection settings?')
         sys.exit(1)
@@ -537,48 +610,6 @@ def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, s
         print('Error occurred while communicating with SMTP server ' + smtpserver + ':' + str(smtpport))
         print('Error was: ' + str(e))
         sys.exit(1)
-
-# Set the string for docopt
-# -------------------------
-doc_opt_str = """
-Usage:
-    baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-d <days>] [-c <client>] [-j <jobname>] [-y <jobtype>]
-                          [--dbtype <dbtype>] [--dbport <dbport>] [--dbhost <dbhost>] [--dbname <dbname>]
-                          [--dbuser <dbuser>] [--dbpass <dbpass>]
-                          [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
-    baculabackupreport.py -h | --help
-    baculabackupreport.py -v | --version
-
-Options:
-    -e, --email <email>               Email address to send report to
-    -f, --fromemail <fromemail>       Email address to be set in the From: field of the email
-    -s, --server <server>             Name of the Bacula Server [default: Bacula]
-    -t, --time <time>                 Time to report on in hours [default: 24]
-    -d, --days <days>                 Days to check for "always failing jobs" [default: 7]
-    -c, --client <client>             Client to report on using SQL 'LIKE client' [default: %] (all clients)
-    -j, --jobname <jobname>           Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
-    -y, --jobtype <jobtype>           Type of job to report on. [default: DBRCcMgV] (all job types)
-    --dbtype (pgsql | mysql | maria)  Database type [default: pgsql]
-    --dbport <dbport>                 Database port (defaults pgsql 5432, mysql & maria 3306)
-    --dbhost <dbhost>                 Database host [default: localhost]
-    --dbname <dbname>                 Database name [default: bacula]
-    --dbuser <dbuser>                 Database user [default: bacula]
-    --dbpass <dbpass>                 Database password
-    --smtpserver <smtpserver>         SMTP server [default: localhost]
-    --smtpport <smtpport>             SMTP port [default: 25]
-    -u, --smtpuser <smtpuser>         SMTP user
-    -p, --smtppass <smtppass>         SMTP password
-
-    -h, --help                        Print this help message
-    -v, --version                     Print the script name and version
-
-Notes:
-* Edit variables at top of script to customize output
-* Only the email variable is required. It must be set on the command line or via an environment variable
-* Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
-* Variable assignment precedence is: command line > environment variable > default
-
-"""
 
 # Assign docopt doc string variable
 # ---------------------------------
@@ -658,8 +689,8 @@ if emailsummary not in valid_email_summary_lst:
     print(print_opt_errors('emailsummary'))
     usage()
 
-# Do some basic sanity checking on variables cli and ENV variables
-# ----------------------------------------------------------------
+# Do some basic sanity checking on cli and ENV variables
+# ------------------------------------------------------
 jobtypeset = set(args['--jobtype'])
 if not jobtypeset.issubset(set(all_jobtype_lst)):
     print(print_opt_errors('jobtype'))
@@ -790,9 +821,8 @@ jobstr = 'all jobs' if jobname == '%' else 'jobname \'' + jobname + '\''
 clientstr = 'all clients' if client == '%' else 'client \'' + client + '\''
 jobtypestr = 'all jobtypes' if set(all_jobtype_lst).issubset(jobtypeset) else 'jobtypes: ' + ','.join(jobtypeset)
 
-# If there are no jobs to report
-# on, just send the email & exit
-# ------------------------------
+# If there are no jobs to report on, just send the email & exit
+# -------------------------------------------------------------
 if numjobs == 0:
     subject = server + ' - No jobs found for ' + clientstr + ' in the past ' \
             + time + ' ' + hour + ' for ' + jobstr + ', and ' + jobtypestr
@@ -980,6 +1010,14 @@ if len(vrfy_jobids) != 0:
 # --------------------------------------------------------------------------------------
 if include_pnv_jobs == 'yes':
     pnv_jobids_lst = []
+    # waa - 20210830 - TODO - There is a minor bug here. If a job is copied, migrated, or
+    #                         verified, it's jobid will be pulled into the pvn_jobids_lst
+    #                         list. If the original job is deleted the banner message about
+    #                         jobs' endtimes being prepended with an asterisk will be
+    #                         displayed, but the job will not even be in the list of jobs.
+    #                         It is a very specific corner case, but I should try to get
+    #                         this fixed at some point.
+    # -------------------------------------------------------------------------------------
     if 'v_jobids_dict' in globals() and len(v_jobids_dict) != 0:
         for v_job_id in v_jobids_dict:
             if v_jobids_dict[v_job_id] != '0' \
@@ -1074,17 +1112,17 @@ if len(runningjobids) != 0:
     job_needs_opr_lst = []
     for rj in runningjobids:
         log_text = ''
-        # Build the reversed log_text until the first text indicating that
-        # operator action is required is found in the log. This is the last
-        # time it appears in real time. Then check the log_text variable to
-        # see if any new media has been mounted which would indicate that
-        # this job is actually running and not stuck waiting on media
-        # -----------------------------------------------------------------
+        # Build the reversed log_text variable until the first text
+        # indicating that operator action is required is found in the
+        # log. This is the last time it appears in real time. Then check
+        # the log_text variable to see if any new media has been mounted
+        # which would indicate that this job is actually running and not
+        # stuck waiting on media
+        # --------------------------------------------------------------
         for rjlt in running_jobs_log_text:
             if str(rjlt[0]) == rj:
                 log_text += rjlt[1]
-                if 'Please mount read Volume' in rjlt[1] or \
-                    'Please mount append Volume' in rjlt[1] or \
+                if 'Please mount' in rjlt[1] or \
                     'Please use the "label" command' in rjlt[1]:
                     if 'New volume' not in log_text and 'Ready to append' not in log_text:
                         job_needs_opr_lst.append(rj)
@@ -1270,9 +1308,10 @@ subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
         + str(time) + ' ' + hour + ': ' + str(numbadjobs) + ' bad, ' \
         + str(jobswitherrors) + ' with errors, for ' + clientstr + ', and ' \
         + jobstr + ', and ' + jobtypestr + runningorcreatedsubject
+if print_subject == 'yes':
+    print(subject)
 if addsubjecticon == 'yes':
     subject = set_subject_icon() + ' ' + subject
-
 # Build the final message and send the email
 # ------------------------------------------
 if emailsummary == 'top':

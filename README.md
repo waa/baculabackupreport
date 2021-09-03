@@ -12,34 +12,34 @@ Usage:
     baculabackupreport.py -h | --help
     baculabackupreport.py -v | --version
 
- Options:
-     -e, --email <email>               Email address to send report to
-     -f, --fromemail <fromemail>       Email address to be set in the From: field of the email
-     -s, --server <server>             Name of the Bacula Server [default: Bacula]
-     -t, --time <time>                 Time to report on in hours [default: 24]
-     -d, --days <days>                 Days to check for "always failing jobs" [default: 7]
-     -c, --client <client>             Client to report on using SQL 'LIKE client' [default: %] (all clients)
-     -j, --jobname <jobname>           Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
-     -y, --jobtype <jobtype>           Type of job to report on. [default: DBRCcMgV] (all job types)
-     --dbtype (pgsql | mysql | maria)  Database type [default: pgsql]
-     --dbport <dbport>                 Database port (defaults pgsql 5432, mysql & maria 3306)
-     --dbhost <dbhost>                 Database host [default: localhost]
-     --dbname <dbname>                 Database name [default: bacula]
-     --dbuser <dbuser>                 Database user [default: bacula]
-     --dbpass <dbpass>                 Database password
-     --smtpserver <smtpserver>         SMTP server [default: localhost]
-     --smtpport <smtpport>             SMTP port [default: 25]
-     -u, --smtpuser <smtpuser>         SMTP user
-     -p, --smtppass <smtppass>         SMTP password
+Options:
+    -e, --email <email>          Email address to send report to
+    -f, --fromemail <fromemail>  Email address to be set in the From: field of the email
+    -s, --server <server>        Name of the Bacula Server [default: Bacula]
+    -t, --time <time>            Time to report on in hours [default: 24]
+    -d, --days <days>            Days to check for "always failing jobs" [default: 7]
+    -c, --client <client>        Client to report on using SQL 'LIKE client' [default: %] (all clients)
+    -j, --jobname <jobname>      Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
+    -y, --jobtype <jobtype>      Type of job to report on. [default: DBRCcMgV] (all job types)
+    --dbtype <dbtype>            Database type [default: pgsql] (pgsql | mysql | maria | sqlite)
+    --dbport <dbport>            Database port (defaults pgsql 5432, mysql & maria 3306)
+    --dbhost <dbhost>            Database host [default: localhost]
+    --dbname <dbname>            Database name [default: bacula]
+    --dbuser <dbuser>            Database user [default: bacula]
+    --dbpass <dbpass>            Database password
+    --smtpserver <smtpserver>    SMTP server [default: localhost]
+    --smtpport <smtpport>        SMTP port [default: 25]
+    -u, --smtpuser <smtpuser>    SMTP user
+    -p, --smtppass <smtppass>    SMTP password
+    
+    -h, --help                   Print this help message
+    -v, --version                Print the script name and version
 
-     -h, --help                        Print this help message
-     -v, --version                     Print the script name and version
-
- Notes:
- * Edit variables at top of script to customize output
- * Only the email variable is required. It must be set on the command line or via an environment variable
- * Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
- * Variable assignment precedence is: command line > environment variable > default
+Notes:
+* Edit variables at top of script to customize output
+* Only the email variable is required. It must be set on the command line or via an environment variable
+* Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
+* Variable assignment precedence is: command line > environment variable > default
 ```
 ## Example commands:
 ```

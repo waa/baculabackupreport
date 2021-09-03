@@ -62,7 +62,7 @@ Notes:
 #### Sample one: Some OK, Running, Created (but not yet running), and a Canceled job:
 ![BackupReport-1-20210902_225754](https://user-images.githubusercontent.com/108133/131952788-2d6e3256-5da3-4a27-84bb-c849794aa1ce.png)
 
-#### Sample two: An OK Backup job, an Admin Job and two Backup jobs that had been copied, and then migrated. At the bottom is the optional summary/totals table:
+#### Sample two: Shows an OK Backup job, an OK Admin Job, and two Backup jobs that had been copied, and then migrated. At the bottom is the optional summary/totals table:
 ![BackupReport-2-20210902_230236](https://user-images.githubusercontent.com/108133/131953131-6078933e-1751-438b-a10b-875cab034400.png)
 
 #### Sample three: Shows the (optional) summary/totals table followed by the (optional) Job log summaries:

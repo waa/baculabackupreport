@@ -188,8 +188,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.31'
-reldate = 'August 30, 2021'
+version = '1.32'
+reldate = 'September 2, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -198,7 +198,7 @@ prog_info = '<p style="font-size: 8px;">' \
           + reldate + '</body></html>'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
-valid_db_lst = ['pgsql', 'mysql', 'maria']
+valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
 all_jobtype_lst = ['B', 'C', 'c', 'D', 'g', 'M', 'R', 'V']
 valid_email_summary_lst = ['top', 'bottom', 'both', 'none']
 valid_col_lst = [
@@ -219,27 +219,27 @@ Usage:
     baculabackupreport.py -v | --version
 
 Options:
-    -e, --email <email>               Email address to send report to
-    -f, --fromemail <fromemail>       Email address to be set in the From: field of the email
-    -s, --server <server>             Name of the Bacula Server [default: Bacula]
-    -t, --time <time>                 Time to report on in hours [default: 24]
-    -d, --days <days>                 Days to check for "always failing jobs" [default: 7]
-    -c, --client <client>             Client to report on using SQL 'LIKE client' [default: %] (all clients)
-    -j, --jobname <jobname>           Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
-    -y, --jobtype <jobtype>           Type of job to report on. [default: DBRCcMgV] (all job types)
-    --dbtype (pgsql | mysql | maria)  Database type [default: pgsql]
-    --dbport <dbport>                 Database port (defaults pgsql 5432, mysql & maria 3306)
-    --dbhost <dbhost>                 Database host [default: localhost]
-    --dbname <dbname>                 Database name [default: bacula]
-    --dbuser <dbuser>                 Database user [default: bacula]
-    --dbpass <dbpass>                 Database password
-    --smtpserver <smtpserver>         SMTP server [default: localhost]
-    --smtpport <smtpport>             SMTP port [default: 25]
-    -u, --smtpuser <smtpuser>         SMTP user
-    -p, --smtppass <smtppass>         SMTP password
+    -e, --email <email>          Email address to send report to
+    -f, --fromemail <fromemail>  Email address to be set in the From: field of the email
+    -s, --server <server>        Name of the Bacula Server [default: Bacula]
+    -t, --time <time>            Time to report on in hours [default: 24]
+    -d, --days <days>            Days to check for "always failing jobs" [default: 7]
+    -c, --client <client>        Client to report on using SQL 'LIKE client' [default: %] (all clients)
+    -j, --jobname <jobname>      Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
+    -y, --jobtype <jobtype>      Type of job to report on. [default: DBRCcMgV] (all job types)
+    --dbtype <dbtype>            Database type [default: pgsql] (pgsql | mysql | maria | sqlite)
+    --dbport <dbport>            Database port (defaults pgsql 5432, mysql & maria 3306)
+    --dbhost <dbhost>            Database host [default: localhost]
+    --dbname <dbname>            Database name [default: bacula]
+    --dbuser <dbuser>            Database user [default: bacula]
+    --dbpass <dbpass>            Database password
+    --smtpserver <smtpserver>    SMTP server [default: localhost]
+    --smtpport <smtpport>        SMTP port [default: 25]
+    -u, --smtpuser <smtpuser>    SMTP user
+    -p, --smtppass <smtppass>    SMTP password
 
-    -h, --help                        Print this help message
-    -v, --version                     Print the script name and version
+    -h, --help                   Print this help message
+    -v, --version                Print the script name and version
 
 Notes:
 * Edit variables at top of script to customize output
@@ -307,6 +307,10 @@ def db_connect():
     elif dbtype in ('mysql', 'maria'):
         conn = mysql.connector.connect(host=dbhost, port=dbport, database=dbname, user=dbuser, password=dbpass)
         cur = conn.cursor(dictionary=True)
+    elif dbtype == 'sqlite':
+        conn = sqlite3.connect('/opt/bacula/working/bacula.db')
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
 
 def pn_job_id(ctrl_jobid, p_or_n):
     'Return a Previous or New jobid for Copy and Migration Control jobs.'
@@ -326,11 +330,11 @@ def v_job_id(vrfy_jobid):
 
 def copied_ids(jobid):
     'For a given Backup or Migration job, return a comma separated list of jobids that it was copied to.'
-    # print(pn_jobids_dict)
-    # sys.exit()
     copied_jobids=[]
     for t in pn_jobids_dict:
-        if pn_jobids_dict[t][0] == str(jobid):
+        # Make sure that only copy jobids are listed, not the jobid it was migrated to
+        # ----------------------------------------------------------------------------
+        if pn_jobids_dict[t][0] == str(jobid) and pn_jobids_dict[t][1] != migrated_id(jobid):
             copied_jobids.append(pn_jobids_dict[t][1])
     if len(copied_jobids) == 0:
         return '0'
@@ -349,17 +353,20 @@ def translate_job_type(jobtype, jobid, priorjobid):
         return 'Copy of ' + str(priorjobid)
 
     if jobtype == 'B' and priorjobid != 0:
+        # This catches the corner case where copy/migration control jobs
+        # have run, but they copied or migrated no jobs, pn_jobids_dict
+        # will not exist
         if 'pn_jobids_dict' in globals() and len(copied_ids(jobid)) != 0:
-            if showcopiedto == 'yes':
-                if copied_ids(jobid) != '0':
-                    return 'Migrated from ' + str(priorjobid) + '<br>Copied to ' + copied_ids(jobid)
+            if 'pn_jobids_dict' in globals() and showcopiedto == 'yes':
+               if copied_ids(jobid) != '0':
+                   return 'Migrated from ' + str(priorjobid) + '<br>Copied to ' + copied_ids(jobid)
         return 'Migrated from ' + str(priorjobid)
 
     if jobtype == 'B':
         if 'pn_jobids_dict' in globals() and len(copied_ids(jobid)) != 0:
-            if showcopiedto == 'yes':
-                if copied_ids(jobid) != '0':
-                    return 'Backup<br>Copied to ' + copied_ids(jobid)
+            if 'pn_jobids_dict' in globals() and showcopiedto == 'yes':
+               if copied_ids(jobid) != '0':
+                   return 'Backup<br>Copied to ' + copied_ids(jobid)
         return 'Backup'
 
     if jobtype == 'M':
@@ -369,7 +376,10 @@ def translate_job_type(jobtype, jobid, priorjobid):
         # though nothing is migrated. https://bugs.bacula.org/view.php?id=2619
         # ---------------------------------------------------------------------------------------
         if 'pn_jobids_dict' in globals() and migrated_id(jobid) != '0':
-            return 'Migrated to ' + str(migrated_id(jobid))
+            if copied_ids(jobid) != '0':
+                return 'Migrated to ' + str(migrated_id(jobid)) + '<br>Copied to ' + copied_ids(jobid)
+            else:
+                return 'Migrated to ' + str(migrated_id(jobid))
         elif 'pn_jobids_dict' in globals() and migrated_id(jobid) == '0':
             return 'Migrated (No data to migrate)'
         else:
@@ -402,7 +412,12 @@ def translate_job_type(jobtype, jobid, priorjobid):
             return 'Migration Ctrl: ' + pn_jobids_dict[str(jobid)][0] + '->' + pn_jobids_dict[str(jobid)][1]
 
     if jobtype == 'V':
-        return 'Verify of ' + v_jobids_dict[str(jobid)]
+        if jobrow['jobstatus'] in ('R', 'C'):
+            return 'Verify'
+        if jobrow['jobstatus'] in bad_job_set:
+            return 'Verify: Failed'
+        else:
+            return 'Verify of ' + v_jobids_dict[str(jobid)]
 
     return {'D': 'Admin', 'R': 'Restore'}[jobtype]
 
@@ -534,9 +549,9 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     # client is used, or when the Job is still running, there
     # will be no endtime, nor runtime
     # --------------------------------------------------------
-    if content == '----' or ((col == 'client' or col == 'runtime') and content == 'None'):
+    if content == '----' or ((col == 'client' or col == 'runtime') and content in ('None', '0')):
         content = '<hr width="20%">'
-    if content == 'None' and col == 'endtime' and jobrow['jobstatus'] == 'R':
+    if content in ('None', '0') and col == 'endtime' and jobrow['jobstatus'] == 'R':
         content = 'Still Running'
     if jobrow['jobstatus'] == 'C' and col == 'endtime':
         content = 'Created, not yet running'
@@ -664,6 +679,8 @@ if args['--dbtype'] == 'pgsql' and args['--dbport'] == None:
     args['--dbport'] = '5432'
 elif args['--dbtype'] in ('mysql', 'maria') and args['--dbport'] == None:
     args['--dbport'] = '3306'
+elif args['--dbtype'] == 'sqlite':
+    args['--dbport'] = '0'
 elif args['--dbtype'] not in valid_db_lst:
     print(print_opt_errors('dbtype'))
     usage()
@@ -738,6 +755,9 @@ if dbtype == 'pgsql':
     import psycopg2.extras
 elif dbtype in ('mysql', 'maria'):
     import mysql.connector
+elif dbtype == 'sqlite':
+    import sqlite3
+    from datetime import timedelta
 if not args['--dbport'].isnumeric():
     print(print_opt_errors('dbport'))
     usage()
@@ -781,7 +801,7 @@ try:
             FROM Job \
             INNER JOIN Client on Job.ClientID=Client.ClientID \
             WHERE (EndTime >= CURRENT_TIMESTAMP(2) - cast('" + time + " HOUR' as INTERVAL) \
-            OR (JobStatus='R' OR JobStatus='C')) \
+            OR JobStatus IN ('R', 'C')) \
             AND Client.Name LIKE '" + client + "' \
             AND Job.Name LIKE '" + jobname + "' \
             AND Type IN ('" + "','".join(jobtypeset) + "') \
@@ -794,15 +814,32 @@ try:
             FROM Job \
             INNER JOIN Client on Job.clientid=Client.clientid \
             WHERE (endtime >= DATE_ADD(NOW(), INTERVAL -" + time + " HOUR) \
-            OR (jobstatus='R' OR jobstatus='C')) \
+            OR jobstatus IN ('R','C')) \
             AND Client.Name LIKE '" + client + "' \
             AND Job.Name LIKE '" + jobname + "' \
             AND type IN ('" + "','".join(jobtypeset) + "') \
             ORDER BY jobid " + sortorder + ";"
+    elif dbtype == 'sqlite':
+        query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
+            JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
+            PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime \
+            FROM Job \
+            INNER JOIN Client on Job.clientid=Client.clientid \
+            WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + time + " hours') \
+            OR jobstatus IN ('R','C') \
+            AND Client.Name LIKE '" + client + "' \
+            AND Job.Name LIKE '" + jobname + "' \
+            AND Type IN ('" + "','".join(jobtypeset) + "') \
+            ORDER BY jobid " + sortorder + ";"
     cur.execute(query_str)
     alljobrows = cur.fetchall()
+except sqlite3.OperationalError:
+        print('\nSQLite3 Database locked while fetching all jobs.')
+        print('Is a Bacula Job running?')
+        print('Exiting.\n')
+        sys.exit(1)
 except:
-    print('Problem communicating with database \'' + dbname + '\' while fetching all jobs.')
+    print('Problem communicating with database \'' + dbname + '\' while fetching all jobs.\n')
     sys.exit(1)
 finally:
     if (conn):
@@ -859,15 +896,23 @@ try:
     db_connect()
     if dbtype == 'pgsql':
         query_str = "SELECT JobId, Job.Name AS JobName, JobStatus \
-        FROM Job WHERE endtime >= (NOW()) - (INTERVAL '" + days + " DAY') ORDER BY jobid DESC;"
+        FROM Job WHERE endtime >= (NOW()) - (INTERVAL '" + days + " DAY') ORDER BY JobId DESC;"
     elif dbtype in ('mysql', 'maria'):
         query_str = "SELECT jobid, CAST(Job.name as CHAR(50)) AS jobname, \
         CAST(jobstatus as CHAR(1)) AS jobstatus FROM Job \
         WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + days + " DAY) ORDER BY jobid DESC;"
+    elif dbtype == 'sqlite':
+        query_str = "SELECT JobId, Job.Name AS JobName, JobStatus FROM Job \
+        WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + days + " days') ORDER BY JobId DESC;"
     cur.execute(query_str)
     alldaysjobrows = cur.fetchall()
+except sqlite3.OperationalError:
+        print('\nSQLite3 Database locked while fetching always failing jobs.')
+        print('Is a Bacula Job running?')
+        print('Exiting.\n')
+        sys.exit(1)
 except:
-    print('Problem communicating with database \'' + dbname + '\' while fetching "always failing jobs" list.')
+    print('Problem communicating with database \'' + dbname + '\' while fetching always failing jobs.\n')
     sys.exit(1)
 finally:
     if (conn):
@@ -952,16 +997,24 @@ if len(ctrl_jobids) != 0:
             query_str = 'SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
             FROM Log WHERE jobid IN (' + ','.join(ctrl_jobids) + ') \
             AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+        elif dbtype == 'sqlite':
+            query_str = 'SELECT jobid, logtext FROM log \
+             WHERE jobid IN (' + ','.join(ctrl_jobids) + ') \
+             AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
         cur.execute(query_str)
         cji_rows = cur.fetchall()
+    except sqlite3.OperationalError:
+        print('\nSQLite3 Database locked while fetching always control job info.')
+        print('Is a Bacula Job running?')
+        print('Exiting.\n')
+        sys.exit(1)
     except:
-        print('Problem communicating with database \'' + dbname + '\' while fetching control job info.')
+        print('Problem communicating with database \'' + dbname + '\' while fetching control job info.\n')
         sys.exit(1)
     finally:
         if (conn):
             cur.close()
             conn.close()
-
     # For each row of the returned cji_rows (Ctrl Jobs), add to the
     # pn_jobids_dict dict of tuples as [CtrlJobid: ('PrevJobId', 'NewJobId')]
     # -----------------------------------------------------------------------
@@ -985,10 +1038,19 @@ if len(vrfy_jobids) != 0:
             query_str = 'SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
             FROM Log WHERE jobid IN (' + ','.join(vrfy_jobids) + ') \
             AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+        elif dbtype == 'sqlite':
+            query_str = 'SELECT jobid, logtext FROM log \
+            WHERE jobid IN (' + ','.join(vrfy_jobids) + ') AND logtext LIKE \
+            \'%Termination:%\' ORDER BY jobid DESC;'
         cur.execute(query_str)
         vji_rows = cur.fetchall()
+    except sqlite3.OperationalError:
+        print('\nSQLite3 Database locked while fetching verify job info.')
+        print('Is a Bacula Job running?')
+        print('Exiting.\n')
+        sys.exit(1)
     except:
-        print('Problem communicating with database \'' + dbname + '\' while fetching verify job info.')
+        print('Problem communicating with database \'' + dbname + '\' while fetching verify job info.\n')
         sys.exit(1)
     finally:
         if (conn):
@@ -1060,10 +1122,22 @@ if include_pnv_jobs == 'yes':
                     FROM Job \
                     INNER JOIN Client on Job.clientid=Client.clientid \
                     WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ");"
+            elif dbtype == 'sqlite':
+                query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
+                    JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
+                    PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime \
+                    FROM Job \
+                    INNER JOIN Client on Job.ClientID=Client.ClientID \
+                    WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ")";
             cur.execute(query_str)
             pnv_jobrows = cur.fetchall()
+        except sqlite3.OperationalError:
+            print('\nSQLite3 Database locked while fetching previous, new, and verified jobs outside of "-t hours" range.')
+            print('Is a Bacula Job running?')
+            print('Exiting.\n')
+            sys.exit(1)
         except:
-            print('Problem communicating with database \'' + dbname + '\' while fetching previous, new, and verified jobs outside of "-t hours" range.')
+            print('Problem communicating with database \'' + dbname + '\' while fetching previous, new, and verified jobs outside of "-t hours" range.\n')
             sys.exit(1)
         finally:
             if (conn):
@@ -1097,8 +1171,16 @@ if len(runningjobids) != 0:
         elif dbtype in ('mysql', 'maria'):
             query_str = 'SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log \
             WHERE jobid IN (' + ','.join(runningjobids) + ') ORDER BY time DESC;'
+        elif dbtype == 'sqlite':
+            query_str = 'SELECT jobid, logtext FROM Log \
+            WHERE jobid IN (' + ','.join(runningjobids) + ') ORDER BY time DESC;'
         cur.execute(query_str)
         running_jobs_log_text = cur.fetchall()
+    except sqlite3.OperationalError:
+        print('\nSQLite3 Database locked while fetching all running jobs logs.')
+        print('Is a Bacula Job running?')
+        print('Exiting.\n')
+        sys.exit(1)
     except:
         print('\nProblem communicating with database \'' + dbname + '\' while fetching all running jobs logs.\n')
         sys.exit(1)
@@ -1142,6 +1224,9 @@ if emailjobsummaries == 'yes':
             elif dbtype in ('mysql', 'maria'):
                 query_str = 'SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE jobid=' \
                 + str(job_id) + ' AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+            elif dbtype == 'sqlite':
+                query_str = 'SELECT jobid, logtext FROM Log WHERE jobid=' \
+                + str(job_id) + ' AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
             cur.execute(query_str)
             summaryrow = cur.fetchall()
             # Migrated (M) Jobs have no joblog
@@ -1151,6 +1236,11 @@ if emailjobsummaries == 'yes':
                 + '{:8}'.format(summaryrow[0]['jobid']) \
                 + '\n==============\n' + summaryrow[0]['logtext']
         jobsummaries += '</pre>'
+    except sqlite3.OperationalError:
+       print('\nSQLite3 Database locked while fetching all job summaries.')
+       print('Is a Bacula Job running?')
+       print('Exiting.\n')
+       sys.exit(1)
     except:
         print('\nProblem communicating with database \'' + dbname + '\' while fetching all job summaries.\n')
         sys.exit(1)
@@ -1175,6 +1265,9 @@ if emailbadlogs == 'yes':
                 elif dbtype in ('mysql', 'maria'):
                     query_str = 'SELECT jobid, time, CAST(logtext as CHAR(2000)) AS logtext \
                     FROM Log WHERE jobid=' + str(job_id) + ' ORDER BY jobid, time ASC;'
+                elif dbtype == 'sqlite':
+                    query_str = 'SELECT jobid, time, logtext FROM log WHERE jobid=' \
+                    + str(job_id) + ' ORDER BY jobid, time ASC;'
                 cur.execute(query_str)
                 badjobrow = cur.fetchall()
                 badjoblogs += '==============\nJobID:' \
@@ -1182,6 +1275,11 @@ if emailbadlogs == 'yes':
                 for r in badjobrow:
                     badjoblogs += str(r['time']) + ' ' + r['logtext']
             badjoblogs += '</pre>'
+        except sqlite3.OperationalError:
+            print('\nSQLite3 Database locked while fetching all bad job logs.')
+            print('Is a Bacula Job running?')
+            print('Exiting.\n')
+            sys.exit(1)
         except:
             print('\nProblem communicating with database \'' + dbname + '\' while fetching bad job logs.\n')
             sys.exit(1)
@@ -1289,7 +1387,14 @@ for jobrow in alljobrows:
         elif colname == 'endtime':
             msg += html_format_cell(str(jobrow['endtime']), col = 'endtime')
         elif colname == 'runtime':
-            msg += html_format_cell(str(jobrow['runtime']), col = 'runtime')
+            if dbtype == 'sqlite':
+                if jobrow['jobstatus'] in ('R', 'C'):
+                    runtime = '0'
+                else: 
+                    runtime = "{:0>8}".format(str(timedelta(seconds=jobrow['runtime'])))
+                msg += html_format_cell(runtime, col = 'runtime')
+            else:
+                msg += html_format_cell(str(jobrow['runtime']), col = 'runtime')
     msg += '</tr>\n'
     counter += 1
 msg += '</table>'
@@ -1312,6 +1417,7 @@ if print_subject == 'yes':
     print(subject)
 if addsubjecticon == 'yes':
     subject = set_subject_icon() + ' ' + subject
+
 # Build the final message and send the email
 # ------------------------------------------
 if emailsummary == 'top':

@@ -59,21 +59,24 @@ Notes:
 ```
 
 ## Screenshots
-#### Sample one: Some OK, Running, Created (but not yet running), and an Aborted job:
-![baculabackupreport-Sample_1-2021-05-06_16-24](https://user-images.githubusercontent.com/108133/117374013-9a745580-ae89-11eb-9d39-8b5faf884338.png)
+#### Sample one: Some OK, Running, Created (but not yet running), and a Canceled job:
+![BackupReport-1-20210902_225754](https://user-images.githubusercontent.com/108133/131952788-2d6e3256-5da3-4a27-84bb-c849794aa1ce.png)
 
-#### Sample two: Some OK, one with Errors, one OK (with warnings), and the optional summary/totals table at the bottom:
-![baculabackupreport-Sample_2-2021-05-06_16-26](https://user-images.githubusercontent.com/108133/117374273-15d60700-ae8a-11eb-97b8-7a02b0f41399.png)
+#### Sample two: Shows an OK Backup job, an OK Admin Job, and two Backup jobs that had been copied, and then migrated. At the bottom is the optional summary/totals table:
+![BackupReport-2-20210902_230236](https://user-images.githubusercontent.com/108133/131953131-6078933e-1751-438b-a10b-875cab034400.png)
 
-#### Sample three: Shows the (optional) summary/totals table followed by the (optional) Job log summary:
-![baculabackupreport-Sample_3-2021-05-06_16-46](https://user-images.githubusercontent.com/108133/117374706-dd82f880-ae8a-11eb-8220-00edb1c4081a.png)
+#### Sample three: Shows the (optional) summary/totals table followed by the (optional) Job log summaries:
+![BackupReport-3-20210902_230647](https://user-images.githubusercontent.com/108133/131953501-001190e0-4606-424d-a52b-471d01ce72da.png)
 
 #### Sample four: Shows the tail end of the (optional) summary/totals table followed by the (optional) 'bad' Jobs logs:
 ![baculabackupreport-Sample_4-2021-05-06_16-49](https://user-images.githubusercontent.com/108133/117374978-65690280-ae8b-11eb-8b8a-3e7b82a1f0f7.png)
 
-#### Sample five: Shows the "always failing jobs" feature. Jobs that have been only/always failing in the past "-d days" (default 7) can have any column or their entire row  highlighted.
-![AlwaysFailingJobsBannerExample-2021-06-14_17-36](https://user-images.githubusercontent.com/108133/121972471-6f0e4180-cd38-11eb-8a42-3fdfe0d90f19.png)
+#### Sample five: Shows the "always failing jobs" feature (red arrows). Jobs that have been only/always failing in the past "-d days" (default 7) can have any column or their entire row  highlighted. When there are jobs that are "always failing" the special subject icon can quickly alert you. Additionally, if using BWeb or Baculum, the Job's name can be a link to its history in the Web Gui. The blue arrows shows that there are some copy and migration jobs that ran in the past 24 hours which had copied jobs that are outside of this 24 hours. They are pulled into the list so they may be quickly accessed. Their files/bytes stats are not counted in the summary.
+![BaculaReport-5-20210902_231153](https://user-images.githubusercontent.com/108133/131954405-ea9776b6-adaa-47df-b5ba-8414175819e7.png)
 
-#### Sample six: Shows the "always failing jobs" feature along with the ability to choose any columns and display them in any order
-![AlwaysFailingJobsBannerAndColumnExample-2021-06-14_17-36](https://user-images.githubusercontent.com/108133/121972574-a67cee00-cd38-11eb-9266-b7b9617d8eab.png)
+#### Sample six: Shows the "always failing jobs" feature, the copied/migrated jobs older than 24 hours feature, along with the ability to choose any columns and display them in any order
+![BackupReport-6-20210902_232145](https://user-images.githubusercontent.com/108133/131954696-3851a7ed-5db4-499f-83e7-99987fc23de3.png)
+
+#### Sample seven: Shows the "Needs Media" feature. If any jobs are running, and are waiting on media, regardless of the status of the rest of the jobs and the Subject icon (could be all green/OK), there will be a small tape icon next to the subject icon to let you quickly know job(s) are waiting on media. Additionally, there will be a banner explaining that there are running jobs that require operator attention, and that these jobs will have "Needs Media" in their Status column.
+![BackupReport-7-20210903_002520](https://user-images.githubusercontent.com/108133/131960494-cb512380-cd05-4465-9aa5-a57c71c2c11c.png)
 

@@ -72,6 +72,7 @@ sortorder = 'DESC'        # Which direction to sort jobids by? (ASC or DESC)
 showcopiedto = 'yes'      # Show the jobids that Migrated/Backup jobs have been copied to
 print_subject = 'no'      # Print (stdout) the subject of the email being sent
 print_sent = 'no'         # Print (stdout) when the email is successfully sent
+flagrescheduled = 'yes'   # Should we flag jobs which had failed but succeeded after having been rescheduled?
 include_pnv_jobs = 'yes'  # Include copied, migrated, verified jobs who's endtime is older than "-t hours"?
                           # NOTE:
                           # - Copied/Migrated jobs inherit the endtime of the original backup job which
@@ -156,6 +157,7 @@ fontsizesumlog = '10px'   # Font size of job summaries and bad job logs
 # -----------
 jobsolderthantimestyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0;'
 jobsneedingoprstyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0;'
+rescheduledjobsstyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0;'
 alwaysfailstyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0; background-color: %s;' % alwaysfailcolor
 jobtablestyle = 'width: 100%; border-collapse: collapse;'
 jobtableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (jobtableheadercolor, jobtableheadertxtcolor)
@@ -188,8 +190,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.32'
-reldate = 'September 2, 2021'
+version = '1.33'
+reldate = 'September 8, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -425,7 +427,7 @@ def translate_job_status(jobstatus, joberrors):
     'jobstatus is stored in the catalog as a single character, replace with words.'
     return {'A': 'Canceled', 'C': 'Created', 'D': 'Verify Diffs',
             'E': 'Errors', 'f': 'Failed', 'I': 'Incomplete',
-            'T': ('-OK-', 'OK/Warnings')[joberrors > 0],
+            'T': ('OK', 'OK/Warnings')[joberrors > 0],
             'R': ('Running', 'Needs Media')[job_needs_opr == 'yes']}[jobstatus]
 
 def set_subject_icon():
@@ -506,6 +508,12 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     if col == 'status' and boldstatus == 'yes':
         tdo += '<b>'
         tdc = '</b>' + tdc
+
+    # Do we flag the Job Status of OK jobs which failed and had been rescheduled?
+    # --------------------------------------------------------------------------
+    if col == 'status' and jobrow['jobstatus'] == 'T' and flagrescheduled == 'yes':
+        if rescheduledjobids.count(str(jobrow['jobid'])) >= 1:
+            content = content + ' (' + str(rescheduledjobids.count(str(jobrow['jobid']))) + ')'
 
     # Web gui URL link stuff
     # ----------------------
@@ -1063,6 +1071,52 @@ if len(vrfy_jobids) != 0:
     for vji in vji_rows:
         v_jobids_dict[str(vji['jobid'])] = v_job_id(vji)
 
+# If we have jobs that fail, but are rescheduled one or more times, and then they finally succeed
+# should we print a banner and then flag these jobs in the list so they may be easily identified?
+# -----------------------------------------------------------------------------------------------
+if flagrescheduled == 'yes':
+    try:
+        db_connect()
+        if dbtype == 'pgsql':
+            query_str = "SELECT Job.JobId \
+                FROM Job \
+                INNER JOIN Log on Job.JobId=Log.JobId \
+                WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
+                AND JobStatus = 'T' \
+                AND LogText LIKE \'%Rescheduled Job%\' \
+                ORDER BY Job.JobId ASC;"
+        elif dbtype in ('mysql', 'maria'):
+            query_str = "SELECT Job.jobid \
+                FROM Job \
+                INNER JOIN Log on Job.jobid=Log.jobid \
+                WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
+                AND jobstatus = 'T' \
+                AND logtext LIKE \'%Rescheduled Job%\' \
+                ORDER BY Job.jobid " + sortorder + ";"
+        elif dbtype == 'sqlite':
+            query_str = "SELECT Job.JobId \
+                FROM Job \
+                INNER JOIN Log on Job.JobId=Log.JobId \
+                WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
+                AND jobstatus = 'T' \
+                AND logtext LIKE \'%Rescheduled Job%\' \
+                ORDER BY Job.jobid " + sortorder + ";"
+        cur.execute(query_str)
+        rescheduledlogrows = cur.fetchall()
+        rescheduledjobids = [str(r['jobid']) for r in rescheduledlogrows]
+    except sqlite3.OperationalError:
+        print('\nSQLite3 Database locked while fetching verify job info.')
+        print('Is a Bacula Job running?')
+        print('Exiting.\n')
+        sys.exit(1)
+    except:
+        print('\nProblem communicating with database \'' + dbname + '\' while fetching rescheduled jobids.\n')
+        sys.exit(1)
+    finally:
+        if (conn):
+            cur.close()
+            conn.close()
+
 # Now that we have the jobids of the Previous/New jobids of Copy/Migrated jobs in the
 # pn_jobids_dict dictionary, and the jobids of Verified jobs in the v_jobids_dict
 # dictionary we can get information about them and add their job rows to alljobrows
@@ -1305,15 +1359,15 @@ if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
     msg += '<p style="' + alwaysfailstyle + '">' \
         + 'The ' + str(len(always_fail_jobs)) + ' ' + ('jobs' if len(always_fail_jobs) > 1 else 'job') + ' who\'s ' \
         + alwaysfailcolumn_str + ' has this background color ' + ('have' if len(always_fail_jobs) > 1 else 'has') \
-        + ' always failed in the past ' + days + ' ' + ('days' if int(days) > 1 else 'day') + '</p><br>\n'
+        + ' always failed in the past ' + days + ' ' + ('days' if int(days) > 1 else 'day') + '.</p><br>\n'
 
 # Do we have any Running jobs that are really just
 # sitting there waiting on media, possibly holding
 # up other jobs from making any progress?
 # ------------------------------------------------
 if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
-    msg += '<p style="' + jobsneedingoprstyle \
-        + '">The ' + str(len(job_needs_opr_lst)) + ' running ' \
+    msg += '<p style="' + jobsneedingoprstyle + '">' \
+        + 'The ' + str(len(job_needs_opr_lst)) + ' running ' \
         + ('jobs' if len(job_needs_opr_lst) > 1 else 'job') \
         + ' in this list with a status of "Needs Media" ' \
         + ('require' if len(job_needs_opr_lst) > 1 else 'requires') \
@@ -1329,7 +1383,19 @@ if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
         + ' Copied/Migrated/Verified ' + ('jobs' if len(pnv_jobids_lst) > 1 else 'job') + ' older than ' \
         + time + ' ' + hour + ' pulled into this list ' + ('have' if len(pnv_jobids_lst) > 1 else 'has') \
         + ' ' + ('their' if len(pnv_jobids_lst) > 1 else 'its') + ' End Time' + ('s' if len(pnv_jobids_lst) > 1 else '') \
-        + ' preceded by an asterisk (*)</p><br>\n'
+        + ' preceded by an asterisk (*).</p><br>\n'
+
+# Do we have any jobs that had failed but succeeded after being rescheduled?
+# --------------------------------------------------------------------------
+# The x 'OK' jobs which had failed and then finally suceeded has the number of times (#) it was rescheduled in parenthesis
+if flagrescheduled == 'yes' and len(rescheduledjobids) != 0:
+    msg += '<p style="' + rescheduledjobsstyle + '">' \
+        + 'The ' + str(len(set(rescheduledjobids))) + ' Status=\'OK\' ' \
+        + ('jobs' if len(set(rescheduledjobids)) > 1 else 'job') \
+        + ' which had failed and then finally succeeded ' \
+        + ('have' if len(set(rescheduledjobids)) > 1 else 'has') + ' the number of times (#) ' \
+        + ('they were' if len(set(rescheduledjobids)) > 1 else 'it was') \
+        + ' rescheduled in parenthesis.</p><br>\n'
 
 # Create the table header from the columns in
 # the c2sl list in the order they are defined

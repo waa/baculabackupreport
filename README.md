@@ -80,3 +80,5 @@ Notes:
 #### Sample seven: Shows the "Needs Media" feature. If any jobs are running, and are waiting on media, regardless of the status of the rest of the jobs and the Subject icon (could be all green/OK), there will be a small tape icon next to the subject icon to let you quickly know job(s) are waiting on media. Additionally, there will be a banner explaining that there are running jobs that require operator attention, and that these jobs will have "Needs Media" in their Status column.
 ![BackupReport-7-20210903_002520](https://user-images.githubusercontent.com/108133/131960494-cb512380-cd05-4465-9aa5-a57c71c2c11c.png)
 
+#### Sample eight: Shows the "Rescheduled Jobs" feature. If any jobs have been rescheduled, they will have a number in parentheses in their Status field representing the number of times they were rescheduled. Additionally, there will be a banner message explaining this. This feature, like almost all other features is optional and may be disabled by setting the `flagrescheduled` variable.
+![BackupReport-8-20210909_205928](https://user-images.githubusercontent.com/108133/132792663-6b2e6ab9-d5e1-4ee5-8d6c-4fad2a24a9c2.png)

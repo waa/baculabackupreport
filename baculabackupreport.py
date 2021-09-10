@@ -56,10 +56,13 @@
 
 # External GUI link settings
 # --------------------------
-webgui = 'none'  # Which web interface to generate links for? (bweb, baculum, none)
-webguisvc = ''   # Use encrypted connection or not (ie: http or https)
-webguihost = ''  # FQDN or IP address of the web gui host
-webguiport = ''  # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
+webgui = 'none'        # Which web interface to generate links for? (bweb, baculum, none)
+webguisvc = ''         # Use encrypted connection or not (ie: http or https)
+webguihost = ''        # FQDN or IP address of the web gui host
+webguiport = ''        # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
+urlifyalljobs = 'yes'  # Should jobids in the Status column for Copied/Migrated/Verified jobs
+                       # be made into URL links too? If set to 'no', only the jobids in the
+                       # jobid column will be made into URL links
 
 # Toggles and other formatting settings
 # -------------------------------------
@@ -331,7 +334,7 @@ def v_job_id(vrfy_jobid):
     return re.sub('.*Verify JobId: +(.+?)\n.*', '\\1', vrfy_jobid['logtext'], flags = re.DOTALL)
 
 def copied_ids(jobid):
-    'For a given Backup or Migration job, return a comma separated list of jobids that it was copied to.'
+    'For a given Backup or Migration job, return a list of jobids that it was copied to.'
     copied_jobids=[]
     for t in pn_jobids_dict:
         # Make sure that only copy jobids are listed, not the jobid it was migrated to
@@ -342,7 +345,7 @@ def copied_ids(jobid):
     if len(copied_jobids) == 0:
         return '0'
     else:
-        return ','.join(copied_jobids)
+        return copied_jobids
 
 def migrated_id(jobid):
     'For a given Migrated job, return the jobid that it was migrated to.'
@@ -350,10 +353,18 @@ def migrated_id(jobid):
         if pn_jobids_dict[t][0] == str(jobid):
             return pn_jobids_dict[t][1]
 
+def copied_ids_str(jobid):
+    'For a given jobid, return a comma separated string of jobids, urlified if "webgui" is enabled'
+    copied_ids_lst = []
+    for id in copied_ids(jobid):
+        copied_ids_lst.append((urlify_jobid(id) if gui and urlifyalljobs == 'yes' else id))
+    return ','.join(copied_ids_lst)
+
 def translate_job_type(jobtype, jobid, priorjobid):
     'Job type is stored in the catalog as a single character. Do some special things for Backup, Copy, and Migration jobs.'
     if jobtype == 'C' and priorjobid != '0':
-        return 'Copy of ' + str(priorjobid)
+        return 'Copy of ' \
+               + (urlify_jobid(str(priorjobid)) if gui and urlifyalljobs == 'yes' else str(priorjobid))
 
     if jobtype == 'B' and priorjobid != 0:
         # This catches the corner case where copy/migration control jobs
@@ -362,14 +373,18 @@ def translate_job_type(jobtype, jobid, priorjobid):
         if 'pn_jobids_dict' in globals() and len(copied_ids(jobid)) != 0:
             if 'pn_jobids_dict' in globals() and showcopiedto == 'yes':
                if copied_ids(jobid) != '0':
-                   return 'Migrated from ' + str(priorjobid) + '<br>Copied to ' + copied_ids(jobid)
-        return 'Migrated from ' + str(priorjobid)
+                   return 'Migrated from ' \
+                          + (urlify_jobid(str(priorjobid)) if gui and urlifyalljobs == 'yes' else str(priorjobid)) \
+                          + '<br>Copied to ' \
+                          + copied_ids_str(jobid) + '\n'
+        return 'Migrated from ' \
+               + (urlify_jobid(str(priorjobid)) if gui and urlifyalljobs == 'yes' else str(priorjobid))
 
     if jobtype == 'B':
         if 'pn_jobids_dict' in globals() and len(copied_ids(jobid)) != 0:
             if 'pn_jobids_dict' in globals() and showcopiedto == 'yes':
-               if copied_ids(jobid) != '0':
-                   return 'Backup<br>Copied to ' + copied_ids(jobid)
+                if copied_ids(jobid) != '0':
+                    return 'Backup<br>Copied to ' + copied_ids_str(jobid) + '\n'
         return 'Backup'
 
     if jobtype == 'M':
@@ -380,9 +395,12 @@ def translate_job_type(jobtype, jobid, priorjobid):
         # ---------------------------------------------------------------------------------------
         if 'pn_jobids_dict' in globals() and migrated_id(jobid) != '0':
             if copied_ids(jobid) != '0':
-                return 'Migrated to ' + str(migrated_id(jobid)) + '<br>Copied to ' + copied_ids(jobid)
+                return 'Migrated to ' \
+                       + (urlify_jobid(str(migrated_id(jobid))) if gui and urlifyalljobs == 'yes' else str(migrated_id(jobid))) \
+                       + '<br>Copied to ' + copied_ids_str(jobid) + '\n'
             else:
-                return 'Migrated to ' + str(migrated_id(jobid))
+                return 'Migrated to ' \
+                       + (urlify_jobid(str(migrated_id(jobid))) if gui and urlifyalljobs == 'yes' else str(migrated_id(jobid)))
         elif 'pn_jobids_dict' in globals() and migrated_id(jobid) == '0':
             return 'Migrated (No data to migrate)'
         else:
@@ -395,11 +413,16 @@ def translate_job_type(jobtype, jobid, priorjobid):
             return 'Copy Ctrl: Failed'
         if pn_jobids_dict[str(jobid)][1] == '0':
             if pn_jobids_dict[str(jobid)][0] != '0':
-                return 'Copy Ctrl: ' + pn_jobids_dict[str(jobid)][0] + ' (No files to copy)'
+                return 'Copy Ctrl: ' \
+                       + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
+                + ' (No files to copy)'
             else:
                 return 'Copy Ctrl: No jobs to copy'
         else:
-            return 'Copy Ctrl: ' + pn_jobids_dict[str(jobid)][0] + '->' + pn_jobids_dict[str(jobid)][1]
+            return 'Copy Ctrl:\n' \
+                   + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
+                   + '->' \
+                   + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1])
 
     if jobtype == 'g':
         if jobrow['jobstatus'] in ('R', 'C'):
@@ -408,11 +431,16 @@ def translate_job_type(jobtype, jobid, priorjobid):
             return 'Migration Ctrl: Failed'
         if pn_jobids_dict[str(jobid)][1] == '0':
             if pn_jobids_dict[str(jobid)][0] != '0':
-                return 'Migration Ctrl: ' + pn_jobids_dict[str(jobid)][0] + ' (No data to migrate)'
+                return 'Migration Ctrl: ' \
+                       + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
+                       + ' (No data to migrate)'
             else:
                 return 'Migration Ctrl: No jobs to migrate'
         else:
-            return 'Migration Ctrl: ' + pn_jobids_dict[str(jobid)][0] + '->' + pn_jobids_dict[str(jobid)][1]
+            return 'Migration Ctrl:\n' \
+                   + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
+                   + '->' \
+                   + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1])
 
     if jobtype == 'V':
         if jobrow['jobstatus'] in ('R', 'C'):
@@ -420,7 +448,8 @@ def translate_job_type(jobtype, jobid, priorjobid):
         if jobrow['jobstatus'] in bad_job_set:
             return 'Verify: Failed'
         else:
-            return 'Verify of ' + v_jobids_dict[str(jobid)]
+            return 'Verify of ' \
+                   + (urlify_jobid(v_jobids_dict[str(jobid)]) if gui and urlifyalljobs == 'yes' else v_jobids_dict[str(jobid)])
 
     return {'D': 'Admin', 'R': 'Restore'}[jobtype]
 
@@ -457,6 +486,18 @@ def translate_job_level(joblevel, jobtype):
         return '----'
     return {' ': '----', '-': 'Base', 'A': 'Data', 'C': 'VCat', 'd': 'VD2C',
             'D': 'Diff', 'f': 'VFull', 'F': 'Full', 'I': 'Inc', 'O': 'VV2C', 'V': 'Init'}[joblevel]
+
+def urlify_jobid(content):
+    if webgui == 'bweb':
+        return '<a href="' + webguisvc + '://' + webguihost + ':' \
+               + webguiport + '/cgi-bin/bweb/bweb.pl?action=job_zoom&jobid=' \
+               + str(content) + '">' + str(content) + '</a>'
+    elif webgui == 'baculum':
+        return '<a href="' + webguisvc + '://' + webguihost + ':' \
+               + webguiport + '/web/job/history/' + str(content) + '">' \
+               + str(content) + '</a>'
+    else:
+        return content
 
 def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     'Format/modify some table cells based on settings and conditions.'
@@ -518,21 +559,12 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
 
     # Web gui URL link stuff
     # ----------------------
-    if webgui in valid_webgui_lst:
+    if gui:
         # If a webgui is enabled, make each jobid
         # a URL link to the Job log in the web gui
         # ----------------------------------------
         if col == 'jobid':
-            if webgui == 'bweb':
-                content = '<a href="' + webguisvc + '://' + webguihost + ':' \
-                        + webguiport + '/cgi-bin/bweb/bweb.pl?action=job_zoom&jobid=' \
-                        + str(content) + '">' + str(content) + '</a>'
-            elif webgui == 'baculum':
-                content = '<a href="' + webguisvc + '://' + webguihost + ':' \
-                        + webguiport + '/web/job/history/' + str(content) + '">' \
-                        + str(content) + '</a>'
-            else:
-                pass
+            content = str(urlify_jobid(content))
 
         # Make the alwaysfailcolumn a URL link to the Job's history page
         # For BWeb, use the always failing 'days' variable for days of history
@@ -638,6 +670,14 @@ def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, s
 # Assign docopt doc string variable
 # ---------------------------------
 args = docopt(doc_opt_str, version='\n' + progname + ' - v' + version + '\n' + reldate + '\n')
+
+# Set the gui variable to shorten
+# up some if statements later on
+# -------------------------------
+if webgui in valid_webgui_lst:
+    gui = True
+else:
+    gui = False
 
 # Verify that the columns in cols2show are
 # all valid and that the alwaysfailcolumn
@@ -1383,14 +1423,13 @@ if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
         + (' their' if len(pnv_jobids_lst) > 1 else ' its') + ' End Time' + ('s' if len(pnv_jobids_lst) > 1 else '') \
         + ' preceded by an asterisk (*).</p><br>\n'
 
-# Do we have any jobs that had failed but succeeded after being rescheduled?
-# --------------------------------------------------------------------------
+# Do we have any jobs had been rescheduled?
+# -----------------------------------------
 if flagrescheduled == 'yes' and len(rescheduledjobids) != 0:
     msg += '<p style="' + rescheduledjobsstyle + '">' \
         + 'The number in parentheses in the Status ' + ('fields' if len(set(rescheduledjobids)) > 1 else 'field') \
         + ' of ' + str(len(set(rescheduledjobids))) + (' jobs' if len(set(rescheduledjobids)) > 1 else ' job') \
-        + (' represent' if len(set(rescheduledjobids)) > 1 else ' represents') \
-        + ' the number of times ' + ('they' if len(set(rescheduledjobids)) > 1 else 'it') \
+        + ' represents the number of times ' + ('they' if len(set(rescheduledjobids)) > 1 else 'it') \
         + (' were' if len(set(rescheduledjobids)) > 1 else ' was') + ' rescheduled.</p><br>\n'
 
 # Create the table header from the columns in

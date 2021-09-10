@@ -190,8 +190,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.33'
-reldate = 'September 8, 2021'
+version = '1.34'
+reldate = 'September 9, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -336,8 +336,9 @@ def copied_ids(jobid):
     for t in pn_jobids_dict:
         # Make sure that only copy jobids are listed, not the jobid it was migrated to
         # ----------------------------------------------------------------------------
-        if pn_jobids_dict[t][0] == str(jobid) and pn_jobids_dict[t][1] != migrated_id(jobid):
-            copied_jobids.append(pn_jobids_dict[t][1])
+        if pn_jobids_dict[t][0] == str(jobid):
+            if jobrow['type'] == 'B' or (jobrow['type'] == 'M' and pn_jobids_dict[t][1] != migrated_id(jobid)):
+                copied_jobids.append(pn_jobids_dict[t][1])
     if len(copied_jobids) == 0:
         return '0'
     else:
@@ -511,7 +512,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
 
     # Do we flag the Job Status of OK jobs which failed and had been rescheduled?
     # --------------------------------------------------------------------------
-    if col == 'status' and jobrow['jobstatus'] == 'T' and flagrescheduled == 'yes':
+    if col == 'status' and flagrescheduled == 'yes':
         if rescheduledjobids.count(str(jobrow['jobid'])) >= 1:
             content = content + ' (' + str(rescheduledjobids.count(str(jobrow['jobid']))) + ')'
 
@@ -1082,7 +1083,6 @@ if flagrescheduled == 'yes':
                 FROM Job \
                 INNER JOIN Log on Job.JobId=Log.JobId \
                 WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
-                AND JobStatus = 'T' \
                 AND LogText LIKE \'%Rescheduled Job%\' \
                 ORDER BY Job.JobId ASC;"
         elif dbtype in ('mysql', 'maria'):
@@ -1090,7 +1090,6 @@ if flagrescheduled == 'yes':
                 FROM Job \
                 INNER JOIN Log on Job.jobid=Log.jobid \
                 WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
-                AND jobstatus = 'T' \
                 AND logtext LIKE \'%Rescheduled Job%\' \
                 ORDER BY Job.jobid " + sortorder + ";"
         elif dbtype == 'sqlite':
@@ -1098,7 +1097,6 @@ if flagrescheduled == 'yes':
                 FROM Job \
                 INNER JOIN Log on Job.JobId=Log.JobId \
                 WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
-                AND jobstatus = 'T' \
                 AND logtext LIKE \'%Rescheduled Job%\' \
                 ORDER BY Job.jobid " + sortorder + ";"
         cur.execute(query_str)
@@ -1382,20 +1380,18 @@ if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
     msg += '<p style="' + jobsolderthantimestyle + '">The ' + str(len(pnv_jobids_lst)) \
         + ' Copied/Migrated/Verified ' + ('jobs' if len(pnv_jobids_lst) > 1 else 'job') + ' older than ' \
         + time + ' ' + hour + ' pulled into this list ' + ('have' if len(pnv_jobids_lst) > 1 else 'has') \
-        + ' ' + ('their' if len(pnv_jobids_lst) > 1 else 'its') + ' End Time' + ('s' if len(pnv_jobids_lst) > 1 else '') \
+        + (' their' if len(pnv_jobids_lst) > 1 else ' its') + ' End Time' + ('s' if len(pnv_jobids_lst) > 1 else '') \
         + ' preceded by an asterisk (*).</p><br>\n'
 
 # Do we have any jobs that had failed but succeeded after being rescheduled?
 # --------------------------------------------------------------------------
-# The x 'OK' jobs which had failed and then finally suceeded has the number of times (#) it was rescheduled in parenthesis
 if flagrescheduled == 'yes' and len(rescheduledjobids) != 0:
     msg += '<p style="' + rescheduledjobsstyle + '">' \
-        + 'The ' + str(len(set(rescheduledjobids))) + ' Status=\'OK\' ' \
-        + ('jobs' if len(set(rescheduledjobids)) > 1 else 'job') \
-        + ' which had failed and then finally succeeded ' \
-        + ('have' if len(set(rescheduledjobids)) > 1 else 'has') + ' the number of times (#) ' \
-        + ('they were' if len(set(rescheduledjobids)) > 1 else 'it was') \
-        + ' rescheduled in parenthesis.</p><br>\n'
+        + 'The number in parentheses in the Status ' + ('fields' if len(set(rescheduledjobids)) > 1 else 'field') \
+        + ' of ' + str(len(set(rescheduledjobids))) + (' jobs' if len(set(rescheduledjobids)) > 1 else ' job') \
+        + (' represent' if len(set(rescheduledjobids)) > 1 else ' represents') \
+        + ' the number of times ' + ('they' if len(set(rescheduledjobids)) > 1 else 'it') \
+        + (' were' if len(set(rescheduledjobids)) > 1 else ' was') + ' rescheduled.</p><br>\n'
 
 # Create the table header from the columns in
 # the c2sl list in the order they are defined

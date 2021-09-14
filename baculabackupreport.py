@@ -99,7 +99,7 @@ emailbadlogs = 'no'       # Email logs of bad Jobs? Be careful with this, it can
 # icons to prepend the subject with. Examples from:
 # https://www.utf8-chartable.de/unicode-utf8-table.pl
 # ---------------------------------------------------
-addsubjecticon = 'yes'                          # Prepend the email Subject with UTF-8 icons? See (no|good|warn|bad)jobsicon variables below
+addsubjecticon = 'yes'                          # Prepend the email Subject with UTF-8 icons? See (no|good|warn|bad|alwaysfail)jobsicon variables
 addsubjectrunningorcreated = 'yes'              # Append "(# Jobs still runnning/queued)" to Subject if running or queued Jobs > 0?
 nojobsicon = '=?utf-8?Q?=F0=9F=9A=AB?='         # utf-8 'no entry sign' icon when no Jobs have been run
 goodjobsicon = '=?utf-8?Q?=F0=9F=9F=A9?='       # utf-8 'green square' icon when all Jobs were "OK"
@@ -193,8 +193,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.35'
-reldate = 'September 10, 2021'
+version = '1.36'
+reldate = 'September 13, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -674,10 +674,7 @@ args = docopt(doc_opt_str, version='\n' + progname + ' - v' + version + '\n' + r
 # Set the gui variable to shorten
 # up some if statements later on
 # -------------------------------
-if webgui in valid_webgui_lst:
-    gui = True
-else:
-    gui = False
+gui = True if webgui in valid_webgui_lst else False
 
 # Verify that the columns in cols2show are
 # all valid and that the alwaysfailcolumn
@@ -945,14 +942,14 @@ try:
     db_connect()
     if dbtype == 'pgsql':
         query_str = "SELECT JobId, Job.Name AS JobName, JobStatus \
-        FROM Job WHERE endtime >= (NOW()) - (INTERVAL '" + days + " DAY') ORDER BY JobId DESC;"
+            FROM Job WHERE endtime >= (NOW()) - (INTERVAL '" + days + " DAY') ORDER BY JobId DESC;"
     elif dbtype in ('mysql', 'maria'):
         query_str = "SELECT jobid, CAST(Job.name as CHAR(50)) AS jobname, \
-        CAST(jobstatus as CHAR(1)) AS jobstatus FROM Job \
-        WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + days + " DAY) ORDER BY jobid DESC;"
+            CAST(jobstatus as CHAR(1)) AS jobstatus FROM Job \
+            WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + days + " DAY) ORDER BY jobid DESC;"
     elif dbtype == 'sqlite':
         query_str = "SELECT JobId, Job.Name AS JobName, JobStatus FROM Job \
-        WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + days + " days') ORDER BY JobId DESC;"
+            WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + days + " days') ORDER BY JobId DESC;"
     cur.execute(query_str)
     alldaysjobrows = cur.fetchall()
 except sqlite3.OperationalError:
@@ -1040,16 +1037,16 @@ if len(ctrl_jobids) != 0:
         db_connect()
         if dbtype == 'pgsql':
             query_str = 'SELECT jobid, logtext FROM log \
-             WHERE jobid IN (' + ','.join(ctrl_jobids) + ') \
-             AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+                WHERE jobid IN (' + ','.join(ctrl_jobids) + ') \
+                AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
         elif dbtype in ('mysql', 'maria'):
             query_str = 'SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
-            FROM Log WHERE jobid IN (' + ','.join(ctrl_jobids) + ') \
-            AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+                FROM Log WHERE jobid IN (' + ','.join(ctrl_jobids) + ') \
+                AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
         elif dbtype == 'sqlite':
             query_str = 'SELECT jobid, logtext FROM log \
-             WHERE jobid IN (' + ','.join(ctrl_jobids) + ') \
-             AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+                WHERE jobid IN (' + ','.join(ctrl_jobids) + ') \
+                AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
         cur.execute(query_str)
         cji_rows = cur.fetchall()
     except sqlite3.OperationalError:
@@ -1081,16 +1078,16 @@ if len(vrfy_jobids) != 0:
         db_connect()
         if dbtype == 'pgsql':
             query_str = 'SELECT jobid, logtext FROM log \
-            WHERE jobid IN (' + ','.join(vrfy_jobids) + ') AND logtext LIKE \
-            \'%Termination:%\' ORDER BY jobid DESC;'
+                WHERE jobid IN (' + ','.join(vrfy_jobids) + ') AND logtext LIKE \
+                \'%Termination:%\' ORDER BY jobid DESC;'
         elif dbtype in ('mysql', 'maria'):
             query_str = 'SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
-            FROM Log WHERE jobid IN (' + ','.join(vrfy_jobids) + ') \
-            AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+                FROM Log WHERE jobid IN (' + ','.join(vrfy_jobids) + ') \
+                AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
         elif dbtype == 'sqlite':
             query_str = 'SELECT jobid, logtext FROM log \
-            WHERE jobid IN (' + ','.join(vrfy_jobids) + ') AND logtext LIKE \
-            \'%Termination:%\' ORDER BY jobid DESC;'
+                WHERE jobid IN (' + ','.join(vrfy_jobids) + ') AND logtext LIKE \
+                \'%Termination:%\' ORDER BY jobid DESC;'
         cur.execute(query_str)
         vji_rows = cur.fetchall()
     except sqlite3.OperationalError:
@@ -1112,9 +1109,9 @@ if len(vrfy_jobids) != 0:
     for vji in vji_rows:
         v_jobids_dict[str(vji['jobid'])] = v_job_id(vji)
 
-# If we have jobs that fail, but are rescheduled one or more times, and then they finally succeed
-# should we print a banner and then flag these jobs in the list so they may be easily identified?
-# -----------------------------------------------------------------------------------------------
+# If we have jobs that fail, but are rescheduled one or more times, should we print
+# a banner and then flag these jobs in the list so they may be easily identified?
+# ---------------------------------------------------------------------------------
 if flagrescheduled == 'yes':
     try:
         db_connect()
@@ -1254,18 +1251,40 @@ if len(runningjobids) != 0:
     # The 'ORDER BY time DESC' is useful here! It is a nice shortcut for
     # later to check that no new volumes have been mounted since the last
     # 'Please mount .* Volume' message was written to the log table
+    #
+    # TODO - 20210911 - Instead of getting all log text for all running jobs
+    #                   maybe just query for the specific messages that
+    #                   indicate media is required, and new media has been
+    #                   mounted. This will limit the amount of data that is
+    #                   returned, at the expense of a full text query against
+    #                   all running jobs.
     # -------------------------------------------------------------------
     try:
         db_connect()
         if dbtype == 'pgsql':
+            # This works to limit the amount of data from the query
+            # at the expense of full text searches in the log table
+            # Is it worth it? I don't know. :-/ What if there are
+            # more than 1,000 jobs running? All log entries from all
+            # running jobs will be returned. Is this worse than using
+            # a query with 5 full teext clauses? Again, I don't know
+            # -------------------------------------------------------
+            # query_str = 'SELECT jobid, logtext FROM Log \
+                # WHERE jobid IN (' + ','.join(runningjobids) + ') \
+                # AND (logtext LIKE \'%Please mount%\' \
+                # OR logtext LIKE \'%Please use the "label" command%\' \
+                # OR logtext LIKE \'%New volume%\' \
+                # OR logtext LIKE \'%Ready to append%\' \
+                # OR logtext LIKE \'%all previous data lost%\') \
+                # ORDER BY jobid, time DESC;'
             query_str = 'SELECT jobid, logtext FROM Log \
-            WHERE jobid IN (' + ','.join(runningjobids) + ') ORDER BY time DESC;'
+                WHERE jobid IN (' + ','.join(runningjobids) + ') ORDER BY jobid, time DESC;'
         elif dbtype in ('mysql', 'maria'):
             query_str = 'SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log \
-            WHERE jobid IN (' + ','.join(runningjobids) + ') ORDER BY time DESC;'
+                WHERE jobid IN (' + ','.join(runningjobids) + ') ORDER BY jobid, time DESC;'
         elif dbtype == 'sqlite':
             query_str = 'SELECT jobid, logtext FROM Log \
-            WHERE jobid IN (' + ','.join(runningjobids) + ') ORDER BY time DESC;'
+                WHERE jobid IN (' + ','.join(runningjobids) + ') ORDER BY jobid, time DESC;'
         cur.execute(query_str)
         running_jobs_log_text = cur.fetchall()
     except sqlite3.OperationalError:
@@ -1297,8 +1316,10 @@ if len(runningjobids) != 0:
             if str(rjlt[0]) == rj:
                 log_text += rjlt[1]
                 if 'Please mount' in rjlt[1] or \
-                    'Please use the "label" command' in rjlt[1]:
-                    if 'New volume' not in log_text and 'Ready to append' not in log_text:
+                   'Please use the "label" command' in rjlt[1]:
+                    if 'New volume' not in log_text and \
+                       'Ready to append' not in log_text and \
+                       'all previous data lost' not in log_text:
                         job_needs_opr_lst.append(rj)
                     break
 
@@ -1312,13 +1333,13 @@ if emailjobsummaries == 'yes':
         for job_id in alljobids:
             if dbtype == 'pgsql':
                 query_str = 'SELECT jobid, logtext FROM Log WHERE jobid=' \
-                + str(job_id) + ' AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+                    + str(job_id) + ' AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
             elif dbtype in ('mysql', 'maria'):
                 query_str = 'SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE jobid=' \
-                + str(job_id) + ' AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+                    + str(job_id) + ' AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
             elif dbtype == 'sqlite':
                 query_str = 'SELECT jobid, logtext FROM Log WHERE jobid=' \
-                + str(job_id) + ' AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+                    + str(job_id) + ' AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
             cur.execute(query_str)
             summaryrow = cur.fetchall()
             # Migrated (M) Jobs have no joblog
@@ -1353,13 +1374,13 @@ if emailbadlogs == 'yes':
             for job_id in badjobids:
                 if dbtype == 'pgsql':
                     query_str = 'SELECT jobid, time, logtext FROM log WHERE jobid=' \
-                    + str(job_id) + ' ORDER BY jobid, time ASC;'
+                        + str(job_id) + ' ORDER BY jobid, time ASC;'
                 elif dbtype in ('mysql', 'maria'):
                     query_str = 'SELECT jobid, time, CAST(logtext as CHAR(2000)) AS logtext \
-                    FROM Log WHERE jobid=' + str(job_id) + ' ORDER BY jobid, time ASC;'
+                        FROM Log WHERE jobid=' + str(job_id) + ' ORDER BY jobid, time ASC;'
                 elif dbtype == 'sqlite':
                     query_str = 'SELECT jobid, time, logtext FROM log WHERE jobid=' \
-                    + str(job_id) + ' ORDER BY jobid, time ASC;'
+                        + str(job_id) + ' ORDER BY jobid, time ASC;'
                 cur.execute(query_str)
                 badjobrow = cur.fetchall()
                 badjoblogs += '==============\nJobID:' \
@@ -1411,10 +1432,10 @@ if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
         + ('require' if len(job_needs_opr_lst) > 1 else 'requires') \
         + ' operator attention.</p><br>\n'
 
-# Do we have any copied or migrated jobs that have an endtime
-# outside of the "-t hours" setting? If yes, then add a notice
-# explaining that their endtime will be preceded by an asterisk
-# so they may be quickly identified.
+# Do we have any copied or migrated jobs that have an
+# endtime outside of the "-t hours" setting? If yes,
+# then add a notice explaining that their endtime will
+# be preceded by an asterisk so they may be quickly identified.
 # -------------------------------------------------------------
 if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
     msg += '<p style="' + jobsolderthantimestyle + '">The ' + str(len(pnv_jobids_lst)) \

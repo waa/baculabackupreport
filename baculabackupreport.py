@@ -193,8 +193,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.36'
-reldate = 'September 13, 2021'
+version = '1.37'
+reldate = 'October 13, 2021'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -367,9 +367,10 @@ def translate_job_type(jobtype, jobid, priorjobid):
                + (urlify_jobid(str(priorjobid)) if gui and urlifyalljobs == 'yes' else str(priorjobid))
 
     if jobtype == 'B' and priorjobid != 0:
-        # This catches the corner case where copy/migration control jobs
-        # have run, but they copied or migrated no jobs, pn_jobids_dict
-        # will not exist
+        # This catches the corner case where copy/migration
+        # control jobs have run, but they copied or migrated
+        # no jobs so pn_jobids_dict will not exist
+        # --------------------------------------------------
         if 'pn_jobids_dict' in globals() and len(copied_ids(jobid)) != 0:
             if 'pn_jobids_dict' in globals() and showcopiedto == 'yes':
                if copied_ids(jobid) != '0':
@@ -391,7 +392,8 @@ def translate_job_type(jobtype, jobid, priorjobid):
         # Part of this is a workaround for what I consider to be a bug in Bacula for jobs of
         # type 'B' which meet the criteria to be 'eligible' for migration, but have 0 files/bytes
         # The original backup Job's type gets changed from 'B' (Backup) to 'M' (Migrated), even
-        # though nothing is migrated. https://bugs.bacula.org/view.php?id=2619
+        # though nothing is migrated and there is no other Backup job that has a priorjobid
+        # which points back to this Migrated job. https://bugs.bacula.org/view.php?id=2619
         # ---------------------------------------------------------------------------------------
         if 'pn_jobids_dict' in globals() and migrated_id(jobid) != '0':
             if copied_ids(jobid) != '0':
@@ -443,13 +445,11 @@ def translate_job_type(jobtype, jobid, priorjobid):
                    + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1])
 
     if jobtype == 'V':
-        if jobrow['jobstatus'] in ('R', 'C'):
-            return 'Verify'
-        if jobrow['jobstatus'] in bad_job_set:
-            return 'Verify: Failed'
-        else:
+        if str(jobid) in v_jobids_dict.keys():
             return 'Verify of ' \
                    + (urlify_jobid(v_jobids_dict[str(jobid)]) if gui and urlifyalljobs == 'yes' else v_jobids_dict[str(jobid)])
+        else:
+            return 'Verify'
 
     return {'D': 'Admin', 'R': 'Restore'}[jobtype]
 
@@ -1109,49 +1109,6 @@ if len(vrfy_jobids) != 0:
     for vji in vji_rows:
         v_jobids_dict[str(vji['jobid'])] = v_job_id(vji)
 
-# If we have jobs that fail, but are rescheduled one or more times, should we print
-# a banner and then flag these jobs in the list so they may be easily identified?
-# ---------------------------------------------------------------------------------
-if flagrescheduled == 'yes':
-    try:
-        db_connect()
-        if dbtype == 'pgsql':
-            query_str = "SELECT Job.JobId \
-                FROM Job \
-                INNER JOIN Log on Job.JobId=Log.JobId \
-                WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
-                AND LogText LIKE \'%Rescheduled Job%\' \
-                ORDER BY Job.JobId ASC;"
-        elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT Job.jobid \
-                FROM Job \
-                INNER JOIN Log on Job.jobid=Log.jobid \
-                WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
-                AND logtext LIKE \'%Rescheduled Job%\' \
-                ORDER BY Job.jobid " + sortorder + ";"
-        elif dbtype == 'sqlite':
-            query_str = "SELECT Job.JobId \
-                FROM Job \
-                INNER JOIN Log on Job.JobId=Log.JobId \
-                WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
-                AND logtext LIKE \'%Rescheduled Job%\' \
-                ORDER BY Job.jobid " + sortorder + ";"
-        cur.execute(query_str)
-        rescheduledlogrows = cur.fetchall()
-        rescheduledjobids = [str(r['jobid']) for r in rescheduledlogrows]
-    except sqlite3.OperationalError:
-        print('\nSQLite3 Database locked while fetching verify job info.')
-        print('Is a Bacula Job running?')
-        print('Exiting.\n')
-        sys.exit(1)
-    except:
-        print('\nProblem communicating with database \'' + dbname + '\' while fetching rescheduled jobids.\n')
-        sys.exit(1)
-    finally:
-        if (conn):
-            cur.close()
-            conn.close()
-
 # Now that we have the jobids of the Previous/New jobids of Copy/Migrated jobs in the
 # pn_jobids_dict dictionary, and the jobids of Verified jobs in the v_jobids_dict
 # dictionary we can get information about them and add their job rows to alljobrows
@@ -1267,7 +1224,7 @@ if len(runningjobids) != 0:
             # Is it worth it? I don't know. :-/ What if there are
             # more than 1,000 jobs running? All log entries from all
             # running jobs will be returned. Is this worse than using
-            # a query with 5 full teext clauses? Again, I don't know
+            # a query with 5 full text clauses? Again, I don't know
             # -------------------------------------------------------
             # query_str = 'SELECT jobid, logtext FROM Log \
                 # WHERE jobid IN (' + ','.join(runningjobids) + ') \
@@ -1322,6 +1279,49 @@ if len(runningjobids) != 0:
                        'all previous data lost' not in log_text:
                         job_needs_opr_lst.append(rj)
                     break
+
+# If we have jobs that fail, but are rescheduled one or more times, should we print
+# a banner and then flag these jobs in the list so they may be easily identified?
+# ---------------------------------------------------------------------------------
+if flagrescheduled == 'yes':
+    try:
+        db_connect()
+        if dbtype == 'pgsql':
+            query_str = "SELECT Job.JobId \
+                FROM Job \
+                INNER JOIN Log on Job.JobId=Log.JobId \
+                WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
+                AND LogText LIKE \'%Rescheduled Job%\' \
+                ORDER BY Job.JobId ASC;"
+        elif dbtype in ('mysql', 'maria'):
+            query_str = "SELECT Job.jobid \
+                FROM Job \
+                INNER JOIN Log on Job.jobid=Log.jobid \
+                WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
+                AND logtext LIKE \'%Rescheduled Job%\' \
+                ORDER BY Job.jobid " + sortorder + ";"
+        elif dbtype == 'sqlite':
+            query_str = "SELECT Job.JobId \
+                FROM Job \
+                INNER JOIN Log on Job.JobId=Log.JobId \
+                WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
+                AND logtext LIKE \'%Rescheduled Job%\' \
+                ORDER BY Job.jobid " + sortorder + ";"
+        cur.execute(query_str)
+        rescheduledlogrows = cur.fetchall()
+        rescheduledjobids = [str(r['jobid']) for r in rescheduledlogrows]
+    except sqlite3.OperationalError:
+        print('\nSQLite3 Database locked while fetching verify job info.')
+        print('Is a Bacula Job running?')
+        print('Exiting.\n')
+        sys.exit(1)
+    except:
+        print('\nProblem communicating with database \'' + dbname + '\' while fetching rescheduled jobids.\n')
+        sys.exit(1)
+    finally:
+        if (conn):
+            cur.close()
+            conn.close()
 
 # Do we email all job summaries?
 # ------------------------------

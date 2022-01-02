@@ -84,20 +84,26 @@ include_pnv_jobs = 'yes'  # Include copied, migrated, verified jobs who's endtim
                           #   list refer to them but they are not listed.
                           # - Verify jobs can verify any job, even very old ones. This option makes sure
                           #   verified jobs older than the hours set are also included in the listing.
+checkforvirus = 'no'      # Enable the additional checks for Viruses
+virusfoundtext = 'Virus detected'  # Some unique text thet your AV software prints to the Bacula Job log when a virus is detected
 
 # Job summary table settings
 # --------------------------
-emailsummary = 'bottom'   # Print a short summary after the Job list table? (top, bottom, both, none)
-restore_stats = 'yes'     # Print Restore Files/Bytes in summary table?
-copied_stats = 'yes'      # Print Copied Files/Bytes in the summary table?
-migrated_stats = 'yes'    # Print Migrated Files/Bytes in the summary table?
-verified_stats = 'yes'    # Print Verified Files/Bytes in the summary table?
-emailjobsummaries = 'no'  # Email all Job summaries? Be careful with this, it can generate very large emails
-emailbadlogs = 'no'       # Email logs of bad Jobs? Be careful with this, it can generate very large emails
+emailsummary = 'bottom'        # Print a short summary after the Job list table? (top, bottom, both, none)
+restore_stats = 'yes'          # Print Restore Files/Bytes in summary table?
+copied_stats = 'yes'           # Print Copied Files/Bytes in the summary table?
+migrated_stats = 'yes'         # Print Migrated Files/Bytes in the summary table?
+verified_stats = 'yes'         # Print Verified Files/Bytes in the summary table?
+emailjobsummaries = 'no'       # Email all Job summaries? Be careful with this, it can generate very large emails
+emailbadlogs = 'no'            # Email logs of bad Jobs? Be careful with this, it can generate very large emails
 
 # Email subject settings including some example utf-8
 # icons to prepend the subject with. Examples from:
 # https://www.utf8-chartable.de/unicode-utf8-table.pl
+# Note: On Arch Linux the 'noto-fonts' packages is
+#       required to properly display some of these
+#       UTF-8 characters. The package may be named
+#       differently on other Linux distributions
 # ---------------------------------------------------
 addsubjecticon = 'yes'                          # Prepend the email Subject with UTF-8 icons? See (no|good|warn|bad|alwaysfail)jobsicon variables
 addsubjectrunningorcreated = 'yes'              # Append "(# Jobs still runnning/queued)" to Subject if running or queued Jobs > 0?
@@ -115,6 +121,16 @@ badjobsicon = '=?utf-8?Q?=F0=9F=9F=A5?='        # utf-8 'red square' icon
 alwaysfailjobsicon = '=?utf-8?Q?=E2=9B=94?='    # utf-8 'red circle with white hyphen' icon when there are "always failing" Jobs
 jobneedsopricon = '=?utf-8?Q?=F0=9F=96=AD?='    # utf-8 'tape cartridge' icon when there are jobs that need operator attention
 # jobneedsopricon = '=?utf-8?Q?=F0=9F=92=BE?='  # utf-8 'floppy' icon
+virusfoundicon = '=?utf-8?Q?=F0=9F=A6=A0?='     # utf-8 'microbe' (virus) icon
+# virusfoundicon = '=?utf-8?Q?=F0=9F=90=9E?='   # utf-8 'ladybug' (virus) icon
+virusfoundbodyicon = '&#x1F9A0'                 # HEX encoding for emoji in email body 'microbe' (virus) icon
+# virusfoundbodyicon = '&#x1F41E'               # HEX encoding for emoji in email body 'ladybug' (virus) icon
+# virusfoundbodyicon = '&#x1F41B'               # HEX encoding for emoji in email body 'bug' (virus) icon
+# virusfoundbodyicon = '&#x1F47B'               # HEX encoding for emoji in email body 'ghost' (virus) icon
+# virusfoundbodyicon = '&#x1F47D'               # HEX encoding for emoji in email body 'grey alien' (virus) icon
+# virusfoundbodyicon = '&#x1F47E'               # HEX encoding for emoji in email body 'space invader' (virus) icon
+# virusfoundbodyicon = '&#x1F480'               # HEX encoding for emoji in email body 'skull' (virus) icon
+# virusfoundbodyicon = '&#x1F4A3'               # HEX encoding for emoji in email body 'bomb' (virus) icon
 
 # Set the columns to display and their order
 # Recommended to always include jobid, jobname, status, and endtime
@@ -147,7 +163,8 @@ goodjobcolor = '#00f000'                 # Background color of the Status cell f
 badjobcolor = '#cc3300'                  # Background color of the Status cell for "Bad" jobs
 warnjobcolor = '#ffc800'                 # Background color of the Status cell for "Backup OK -- with warnings" jobs
 errorjobcolor = '#cc3300'                # Background color of the Status cell for jobs with errors
-alwaysfailcolor = '#ebd32a'              # Background color of the 'alwaysfailcolumn', or entire row for jobs "always failing in the past 'days'" 
+alwaysfailcolor = '#ebd32a'              # Background color of the 'alwaysfailcolumn', or entire row for jobs "always failing in the past 'days'"
+virusfoundcolor = '#88eebb'              # Background color of the Banner and 'Type' Cell when a virus is found in a Verify, Level=Data job
 
 # HTML fonts
 # ----------
@@ -162,6 +179,7 @@ jobsolderthantimestyle = 'display: inline-block; font-size: 14px; font-weight: b
 jobsneedingoprstyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0;'
 rescheduledjobsstyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0;'
 alwaysfailstyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0; background-color: %s;' % alwaysfailcolor
+virusfoundstyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0; background-color: %s;' % virusfoundcolor
 jobtablestyle = 'width: 100%; border-collapse: collapse;'
 jobtableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (jobtableheadercolor, jobtableheadertxtcolor)
 jobtableheadercellstyle = 'padding: 6px'
@@ -170,6 +188,7 @@ jobtablerowoddstyle = 'background-color: %s; color: %s;' % (jobtablerowoddcolor,
 jobtablecellstyle = 'text-align: center; padding: 5px;'
 jobtablealwaysfailrowstyle = 'background-color: %s;' % alwaysfailcolor
 jobtablealwaysfailcellstyle = 'text-align: center; background-color: %s;' % alwaysfailcolor
+jobtablevirusfoundcellstyle = 'text-align: center; background-color: %s;' % virusfoundcolor
 summarytablestyle = 'width: 25%; margin-top: 20px; border-collapse: collapse;'
 summarytableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (summarytableheadercolor, summarytableheadertxtcolor)
 summarytableheadercellstyle = 'padding: 6px;'
@@ -417,7 +436,7 @@ def translate_job_type(jobtype, jobid, priorjobid):
             if pn_jobids_dict[str(jobid)][0] != '0':
                 return 'Copy Ctrl: ' \
                        + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
-                + ' (No files to copy)'
+                       + ' (No files to copy)'
             else:
                 return 'Copy Ctrl: No jobs to copy'
         else:
@@ -446,11 +465,18 @@ def translate_job_type(jobtype, jobid, priorjobid):
 
     if jobtype == 'V':
         if str(jobid) in v_jobids_dict.keys():
+            if jobid in virus_dict:
+                virus_found_str = ' (' + virusfoundbodyicon + ' = ' + str(len(virus_dict[jobid])) + ')'
+            else:
+                virus_found_str = ''
             return 'Verify of ' \
-                   + (urlify_jobid(v_jobids_dict[str(jobid)]) if gui and urlifyalljobs == 'yes' else v_jobids_dict[str(jobid)])
+                   + (urlify_jobid(v_jobids_dict[str(jobid)]) if gui and urlifyalljobs == 'yes' else v_jobids_dict[str(jobid)]) \
+                   + virus_found_str
         else:
             return 'Verify'
 
+    # Catchall for the last two Job types
+    # -----------------------------------
     return {'D': 'Admin', 'R': 'Restore'}[jobtype]
 
 def translate_job_status(jobstatus, joberrors):
@@ -461,7 +487,7 @@ def translate_job_status(jobstatus, joberrors):
             'R': ('Running', 'Needs Media')[job_needs_opr == 'yes']}[jobstatus]
 
 def set_subject_icon():
-    'Set the utf-8 subject icon.'
+    'Set the utf-8 subject icon(s).'
     if numjobs == 0:
         subjecticon = nojobsicon
     else:
@@ -474,6 +500,8 @@ def set_subject_icon():
            subjecticon = warnjobsicon
         else:
             subjecticon = goodjobsicon
+    if 'num_virus_jobs' in globals() and num_virus_jobs != 0:
+        subjecticon += ' ' + virusfoundicon + ' '
     if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
         subjecticon += ' (' + jobneedsopricon + ')'
     return subjecticon
@@ -534,6 +562,9 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
 
     if alwaysfailjob == 'yes' and col == alwaysfailcolumn:
         tdo = '<td style="' + jobtablealwaysfailcellstyle + '">'
+
+    if 'virus_dict' in globals() and col == 'type' and jobrow['jobid'] in virus_dict:
+        tdo = '<td style="' + jobtablevirusfoundcellstyle + '">'
 
     # Center the Client name and Job name?
     # ------------------------------------
@@ -701,23 +732,23 @@ else:
     # --------------------------------------
     if alwaysfailcolumn == 'jobid':
         alwaysfailcolumn = 'jobname'
-        alwaysfailcolumn_str = 'Job Name column'
+        alwaysfailcolumn_str = 'Job Name cell'
     elif alwaysfailcolumn == 'jobname':
-        alwaysfailcolumn_str = 'Job Name column'
+        alwaysfailcolumn_str = 'Job Name cell'
     elif alwaysfailcolumn == 'joberrors':
-        alwaysfailcolumn_str = 'Errors column'
+        alwaysfailcolumn_str = 'Errors cell'
     elif alwaysfailcolumn == 'jobfiles':
-        alwaysfailcolumn_str = 'Files column'
+        alwaysfailcolumn_str = 'Files cell'
     elif alwaysfailcolumn == 'jobbytes':
-        alwaysfailcolumn_str = 'Bytes column'
+        alwaysfailcolumn_str = 'Bytes cell'
     elif alwaysfailcolumn == 'starttime':
-        alwaysfailcolumn_str = 'Start Time column'
+        alwaysfailcolumn_str = 'Start Time cell'
     elif alwaysfailcolumn == 'endtime':
-        alwaysfailcolumn_str = 'End Time column'
+        alwaysfailcolumn_str = 'End Time cell'
     elif alwaysfailcolumn == 'runtime':
-        alwaysfailcolumn_str = 'Run Time column'
+        alwaysfailcolumn_str = 'Run Time cell'
     else:
-        alwaysfailcolumn_str = alwaysfailcolumn.title() + ' column'
+        alwaysfailcolumn_str = alwaysfailcolumn.title() + ' cell'
 
 # Set the default ports for the different databases if not set on command line
 # ----------------------------------------------------------------------------
@@ -933,6 +964,15 @@ runningjobids = [str(r['jobid']) for r in alljobrows if r['jobstatus'] == 'R']
 runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in ('R', 'C')])
 ctrl_jobids = [str(r['jobid']) for r in alljobrows if r['type'] in ('c', 'g')]
 vrfy_jobids = [str(r['jobid']) for r in alljobrows if r['type'] == 'V']
+
+# This next one is special. It is only used
+# for the AV tests and is used/needed so the
+# db query for logtexts from the Log table
+# for Jobs with Type=Verify and Level=Data do
+# not require an INNER JOIN on the Job table
+# -------------------------------------------
+if checkforvirus == 'yes':
+    vrfy_data_jobids = [str(r['jobid']) for r in alljobrows if r['type'] == 'V' and r['level'] == 'A']
 
 # Get a list of jobs that have always failed for the
 # past 'days' days so that we can display a column
@@ -1201,6 +1241,94 @@ if include_pnv_jobs == 'yes':
         # ---------------------------------
         alljobrows = sorted(alljobrows, key=lambda k: k['jobid'], reverse=True if sortorder == 'DESC' else False)
 
+# Currently (20211229), virus detection is only possible
+# in Verify, Level=Data jobs and only in Bacula Enterprise
+# There is nothing in the catalog to tell us if we are
+# working with BEE or BCE. I am hoping AV plugin support
+# will be released into the community edition too.
+# --------------------------------------------------------
+if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
+    # An example of a Job log showing that a virus has been detected:
+    # logtext: centos7-fd JobId 1376: Error: /home/viruses/Hidenowt-commandcom-with-no-extension Virus detected stream: Win.Trojan.Hidenowt-1 FOUND
+    #
+    # I'd like to print some summary at the end of the email showing a jobid, then a virus name, and list of files with that virus. BUT this will
+    # be highly dependent on future AV programs that can be plugged into Bacula to putput the same format as above!
+    #
+    # Sample output I'd like to offer to append to end of email:
+    #
+    # Jobid: 12345
+    # ------------
+    #   Virus: Win.Trojan.Hidenowt-1
+    #     Files: /home/waa/documents/word.doc
+    #            /home/viruses/Hidenowt-commandcom-with-no-extension
+    #
+    #   Virus: Antiexe
+    #     Files: /home/waa/documents/word2.doc
+    #            /home/viruses/AntiexeVirusSample.txt
+    #
+    # Jobid: 12456
+    # ------------
+    #   Virus: OtherVirus
+    #     Files: /home/waa/documents/word34.doc
+    #            /home/viruses/OtherVirusFile
+    #
+    #   Virus: BadVirus1
+    #     Files: /home/waa/documents/word54.doc
+    #            /home/viruses/BadVirus1File
+    # ---------------------------------------------------------------------------------------------------------------------------------------------
+    try:
+        db_connect()
+        if dbtype == 'pgsql':
+            query_str = "SELECT JobId, LogText \
+                FROM Log \
+                WHERE JobId IN (" + ','.join(vrfy_data_jobids) + ") \
+                AND LogText LIKE '%" + virusfoundtext + "%' \
+                ORDER BY JobId DESC, Time ASC;"
+        elif dbtype in ('mysql', 'maria'):
+            query_str = "SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
+                FROM Log \
+                WHERE jobid IN (" + ','.join(vrfy_data_jobids) + ") \
+                AND logtext LIKE '%" + virusfoundtext + "%' \
+                ORDER BY jobid DESC, time ASC;"
+        elif dbtype == 'sqlite':
+            query_str = "SELECT jobid, logtext \
+                FROM log \
+                WHERE jobid IN (" + ','.join(vrfy_data_jobids) + ") \
+                AND logtext LIKE '%" + virusfoundtext + "%' \
+                ORDER BY jobid DESC, time ASC;"
+        cur.execute(query_str)
+        virus_found_rows = cur.fetchall()
+    except sqlite3.OperationalError:
+        print('\nSQLite3 Database locked while fetching verify job info.')
+        print('Is a Bacula Job running?')
+        print('Exiting.\n')
+        sys.exit(1)
+    except:
+        print('Problem communicating with database \'' + dbname + '\' while fetching verify job info.\n')
+        sys.exit(1)
+    finally:
+        if (conn):
+            cur.close()
+            conn.close()
+
+    # Now we need the number of jobs with viruses
+    # and number of files with viruses. We also
+    # build a dictionary with JobIds as keys with
+    # the values being tuples containing all the
+    # virus lines found for that job. This dict
+    # will be used later when we build the virus
+    # report to append to the email as descibed
+    # above
+    # -------------------------------------------
+    virus_dict = {}
+    num_virus_files = len(virus_found_rows)
+    for row in virus_found_rows:
+        if row[0] not in virus_dict:
+            virus_dict[row[0]] = row[1]
+        else:
+            virus_dict[row[0]] = virus_dict[row[0]], row[1]
+    num_virus_jobs = len(virus_dict)
+
 # Query the database to find Running jobs. These jobs
 # will be checked to see if they are waiting on media
 # ---------------------------------------------------
@@ -1215,7 +1343,7 @@ if len(runningjobids) != 0:
     #                   mounted. This will limit the amount of data that is
     #                   returned, at the expense of a full text query against
     #                   all running jobs.
-    # -------------------------------------------------------------------
+    # -----------------------------------------------------------------------
     try:
         db_connect()
         if dbtype == 'pgsql':
@@ -1410,6 +1538,14 @@ else:
 msg = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' \
     + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
     + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n'
+
+# Are we going to be highlighting Verify Jobs where virus(s) were found?
+# ----------------------------------------------------------------------
+if 'num_virus_jobs' in globals() and checkforvirus == 'yes' and num_virus_jobs != 0:
+    msg += '<p style="' + virusfoundstyle + '">' \
+        + 'The ' + str(num_virus_jobs) + ' Verify ' + ('jobs' if num_virus_jobs > 1 else 'job') + ' who\'s ' \
+        + ' Type cell has this background color ' + ('have' if num_virus_jobs > 1 else 'has') \
+        + ' detected at least one virus!</p><br>\n'
 
 # Are we going to be highlighting Jobs that are always failing?
 # If yes, let's build the banner and add it to the to beginning

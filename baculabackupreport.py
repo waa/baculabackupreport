@@ -84,18 +84,24 @@ include_pnv_jobs = 'yes'  # Include copied, migrated, verified jobs who's endtim
                           #   list refer to them but they are not listed.
                           # - Verify jobs can verify any job, even very old ones. This option makes sure
                           #   verified jobs older than the hours set are also included in the listing.
-checkforvirus = 'no'      # Enable the additional checks for Viruses
-virusfoundtext = 'Virus detected'  # Some unique text thet your AV software prints to the Bacula Job log when a virus is detected
+checkforvirus = 'no'               # Enable the additional checks for Viruses
+virusfoundtext = 'Virus detected'  # Some unique text that your AV software prints to the Bacula Job
+                                   # log when a virus is detected. ONLY ClamAV is supported at this time!
 
 # Job summary table settings
 # --------------------------
-emailsummary = 'bottom'        # Print a short summary after the Job list table? (top, bottom, both, none)
-restore_stats = 'yes'          # Print Restore Files/Bytes in summary table?
-copied_stats = 'yes'           # Print Copied Files/Bytes in the summary table?
-migrated_stats = 'yes'         # Print Migrated Files/Bytes in the summary table?
-verified_stats = 'yes'         # Print Verified Files/Bytes in the summary table?
-emailjobsummaries = 'no'       # Email all Job summaries? Be careful with this, it can generate very large emails
-emailbadlogs = 'no'            # Email logs of bad Jobs? Be careful with this, it can generate very large emails
+emailsummary = 'bottom'  # Print a short summary after the Job list table? (top, bottom, both, none)
+restore_stats = 'yes'    # Print Restore Files/Bytes in summary table?
+copied_stats = 'yes'     # Print Copied Files/Bytes in the summary table?
+migrated_stats = 'yes'   # Print Migrated Files/Bytes in the summary table?
+verified_stats = 'yes'   # Print Verified Files/Bytes in the summary table?
+
+# Additional Job logs and summaries
+# ---------------------------------
+emailvirussummary = 'no'     # Email the viruses found summary as a separate email?
+appendvirussummaries = 'no'  # Append virus summary information?
+appendjobsummaries = 'no'    # Append all Job summaries? Be careful with this, it can generate very large emails
+appendbadlogs = 'no'         # Append logs of bad Jobs? Be careful with this, it can generate very large emails
 
 # Email subject settings including some example utf-8
 # icons to prepend the subject with. Examples from:
@@ -171,7 +177,7 @@ virusfoundcolor = '#88eebb'              # Background color of the Banner and 'T
 fontfamily = 'Verdana, Arial, Helvetica, sans-serif'  # Font family to use for HTML emails
 fontsize = '16px'         # Font size to use for email title (title removed from email for now)
 fontsizejobinfo = '12px'  # Font size to use for job information inside of table
-fontsizesumlog = '10px'   # Font size of job summaries and bad job logs
+fontsizesumlog = '12px'   # Font size of job summaries and bad job logs
 
 # HTML styles
 # -----------
@@ -212,8 +218,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.37'
-reldate = 'October 13, 2021'
+version = '1.38'
+reldate = 'January 3, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -338,10 +344,10 @@ def db_connect():
 
 def pn_job_id(ctrl_jobid, p_or_n):
     'Return a Previous or New jobid for Copy and Migration Control jobs.'
-    # Given a Copy Ctrl or Migration Ctrl job's jobid, perform a re.sub()
-    # on the joblog's job summary block of 20+ lines of text using a search
-    # term of 'Prev' or 'New' as 'p_or_n' and return the previous or new jobid
-    # ------------------------------------------------------------------------
+    # Given a Copy Ctrl or Migration Ctrl job's jobid, perform a re.sub on
+    # the joblog's job summary block of 20+ lines of text using a search term
+    # of 'Prev' or 'New' as 'p_or_n' and return the previous or new jobid
+    # -----------------------------------------------------------------------
     return re.sub('.*' + p_or_n + ' Backup JobId: +(.+?)\n.*', '\\1', ctrl_jobid['logtext'], flags = re.DOTALL)
 
 def v_job_id(vrfy_jobid):
@@ -360,7 +366,11 @@ def copied_ids(jobid):
         # ----------------------------------------------------------------------------
         if pn_jobids_dict[t][0] == str(jobid):
             if jobrow['type'] == 'B' or (jobrow['type'] == 'M' and pn_jobids_dict[t][1] != migrated_id(jobid)):
-                copied_jobids.append(pn_jobids_dict[t][1])
+                if pn_jobids_dict[t][1] != '0':
+                    # This ^^ prevents ['0'] from being returned, causing "Copied to 0" in report
+                    # This happens when a Copy job finds a Backup/Migration job to copy, but
+                    # reports "there no files in the job to copy"
+                    copied_jobids.append(pn_jobids_dict[t][1])
     if len(copied_jobids) == 0:
         return '0'
     else:
@@ -386,7 +396,7 @@ def translate_job_type(jobtype, jobid, priorjobid):
                + (urlify_jobid(str(priorjobid)) if gui and urlifyalljobs == 'yes' else str(priorjobid))
 
     if jobtype == 'B' and priorjobid != 0:
-        # This catches the corner case where copy/migration
+        # This catches the corner case where Copy/Migration
         # control jobs have run, but they copied or migrated
         # no jobs so pn_jobids_dict will not exist
         # --------------------------------------------------
@@ -1248,34 +1258,6 @@ if include_pnv_jobs == 'yes':
 # will be released into the community edition too.
 # --------------------------------------------------------
 if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
-    # An example of a Job log showing that a virus has been detected:
-    # logtext: centos7-fd JobId 1376: Error: /home/viruses/Hidenowt-commandcom-with-no-extension Virus detected stream: Win.Trojan.Hidenowt-1 FOUND
-    #
-    # I'd like to print some summary at the end of the email showing a jobid, then a virus name, and list of files with that virus. BUT this will
-    # be highly dependent on future AV programs that can be plugged into Bacula to putput the same format as above!
-    #
-    # Sample output I'd like to offer to append to end of email:
-    #
-    # Jobid: 12345
-    # ------------
-    #   Virus: Win.Trojan.Hidenowt-1
-    #     Files: /home/waa/documents/word.doc
-    #            /home/viruses/Hidenowt-commandcom-with-no-extension
-    #
-    #   Virus: Antiexe
-    #     Files: /home/waa/documents/word2.doc
-    #            /home/viruses/AntiexeVirusSample.txt
-    #
-    # Jobid: 12456
-    # ------------
-    #   Virus: OtherVirus
-    #     Files: /home/waa/documents/word34.doc
-    #            /home/viruses/OtherVirusFile
-    #
-    #   Virus: BadVirus1
-    #     Files: /home/waa/documents/word54.doc
-    #            /home/viruses/BadVirus1File
-    # ---------------------------------------------------------------------------------------------------------------------------------------------
     try:
         db_connect()
         if dbtype == 'pgsql':
@@ -1311,22 +1293,28 @@ if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
             cur.close()
             conn.close()
 
-    # Now we need the number of jobs with viruses
-    # and number of files with viruses. We also
-    # build a dictionary with JobIds as keys with
-    # the values being tuples containing all the
-    # virus lines found for that job. This dict
-    # will be used later when we build the virus
-    # report to append to the email as descibed
-    # above
-    # -------------------------------------------
+    # Now we need the number of jobs with viruses and number
+    # of files with viruses. We also build a dictionary with
+    # JobIds as keys with the values being tuples containing
+    # (virus, file) for each file with a virus found by that
+    # job. This dict will be used later if/when we build the
+    # virus report to append to the email and/or send in a
+    # separate email.
+    # ------------------------------------------------------
+    #
+    # Example ClamAV output in Bacula job log:
+    # centos7-fd JobId 1376: Error: /home/viruses/Stealth Virus detected stream: Win.Trojan.LBBCV-4 FOUND
+    # centos7-fd JobId 1376: Error: /home/viruses/Hidenowt Virus detected stream: Win.Trojan.Hidenowt-1 FOUND
+    # -------------------------------------------------------------------------------------------------------
     virus_dict = {}
     num_virus_files = len(virus_found_rows)
     for row in virus_found_rows:
+        virus = re.sub(".* stream: (.*) FOUND.*\n", "\\1", row[1])
+        file = re.sub(".* Error: (.*) " + virusfoundtext + ".*\n", "\\1", row[1])
         if row[0] not in virus_dict:
-            virus_dict[row[0]] = row[1]
+            virus_dict[row[0]] = [(virus, file)]
         else:
-            virus_dict[row[0]] = virus_dict[row[0]], row[1]
+            virus_dict[row[0]].append((virus, file))
     num_virus_jobs = len(virus_dict)
 
 # Query the database to find Running jobs. These jobs
@@ -1451,9 +1439,44 @@ if flagrescheduled == 'yes':
             cur.close()
             conn.close()
 
-# Do we email all job summaries?
-# ------------------------------
-if emailjobsummaries == 'yes':
+# Do we append virus summaries?
+# -----------------------------
+if 'virus_dict' in globals() and checkforvirus == 'yes' and \
+    (appendvirussummaries == 'yes' or emailvirussummary == 'yes'):
+    virus_set = set()
+    virussummaries = ''
+    for virusjobid in virus_dict:
+        job_virus_set = set()
+        virussummaries += '------------\nJobId: ' + str(virusjobid) + '\n------------'
+        for virus_and_file in virus_dict[virusjobid]:
+            job_virus_set.add(virus_and_file[0])
+        for virus in job_virus_set:
+            virussummaries += '\n  Virus: ' + virus + '\n    Files:\n'
+            for virus_and_file in virus_dict[virusjobid]:
+                if virus_and_file[0] == virus:
+                    virussummaries += '      ' + virus_and_file[1] + '\n'
+        virussummaries += '\n'
+        # virus_set.union(job_virus_set) <- Does not work?
+        virus_set = set.union(virus_set, job_virus_set)
+    virussummaries = '<pre>============================\n' \
+    + 'Summary of All Viruses Found\n============================\n\n' \
+    + str(num_virus_files) + ' Files Infected\n' \
+    + str(len(virus_set)) + ' Viruses Found: ' + ', '.join(virus_set) + '\n\n' \
+    + virussummaries
+    virussummaries += '</pre>'
+else:
+    virussummaries = ''
+
+# Do we email the Virus Summary in a separate email?
+# --------------------------------------------------
+# 20210102 - TODO - Should be simple: Create Subject, and send 'virussummaries' as the body.
+# ------------------------------------------------------------------------------------------
+if 'virus_dict' in globals() and checkforvirus == 'yes' and len(virussummaries) != 0 and emailvirussummary == 'yes':
+    print('We will email the Virus Summary')
+
+# Do we append all job summaries?
+# -------------------------------
+if appendjobsummaries == 'yes':
     jobsummaries = '<pre>====================================\n' \
     + 'Job Summaries of All Terminated Jobs\n====================================\n'
     try:
@@ -1492,9 +1515,9 @@ if emailjobsummaries == 'yes':
 else:
     jobsummaries = ''
 
-# Do we email the bad job logs?
-# -----------------------------
-if emailbadlogs == 'yes':
+# Do we append the bad job logs?
+# ------------------------------
+if appendbadlogs == 'yes':
     badjoblogs = '<pre>=================\nBad Job Full Logs\n=================\n'
     if len(badjobids) != 0:
         try:
@@ -1548,7 +1571,6 @@ if 'num_virus_jobs' in globals() and checkforvirus == 'yes' and num_virus_jobs !
         + ' detected at least one virus!</p><br>\n'
 
 # Are we going to be highlighting Jobs that are always failing?
-# If yes, let's build the banner and add it to the to beginning
 # -------------------------------------------------------------
 if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
     msg += '<p style="' + alwaysfailstyle + '">' \
@@ -1684,7 +1706,7 @@ elif emailsummary == 'bottom':
     msg = msg + summary
 elif emailsummary == 'both':
     msg = summary + '</br>' + msg + summary
-msg = msg + jobsummaries + badjoblogs + prog_info
+msg += virussummaries + jobsummaries + badjoblogs + prog_info
 send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
 
 # vim: expandtab tabstop=4 softtabstop=4 shiftwidth=4

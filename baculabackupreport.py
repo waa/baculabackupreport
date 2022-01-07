@@ -98,10 +98,10 @@ verified_stats = 'yes'   # Print Verified Files/Bytes in the summary table?
 
 # Additional Job logs and summaries
 # ---------------------------------
-emailvirussummary = 'no'     # Email the viruses found summary as a separate email?
-appendvirussummaries = 'no'  # Append virus summary information?
-appendjobsummaries = 'no'    # Append all Job summaries? Be careful with this, it can generate very large emails
-appendbadlogs = 'no'         # Append logs of bad Jobs? Be careful with this, it can generate very large emails
+emailvirussummary = 'yes'     # Email the Viruses Summary report as a separate email?
+appendvirussummaries = 'yes'  # Append virus summary information?
+appendjobsummaries = 'no'     # Append all Job summaries? Be careful with this, it can generate very large emails
+appendbadlogs = 'no'          # Append logs of bad Jobs? Be careful with this, it can generate very large emails
 
 # Email subject settings including some example utf-8
 # icons to prepend the subject with. Examples from:
@@ -139,7 +139,7 @@ virusfoundbodyicon = '&#x1F9A0'                 # HEX encoding for emoji in emai
 # virusfoundbodyicon = '&#x1F4A3'               # HEX encoding for emoji in email body 'bomb' (virus) icon
 
 # Set the columns to display and their order
-# Recommended to always include jobid, jobname, status, and endtime
+# Recommended to always include jobid, jobname, status, type, and endtime
 # as these may have special formatting applied by default in certain cases
 # ------------------------------------------------------------------------
 cols2show = 'jobid jobname client status joberrors type level jobfiles jobbytes starttime endtime runtime'
@@ -218,8 +218,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.38'
-reldate = 'January 3, 2022'
+version = '1.39'
+reldate = 'January 6, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -476,7 +476,7 @@ def translate_job_type(jobtype, jobid, priorjobid):
     if jobtype == 'V':
         if str(jobid) in v_jobids_dict.keys():
             if jobid in virus_dict:
-                virus_found_str = ' (' + virusfoundbodyicon + ' = ' + str(len(virus_dict[jobid])) + ')'
+                virus_found_str = ' (' + str(len(virus_dict[jobid])) + ' ' + virusfoundbodyicon + ')'
             else:
                 virus_found_str = ''
             return 'Verify of ' \
@@ -1251,32 +1251,45 @@ if include_pnv_jobs == 'yes':
         # ---------------------------------
         alljobrows = sorted(alljobrows, key=lambda k: k['jobid'], reverse=True if sortorder == 'DESC' else False)
 
-# Currently (20211229), virus detection is only possible
+# Currently (20220106), virus detection is only possible
 # in Verify, Level=Data jobs and only in Bacula Enterprise
-# There is nothing in the catalog to tell us if we are
-# working with BEE or BCE. I am hoping AV plugin support
-# will be released into the community edition too.
+# I am hoping AV plugin support will be released into the
+# community edition too.
 # --------------------------------------------------------
 if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
     try:
         db_connect()
         if dbtype == 'pgsql':
-            query_str = "SELECT JobId, LogText \
+            # If we want to include the Client name with the
+            # JobId in the virussummaries, then we need a
+            # couple INNER JOINS to link the Log.JobId to
+            # the JobId in the Job table, then the
+            # Job.ClientID to the ClientId in Client table
+            # to finally obtain the Client.Name from the
+            # Client table.
+            # ----------------------------------------------
+            query_str = "SELECT Log.JobId, Client.Name, Log.LogText \
                 FROM Log \
-                WHERE JobId IN (" + ','.join(vrfy_data_jobids) + ") \
-                AND LogText LIKE '%" + virusfoundtext + "%' \
+                INNER JOIN Job ON Log.JobId=Job.JobId \
+                INNER JOIN Client ON Job.ClientId=Client.ClientId \
+                WHERE Log.JobId IN (" + ','.join(vrfy_data_jobids) + ") \
+                AND Log.LogText LIKE '%" + virusfoundtext + "%' \
                 ORDER BY JobId DESC, Time ASC;"
         elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
+            query_str = "SELECT log.jobid, client.name, CAST(log.logtext as CHAR(1000)) AS logtext \
                 FROM Log \
-                WHERE jobid IN (" + ','.join(vrfy_data_jobids) + ") \
-                AND logtext LIKE '%" + virusfoundtext + "%' \
+                INNER JOIN job ON log.jobid=job.jobId \
+                INNER JOIN client ON job.clientid=client.clientid \
+                WHERE log.jobid IN (" + ','.join(vrfy_data_jobids) + ") \
+                AND log.logtext LIKE '%" + virusfoundtext + "%' \
                 ORDER BY jobid DESC, time ASC;"
         elif dbtype == 'sqlite':
-            query_str = "SELECT jobid, logtext \
+            query_str = "SELECT log.jobid, client.name, log.logtext \
                 FROM log \
-                WHERE jobid IN (" + ','.join(vrfy_data_jobids) + ") \
-                AND logtext LIKE '%" + virusfoundtext + "%' \
+                INNER JOIN job ON log.jobid=job.jobId \
+                INNER JOIN client ON job.clientid=client.clientid \
+                WHERE log.jobid IN (" + ','.join(vrfy_data_jobids) + ") \
+                AND log.logtext LIKE '%" + virusfoundtext + "%' \
                 ORDER BY jobid DESC, time ASC;"
         cur.execute(query_str)
         virus_found_rows = cur.fetchall()
@@ -1308,14 +1321,18 @@ if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
     # -------------------------------------------------------------------------------------------------------
     virus_dict = {}
     num_virus_files = len(virus_found_rows)
+    virus_client_set = set()
     for row in virus_found_rows:
-        virus = re.sub(".* stream: (.*) FOUND.*\n", "\\1", row[1])
-        file = re.sub(".* Error: (.*) " + virusfoundtext + ".*\n", "\\1", row[1])
+        client = row[1]
+        virus_client_set.add(client)
+        virus = re.sub(".* stream: (.*) FOUND.*\n", "\\1", row[2])
+        file = re.sub(".* Error: (.*) " + virusfoundtext + ".*\n", "\\1", row[2])
         if row[0] not in virus_dict:
-            virus_dict[row[0]] = [(virus, file)]
+            virus_dict[row[0]] = [(client, virus, file)]
         else:
-            virus_dict[row[0]].append((virus, file))
+            virus_dict[row[0]].append((client, virus, file))
     num_virus_jobs = len(virus_dict)
+    num_virus_clients = len(virus_client_set)
 
 # Query the database to find Running jobs. These jobs
 # will be checked to see if they are waiting on media
@@ -1447,21 +1464,24 @@ if 'virus_dict' in globals() and checkforvirus == 'yes' and \
     virussummaries = ''
     for virusjobid in virus_dict:
         job_virus_set = set()
-        virussummaries += '------------\nJobId: ' + str(virusjobid) + '\n------------'
+        virussummaries += '--------------------\nJobId: ' + str(virusjobid) \
+        + '\nClient: ' + str(virus_dict[virusjobid][1][0]) + '\n--------------------\n'
         for virus_and_file in virus_dict[virusjobid]:
-            job_virus_set.add(virus_and_file[0])
+            job_virus_set.add(virus_and_file[1])
         for virus in job_virus_set:
             virussummaries += '\n  Virus: ' + virus + '\n    Files:\n'
             for virus_and_file in virus_dict[virusjobid]:
-                if virus_and_file[0] == virus:
-                    virussummaries += '      ' + virus_and_file[1] + '\n'
+                if virus_and_file[1] == virus:
+                    virussummaries += '      ' + virus_and_file[2] + '\n'
         virussummaries += '\n'
-        # virus_set.union(job_virus_set) <- Does not work?
+        # virus_set.union(job_virus_set) <- This does not work?
         virus_set = set.union(virus_set, job_virus_set)
     virussummaries = '<pre>============================\n' \
     + 'Summary of All Viruses Found\n============================\n\n' \
-    + str(num_virus_files) + ' Files Infected\n' \
-    + str(len(virus_set)) + ' Viruses Found: ' + ', '.join(virus_set) + '\n\n' \
+    + str(len(virus_client_set)) + ' ' + ('Clients' if len(virus_client_set) > 1 else 'Client') + ' Infected: ' \
+    + ', '.join(virus_client_set) + '\n' + str(len(virus_set)) + ' ' + ('Viruses' if len(virus_set) > 1 else 'Virus') \
+    + ' Found: ' + ', '.join(virus_set) + '\n' + str(num_virus_files) \
+    + ' ' + ('Files' if num_virus_files > 1 else 'File') + ' Infected\n\n' \
     + virussummaries
     virussummaries += '</pre>'
 else:
@@ -1469,10 +1489,13 @@ else:
 
 # Do we email the Virus Summary in a separate email?
 # --------------------------------------------------
-# 20210102 - TODO - Should be simple: Create Subject, and send 'virussummaries' as the body.
-# ------------------------------------------------------------------------------------------
 if 'virus_dict' in globals() and checkforvirus == 'yes' and len(virussummaries) != 0 and emailvirussummary == 'yes':
-    print('We will email the Virus Summary')
+    virusemailsubject = server + ' - Virus Report: ' + str(len(virus_set)) + ' ' \
+    + ('Viruses ' if len(virus_set) > 1 else 'Virus') + ' Found in ' \
+    + str(len(virus_dict)) + ' ' + ('Jobs' if len(virus_dict) > 1 else 'Job') + ' on ' \
+    + str(num_virus_clients) + ' ' + ('Clients' if num_virus_clients > 1 else 'Client') + ' (' \
+    + str(num_virus_files) + ' ' + ('Files ' if num_virus_files > 1 else 'File ') + 'Infected)'
+    send_email(email, fromemail, virusemailsubject, virussummaries, smtpuser, smtppass, smtpserver, smtpport)
 
 # Do we append all job summaries?
 # -------------------------------

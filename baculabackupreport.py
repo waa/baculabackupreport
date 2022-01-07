@@ -1276,30 +1276,31 @@ if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
                 AND Log.LogText LIKE '%" + virusfoundtext + "%' \
                 ORDER BY JobId DESC, Time ASC;"
         elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT log.jobid, client.name, CAST(log.logtext as CHAR(1000)) AS logtext \
+            query_str = "SELECT Log.jobid, CAST(Client.name as CHAR(50)) AS name, \
+                CAST(Log.logtext as CHAR(1000)) AS logtext \
                 FROM Log \
-                INNER JOIN job ON log.jobid=job.jobId \
-                INNER JOIN client ON job.clientid=client.clientid \
-                WHERE log.jobid IN (" + ','.join(vrfy_data_jobids) + ") \
-                AND log.logtext LIKE '%" + virusfoundtext + "%' \
+                INNER JOIN Job ON Log.jobid=Job.jobid \
+                INNER JOIN Client ON Job.clientid=Client.clientid \
+                WHERE Log.jobid IN (" + ','.join(vrfy_data_jobids) + ") \
+                AND Log.logtext LIKE '%" + virusfoundtext + "%' \
                 ORDER BY jobid DESC, time ASC;"
         elif dbtype == 'sqlite':
             query_str = "SELECT log.jobid, client.name, log.logtext \
                 FROM log \
-                INNER JOIN job ON log.jobid=job.jobId \
-                INNER JOIN client ON job.clientid=client.clientid \
+                INNER JOIN job ON log.jobid=job.jobid \
+                INNER JOIN client ON Job.clientid=client.clientid \
                 WHERE log.jobid IN (" + ','.join(vrfy_data_jobids) + ") \
                 AND log.logtext LIKE '%" + virusfoundtext + "%' \
-                ORDER BY jobid DESC, time ASC;"
+                ORDER BY log.jobid DESC, time ASC;"
         cur.execute(query_str)
         virus_found_rows = cur.fetchall()
     except sqlite3.OperationalError:
-        print('\nSQLite3 Database locked while fetching verify job info.')
+        print('\nSQLite3 Database locked while fetching verify job info for AV tests.')
         print('Is a Bacula Job running?')
         print('Exiting.\n')
         sys.exit(1)
     except:
-        print('Problem communicating with database \'' + dbname + '\' while fetching verify job info.\n')
+        print('Problem communicating with database \'' + dbname + '\' while fetching verify job info for AV tests.\n')
         sys.exit(1)
     finally:
         if (conn):
@@ -1309,10 +1310,10 @@ if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
     # Now we need the number of jobs with viruses and number
     # of files with viruses. We also build a dictionary with
     # JobIds as keys with the values being tuples containing
-    # (virus, file) for each file with a virus found by that
-    # job. This dict will be used later if/when we build the
-    # virus report to append to the email and/or send in a
-    # separate email.
+    # (client, virus, file) for each file with a virus found
+    # by that job. This dict will be used later if/when we
+    # build the virus report to append to the email and/or
+    # send in a separate email.
     # ------------------------------------------------------
     #
     # Example ClamAV output in Bacula job log:
@@ -1323,14 +1324,14 @@ if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
     num_virus_files = len(virus_found_rows)
     virus_client_set = set()
     for row in virus_found_rows:
-        client = row[1]
+        client = row['name']
         virus_client_set.add(client)
-        virus = re.sub(".* stream: (.*) FOUND.*\n", "\\1", row[2])
-        file = re.sub(".* Error: (.*) " + virusfoundtext + ".*\n", "\\1", row[2])
-        if row[0] not in virus_dict:
-            virus_dict[row[0]] = [(client, virus, file)]
+        virus = re.sub(".* stream: (.*) FOUND.*\n.*", "\\1", row['logtext'])
+        file = re.sub(".* Error: (.*) " + virusfoundtext + ".*\n.*", "\\1", row['logtext'])
+        if row['jobid'] not in virus_dict:
+            virus_dict[row['jobid']] = [(client, virus, file)]
         else:
-            virus_dict[row[0]].append((client, virus, file))
+            virus_dict[row['jobid']].append((client, virus, file))
     num_virus_jobs = len(virus_dict)
     num_virus_clients = len(virus_client_set)
 
@@ -1456,8 +1457,8 @@ if flagrescheduled == 'yes':
             cur.close()
             conn.close()
 
-# Do we append virus summaries?
-# -----------------------------
+# Do we append virus summary report?
+# ----------------------------------
 if 'virus_dict' in globals() and checkforvirus == 'yes' and \
     (appendvirussummaries == 'yes' or emailvirussummary == 'yes'):
     virus_set = set()
@@ -1478,23 +1479,23 @@ if 'virus_dict' in globals() and checkforvirus == 'yes' and \
         virus_set = set.union(virus_set, job_virus_set)
     virussummaries = '<pre>============================\n' \
     + 'Summary of All Viruses Found\n============================\n\n' \
-    + str(len(virus_client_set)) + ' ' + ('Clients' if len(virus_client_set) > 1 else 'Client') + ' Infected: ' \
-    + ', '.join(virus_client_set) + '\n' + str(len(virus_set)) + ' ' + ('Viruses' if len(virus_set) > 1 else 'Virus') \
-    + ' Found: ' + ', '.join(virus_set) + '\n' + str(num_virus_files) \
-    + ' ' + ('Files' if num_virus_files > 1 else 'File') + ' Infected\n\n' \
+    + str(len(virus_dict)) + ' ' + ('Job' if len(virus_dict) == 1  else 'Jobs') + ' Affected\n' \
+    + str(num_virus_files) + ' ' + ('File' if num_virus_files == 1 else 'Files') + ' Infected\n' \
+    + str(len(virus_client_set)) + ' ' + ('Client' if len(virus_client_set) == 1  else 'Clients') + ' Infected: ' + ', '.join(virus_client_set) + '\n' \
+    + str(len(virus_set)) + ' ' + ('Virus' if len(virus_set) == 1 else 'Viruses') + ' Found: ' + ', '.join(virus_set) + '\n\n' \
     + virussummaries
     virussummaries += '</pre>'
 else:
     virussummaries = ''
 
-# Do we email the Virus Summary in a separate email?
-# --------------------------------------------------
-if 'virus_dict' in globals() and checkforvirus == 'yes' and len(virussummaries) != 0 and emailvirussummary == 'yes':
+# Do we email the virus summary report in a separate email?
+# ---------------------------------------------------------
+if 'virus_dict' in globals() and checkforvirus == 'yes' and len(virus_set) != 0 and emailvirussummary == 'yes':
     virusemailsubject = server + ' - Virus Report: ' + str(len(virus_set)) + ' ' \
-    + ('Viruses ' if len(virus_set) > 1 else 'Virus') + ' Found in ' \
-    + str(len(virus_dict)) + ' ' + ('Jobs' if len(virus_dict) > 1 else 'Job') + ' on ' \
-    + str(num_virus_clients) + ' ' + ('Clients' if num_virus_clients > 1 else 'Client') + ' (' \
-    + str(num_virus_files) + ' ' + ('Files ' if num_virus_files > 1 else 'File ') + 'Infected)'
+    + ('Virus ' if len(virus_set) == 1 else 'Viruses') + ' Found in ' \
+    + str(len(virus_dict)) + ' ' + ('Job' if len(virus_dict) == 1 else 'Jobs') + ' on ' \
+    + str(num_virus_clients) + ' ' + ('Client' if num_virus_clients == 1 else 'Clients') + ' (' \
+    + str(num_virus_files) + ' ' + ('File ' if num_virus_files == 1 else 'Files ') + 'Infected)'
     send_email(email, fromemail, virusemailsubject, virussummaries, smtpuser, smtppass, smtpserver, smtpport)
 
 # Do we append all job summaries?

@@ -181,11 +181,11 @@ fontsizesumlog = '12px'   # Font size of job summaries and bad job logs
 
 # HTML styles
 # -----------
-jobsolderthantimestyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0;'
-jobsneedingoprstyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0;'
-rescheduledjobsstyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0;'
-alwaysfailstyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0; background-color: %s;' % alwaysfailcolor
-virusfoundstyle = 'display: inline-block; font-size: 14px; font-weight: bold; padding: 6px; margin: 4px 0; background-color: %s;' % virusfoundcolor
+virusfoundstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0; background-color: %s;' % virusfoundcolor
+alwaysfailstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0; background-color: %s;' % alwaysfailcolor
+jobsneedingoprstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
+jobsolderthantimestyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
+rescheduledjobsstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
 jobtablestyle = 'width: 100%; border-collapse: collapse;'
 jobtableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (jobtableheadercolor, jobtableheadertxtcolor)
 jobtableheadercellstyle = 'padding: 6px'
@@ -218,8 +218,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.39'
-reldate = 'January 6, 2022'
+version = '1.40'
+reldate = 'January 10, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \

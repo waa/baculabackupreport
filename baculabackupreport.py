@@ -230,6 +230,9 @@ valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
 all_jobtype_lst = ['B', 'C', 'c', 'D', 'g', 'M', 'R', 'V']
+all_jobstatus_lst = ['a', 'A', 'B', 'c', 'C', 'd', 'D', \
+                     'e', 'E', 'f', 'F', 'i', 'I', 'j', \
+                     'm', 'M', 'p', 'R', 's', 'S', 't', 'T']
 valid_email_summary_lst = ['top', 'bottom', 'both', 'none']
 valid_col_lst = [
     'jobid', 'jobname', 'client', 'status',
@@ -241,7 +244,8 @@ valid_col_lst = [
 # -------------------------
 doc_opt_str = """
 Usage:
-    baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-d <days>] [-c <client>] [-j <jobname>] [-y <jobtype>]
+    baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-d <days>]
+                          [-c <client>] [-j <jobname>] [-y <jobtype>] [-x <jobstatus>]
                           [--dbtype <dbtype>] [--dbport <dbport>] [--dbhost <dbhost>] [--dbname <dbname>]
                           [--dbuser <dbuser>] [--dbpass <dbpass>]
                           [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
@@ -256,7 +260,8 @@ Options:
     -d, --days <days>            Days to check for "always failing jobs" [default: 7]
     -c, --client <client>        Client to report on using SQL 'LIKE client' [default: %] (all clients)
     -j, --jobname <jobname>      Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
-    -y, --jobtype <jobtype>      Type of job to report on. [default: DBRCcMgV] (all job types)
+    -y, --jobtype <jobtype>      Type of job to report on [default: DBRCcMgV] (all job types)
+    -x, --jobstatus <jobstatus>  Job status to report on [default: aABcCdDeEfFiIjmMpRsStT] (all job statuses)
     --dbtype <dbtype>            Database type [default: pgsql] (pgsql | mysql | maria | sqlite)
     --dbport <dbport>            Database port (defaults pgsql 5432, mysql & maria 3306)
     --dbhost <dbhost>            Database host [default: localhost]
@@ -325,6 +330,8 @@ def print_opt_errors(opt):
         return '\nThe \'' + opt + '\' variable must not be empty, and must be one of: ' + ', '.join(valid_db_lst)
     elif opt == 'jobtype':
         return '\nThe \'' + opt + '\' variable must be one or more of the following characters: ' + ''.join(all_jobtype_lst)
+    elif opt == 'jobstatus':
+        return '\nThe \'' + opt + '\' variable must be one or more of the following characters: ' + ''.join(all_jobstatus_lst)
     elif opt == 'emailsummary':
         return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_email_summary_lst)
 
@@ -781,9 +788,9 @@ for ced_tup in [
     ('--dbhost', 'DBHOST'), ('--dbname', 'DBNAME'),
     ('--dbuser', 'DBUSER'), ('--dbpass', 'DBPASS'),
     ('--jobname', 'JOBNAME'), ('--jobtype', 'JOBTYPE'),
-    ('--smtpuser', 'SMTPUSER'), ('--smtppass', 'SMTPPASS'),
-    ('--smtpserver', 'SMTPSERVER'), ('--smtpport', 'SMTPPORT'),
-    ('--fromemail', 'FROMEMAIL')
+    ('--jobstatus', 'JOBSTATUS'),('--smtpuser', 'SMTPUSER'),
+    ('--smtppass', 'SMTPPASS'), ('--smtpserver', 'SMTPSERVER'),
+    ('--smtpport', 'SMTPPORT'), ('--fromemail', 'FROMEMAIL')
     ]:
     args[ced_tup[0]] = cli_vs_env_vs_default_vars(ced_tup[0], ced_tup[1])
 
@@ -798,6 +805,10 @@ if emailsummary not in valid_email_summary_lst:
 jobtypeset = set(args['--jobtype'])
 if not jobtypeset.issubset(set(all_jobtype_lst)):
     print(print_opt_errors('jobtype'))
+    usage()
+jobstatusset = set(args['--jobstatus'])
+if not jobstatusset.issubset(set(all_jobstatus_lst)):
+    print(print_opt_errors('jobstatus'))
     usage()
 if args['--email'] is None or '@' not in args['--email']:
     print(print_opt_errors('email'))
@@ -892,6 +903,7 @@ try:
             AND Client.Name LIKE '" + client + "' \
             AND Job.Name LIKE '" + jobname + "' \
             AND Type IN ('" + "','".join(jobtypeset) + "') \
+            AND JobStatus IN ('" + "','".join(jobstatusset) + "') \
             ORDER BY jobid " + sortorder + ";"
     elif dbtype in ('mysql', 'maria'):
         query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
@@ -905,6 +917,7 @@ try:
             AND Client.Name LIKE '" + client + "' \
             AND Job.Name LIKE '" + jobname + "' \
             AND type IN ('" + "','".join(jobtypeset) + "') \
+            AND jobstatus IN ('" + "','".join(jobstatusset) + "') \
             ORDER BY jobid " + sortorder + ";"
     elif dbtype == 'sqlite':
         query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
@@ -917,6 +930,7 @@ try:
             AND Client.Name LIKE '" + client + "' \
             AND Job.Name LIKE '" + jobname + "' \
             AND Type IN ('" + "','".join(jobtypeset) + "') \
+            AND JobStatus IN ('" + "','".join(jobstatusset) + "') \
             ORDER BY jobid " + sortorder + ";"
     cur.execute(query_str)
     alljobrows = cur.fetchall()
@@ -943,16 +957,20 @@ numjobs = len(alljobrows)
 hour = 'hour' if time == '1' else 'hours'
 jobstr = 'all jobs' if jobname == '%' else 'jobname \'' + jobname + '\''
 clientstr = 'all clients' if client == '%' else 'client \'' + client + '\''
-jobtypestr = 'all jobtypes' if set(all_jobtype_lst).issubset(jobtypeset) else 'jobtypes: ' + ','.join(jobtypeset)
+jobtypestr = 'all job types' if set(all_jobtype_lst).issubset(jobtypeset) else 'job types: ' + ','.join(jobtypeset)
+jobstatusstr = 'all job statuses' if set(all_jobstatus_lst).issubset(jobstatusset) else 'job statuses: ' + ','.join(jobstatusset)
 
 # If there are no jobs to report on, just send the email & exit
 # -------------------------------------------------------------
 if numjobs == 0:
     subject = server + ' - No jobs found for ' + clientstr + ' in the past ' \
-            + time + ' ' + hour + ' for ' + jobstr + ', and ' + jobtypestr
+            + time + ' ' + hour + ' for ' + jobstr + ', ' + jobtypestr \
+            + ', and ' + jobstatusstr
     if addsubjecticon == 'yes':
         subject = set_subject_icon() + ' ' + subject
     msg = 'These are not the droids you are looking for.'
+    if print_subject == 'yes':
+        print(re.sub('=.*=\)? (.*)$', '\\1', subject))
     send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
     sys.exit(1)
 else:
@@ -975,12 +993,9 @@ runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in 
 ctrl_jobids = [str(r['jobid']) for r in alljobrows if r['type'] in ('c', 'g')]
 vrfy_jobids = [str(r['jobid']) for r in alljobrows if r['type'] == 'V']
 
-# This next one is special. It is only used
-# for the AV tests and is used/needed so the
-# db query for logtexts from the Log table
-# for Jobs with Type=Verify and Level=Data do
-# not require an INNER JOIN on the Job table
-# -------------------------------------------
+# This next one is special. It
+# is only use for the AV tests
+# ----------------------------
 if checkforvirus == 'yes':
     vrfy_data_jobids = [str(r['jobid']) for r in alljobrows if r['type'] == 'V' and r['level'] == 'A']
 
@@ -1326,8 +1341,8 @@ if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
     for row in virus_found_rows:
         client = row['name']
         virus_client_set.add(client)
-        virus = re.sub(".* stream: (.*) FOUND.*\n.*", "\\1", row['logtext'])
-        file = re.sub(".* Error: (.*) " + virusfoundtext + ".*\n.*", "\\1", row['logtext'])
+        virus = re.sub('.* stream: (.*) FOUND.*\n.*', '\\1', row['logtext'])
+        file = re.sub('.* Error: (.*) ' + virusfoundtext + '.*\n.*', '\\1', row['logtext'])
         if row['jobid'] not in virus_dict:
             virus_dict[row['jobid']] = [(client, virus, file)]
         else:
@@ -1715,12 +1730,12 @@ else:
 # ------------------
 subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
         + str(time) + ' ' + hour + ': ' + str(numbadjobs) + ' bad, ' \
-        + str(jobswitherrors) + ' with errors, for ' + clientstr + ', and ' \
-        + jobstr + ', and ' + jobtypestr + runningorcreatedsubject
-if print_subject == 'yes':
-    print(subject)
+        + str(jobswitherrors) + ' with errors, for ' + clientstr + ', ' \
+        + jobstr + ', ' + jobtypestr + ', and ' + jobstatusstr + runningorcreatedsubject
 if addsubjecticon == 'yes':
     subject = set_subject_icon() + ' ' + subject
+if print_subject == 'yes':
+    print(re.sub('=.*=\)? (.*)$', '\\1', subject))
 
 # Build the final message and send the email
 # ------------------------------------------

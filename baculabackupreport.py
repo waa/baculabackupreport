@@ -947,18 +947,25 @@ finally:
         cur.close()
         conn.close()
 
-# Assign the numjobs variable ASAP to be able to short-circuit everything
-# and just send the 'no jobs run' email without doing any additional work
-# -----------------------------------------------------------------------
+# Assign the numjobs variable and minimal
+# other variables needed ASAP to be able to
+# short circuit everything when no jobs are
+# found and just send the 'no jobs run' email
+# without doing any additional work
+# -------------------------------------------
 numjobs = len(alljobrows)
 
-# Silly OCD string manipulations
-# ------------------------------
+# Silly OCD string manipulations for singular vs. plural
+# ------------------------------------------------------
 hour = 'hour' if time == '1' else 'hours'
 jobstr = 'all jobs' if jobname == '%' else 'jobname \'' + jobname + '\''
 clientstr = 'all clients' if client == '%' else 'client \'' + client + '\''
-jobtypestr = 'all job types' if set(all_jobtype_lst).issubset(jobtypeset) else 'job types: ' + ','.join(jobtypeset)
-jobstatusstr = 'all job statuses' if set(all_jobstatus_lst).issubset(jobstatusset) else 'job statuses: ' + ','.join(jobstatusset)
+jobtypestr = 'all job types' if set(all_jobtype_lst).issubset(jobtypeset) \
+             else 'job types: '  + ','.join(jobtypeset) if len(jobtypeset) > 1 \
+             else 'job type: ' + ','.join(jobtypeset)
+jobstatusstr = 'all job statuses' if set(all_jobstatus_lst).issubset(jobstatusset) \
+               else 'job statuses: ' + ','.join(jobstatusset) if len(jobstatusset) > 1 \
+               else 'job status: ' + ','.join(jobstatusset)
 
 # If there are no jobs to report on, just send the email & exit
 # -------------------------------------------------------------

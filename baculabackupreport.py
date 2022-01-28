@@ -262,6 +262,7 @@ Options:
     -j, --jobname <jobname>      Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
     -y, --jobtype <jobtype>      Type of job to report on [default: DBRCcMgV] (all job types)
     -x, --jobstatus <jobstatus>  Job status to report on [default: aABcCdDeEfFiIjmMpRsStT] (all job statuses)
+                                 Note: 'R'unning and 'C'reated jobs are always included
     --dbtype <dbtype>            Database type [default: pgsql] (pgsql | mysql | maria | sqlite)
     --dbport <dbport>            Database port (defaults pgsql 5432, mysql & maria 3306)
     --dbhost <dbhost>            Database host [default: localhost]
@@ -1001,8 +1002,8 @@ ctrl_jobids = [str(r['jobid']) for r in alljobrows if r['type'] in ('c', 'g')]
 vrfy_jobids = [str(r['jobid']) for r in alljobrows if r['type'] == 'V']
 
 # This next one is special. It
-# is only use for the AV tests
-# ----------------------------
+# is only used for the AV tests
+# -----------------------------
 if checkforvirus == 'yes':
     vrfy_data_jobids = [str(r['jobid']) for r in alljobrows if r['type'] == 'V' and r['level'] == 'A']
 

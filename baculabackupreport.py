@@ -1109,17 +1109,17 @@ if len(ctrl_jobids) != 0:
     try:
         db_connect()
         if dbtype == 'pgsql':
-            query_str = 'SELECT jobid, logtext FROM log \
-                WHERE jobid IN (' + ','.join(ctrl_jobids) + ') \
-                AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+            query_str = "SELECT jobid, logtext FROM log \
+                WHERE jobid IN (" + ','.join(ctrl_jobids) + ") \
+                AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
         elif dbtype in ('mysql', 'maria'):
-            query_str = 'SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
-                FROM Log WHERE jobid IN (' + ','.join(ctrl_jobids) + ') \
-                AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+            query_str = "SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
+                FROM Log WHERE jobid IN (" + ','.join(ctrl_jobids) + ") \
+                AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
         elif dbtype == 'sqlite':
-            query_str = 'SELECT jobid, logtext FROM log \
-                WHERE jobid IN (' + ','.join(ctrl_jobids) + ') \
-                AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+            query_str = "SELECT jobid, logtext FROM log \
+                WHERE jobid IN (" + ','.join(ctrl_jobids) + ") \
+                AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
         cur.execute(query_str)
         cji_rows = cur.fetchall()
     except sqlite3.OperationalError:
@@ -1150,17 +1150,17 @@ if len(vrfy_jobids) != 0:
     try:
         db_connect()
         if dbtype == 'pgsql':
-            query_str = 'SELECT jobid, logtext FROM log \
-                WHERE jobid IN (' + ','.join(vrfy_jobids) + ') AND logtext LIKE \
-                \'%Termination:%\' ORDER BY jobid DESC;'
+            query_str = "SELECT jobid, logtext FROM log \
+                WHERE jobid IN (" + ','.join(vrfy_jobids) + ") AND logtext LIKE \
+                '%Termination:%' ORDER BY jobid DESC;"
         elif dbtype in ('mysql', 'maria'):
-            query_str = 'SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
-                FROM Log WHERE jobid IN (' + ','.join(vrfy_jobids) + ') \
-                AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+            query_str = "SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
+                FROM Log WHERE jobid IN (" + ','.join(vrfy_jobids) + ") \
+                AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
         elif dbtype == 'sqlite':
-            query_str = 'SELECT jobid, logtext FROM log \
-                WHERE jobid IN (' + ','.join(vrfy_jobids) + ') AND logtext LIKE \
-                \'%Termination:%\' ORDER BY jobid DESC;'
+            query_str = "SELECT jobid, logtext FROM log \
+                WHERE jobid IN (" + ','.join(vrfy_jobids) + ") AND logtext LIKE \
+                '%Termination:%' ORDER BY jobid DESC;"
         cur.execute(query_str)
         vji_rows = cur.fetchall()
     except sqlite3.OperationalError:
@@ -1383,22 +1383,22 @@ if len(runningjobids) != 0:
             # running jobs will be returned. Is this worse than using
             # a query with 5 full text clauses? Again, I don't know
             # -------------------------------------------------------
-            # query_str = 'SELECT jobid, logtext FROM Log \
-                # WHERE jobid IN (' + ','.join(runningjobids) + ') \
-                # AND (logtext LIKE \'%Please mount%\' \
-                # OR logtext LIKE \'%Please use the "label" command%\' \
-                # OR logtext LIKE \'%New volume%\' \
-                # OR logtext LIKE \'%Ready to append%\' \
-                # OR logtext LIKE \'%all previous data lost%\') \
-                # ORDER BY jobid, time DESC;'
-            query_str = 'SELECT jobid, logtext FROM Log \
-                WHERE jobid IN (' + ','.join(runningjobids) + ') ORDER BY jobid, time DESC;'
+            # query_str = "SELECT jobid, logtext FROM Log \
+                # WHERE jobid IN (" + ','.join(runningjobids) + ") \
+                # AND (logtext LIKE '%Please mount%' \
+                # OR logtext LIKE '%Please use the \"label\" command%' \
+                # OR logtext LIKE '%New volume%' \
+                # OR logtext LIKE '%Ready to append%' \
+                # OR logtext LIKE '%all previous data lost%') \
+                # ORDER BY jobid, time DESC;"
+            query_str = "SELECT jobid, logtext FROM Log \
+                WHERE jobid IN (" + ','.join(runningjobids) + ") ORDER BY jobid, time DESC;"
         elif dbtype in ('mysql', 'maria'):
-            query_str = 'SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log \
-                WHERE jobid IN (' + ','.join(runningjobids) + ') ORDER BY jobid, time DESC;'
+            query_str = "SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log \
+                WHERE jobid IN (" + ','.join(runningjobids) + ") ORDER BY jobid, time DESC;"
         elif dbtype == 'sqlite':
-            query_str = 'SELECT jobid, logtext FROM Log \
-                WHERE jobid IN (' + ','.join(runningjobids) + ') ORDER BY jobid, time DESC;'
+            query_str = "SELECT jobid, logtext FROM Log \
+                WHERE jobid IN (" + ','.join(runningjobids) + ") ORDER BY jobid, time DESC;"
         cur.execute(query_str)
         running_jobs_log_text = cur.fetchall()
     except sqlite3.OperationalError:
@@ -1530,14 +1530,14 @@ if appendjobsummaries == 'yes':
         db_connect()
         for job_id in alljobids:
             if dbtype == 'pgsql':
-                query_str = 'SELECT jobid, logtext FROM Log WHERE jobid=' \
-                    + str(job_id) + ' AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+                query_str = "SELECT jobid, logtext FROM Log WHERE jobid=" \
+                    + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
             elif dbtype in ('mysql', 'maria'):
-                query_str = 'SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE jobid=' \
-                    + str(job_id) + ' AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+                query_str = "SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE jobid=" \
+                    + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
             elif dbtype == 'sqlite':
-                query_str = 'SELECT jobid, logtext FROM Log WHERE jobid=' \
-                    + str(job_id) + ' AND logtext LIKE \'%Termination:%\' ORDER BY jobid DESC;'
+                query_str = "SELECT jobid, logtext FROM Log WHERE jobid=" \
+                    + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
             cur.execute(query_str)
             summaryrow = cur.fetchall()
             # Migrated (M) Jobs have no joblog
@@ -1571,14 +1571,14 @@ if appendbadlogs == 'yes':
             db_connect()
             for job_id in badjobids:
                 if dbtype == 'pgsql':
-                    query_str = 'SELECT jobid, time, logtext FROM log WHERE jobid=' \
-                        + str(job_id) + ' ORDER BY jobid, time ASC;'
+                    query_str = "SELECT jobid, time, logtext FROM log WHERE jobid=" \
+                        + str(job_id) + " ORDER BY jobid, time ASC;"
                 elif dbtype in ('mysql', 'maria'):
-                    query_str = 'SELECT jobid, time, CAST(logtext as CHAR(2000)) AS logtext \
-                        FROM Log WHERE jobid=' + str(job_id) + ' ORDER BY jobid, time ASC;'
+                    query_str = "SELECT jobid, time, CAST(logtext as CHAR(2000)) AS logtext \
+                        FROM Log WHERE jobid=" + str(job_id) + " ORDER BY jobid, time ASC;"
                 elif dbtype == 'sqlite':
-                    query_str = 'SELECT jobid, time, logtext FROM log WHERE jobid=' \
-                        + str(job_id) + ' ORDER BY jobid, time ASC;'
+                    query_str = "SELECT jobid, time, logtext FROM log WHERE jobid=" \
+                        + str(job_id) + " ORDER BY jobid, time ASC;"
                 cur.execute(query_str)
                 badjobrow = cur.fetchall()
                 badjoblogs += '==============\nJobID:' \

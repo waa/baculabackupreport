@@ -1448,21 +1448,21 @@ if flagrescheduled == 'yes':
                 FROM Job \
                 INNER JOIN Log on Job.JobId=Log.JobId \
                 WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
-                AND LogText LIKE \'%Rescheduled Job%\' \
+                AND LogText LIKE '%Rescheduled Job%' \
                 ORDER BY Job.JobId ASC;"
         elif dbtype in ('mysql', 'maria'):
             query_str = "SELECT Job.jobid \
                 FROM Job \
                 INNER JOIN Log on Job.jobid=Log.jobid \
                 WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
-                AND logtext LIKE \'%Rescheduled Job%\' \
+                AND logtext LIKE '%Rescheduled Job%' \
                 ORDER BY Job.jobid " + sortorder + ";"
         elif dbtype == 'sqlite':
             query_str = "SELECT Job.JobId \
                 FROM Job \
                 INNER JOIN Log on Job.JobId=Log.JobId \
                 WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
-                AND logtext LIKE \'%Rescheduled Job%\' \
+                AND logtext LIKE '%Rescheduled Job%' \
                 ORDER BY Job.jobid " + sortorder + ";"
         cur.execute(query_str)
         rescheduledlogrows = cur.fetchall()

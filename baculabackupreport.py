@@ -218,8 +218,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.41'
-reldate = 'January 27, 2022'
+version = '1.42'
+reldate = 'January 31, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -1074,13 +1074,13 @@ if emailsummary != 'none':
         emailsummarydata.append({'label': 'Total Restore Files', 'data': '{:,}'.format(total_restore_files)})
         emailsummarydata.append({'label': 'Total Restore Bytes', 'data': humanbytes(total_restore_bytes)})
     if copied_stats == 'yes':
-        total_copied_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'C'])
-        total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'C'])
+        total_copied_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'c'])
+        total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'c'])
         emailsummarydata.append({'label': 'Total Copied Files', 'data': '{:,}'.format(total_copied_files)})
         emailsummarydata.append({'label': 'Total Copied Bytes', 'data': humanbytes(total_copied_bytes)})
     if migrated_stats == 'yes':
-        total_migrated_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'M'])
-        total_migrated_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'M'])
+        total_migrated_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'g'])
+        total_migrated_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'g'])
         emailsummarydata.append({'label': 'Total Migrated Files', 'data': '{:,}'.format(total_migrated_files)})
         emailsummarydata.append({'label': 'Total Migrated Bytes', 'data': humanbytes(total_migrated_bytes)})
     if verified_stats == 'yes':

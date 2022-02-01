@@ -1,11 +1,12 @@
 # bacula
 ## Bacula related scripts
 
-- **baculabackupreport.py:** Sends an HTML email report of jobs that have run in the past x hours. Can filter on Client, Job Name, and Job Type (-c client-fd, -j jobname, -y jobtype).
+- **baculabackupreport.py:** Sends an HTML email report of jobs that have run in the past x hours. Can filter on Client, Job Name, Job Type, and Job Status  (-c client-fd, -j jobname, -y jobtype -x jobstatus).
 
 ```
 Usage:
-    baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-d <days>] [-c <client>] [-j <jobname>] [-y <jobtype>]
+    baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-d <days>]
+                          [-c <client>] [-j <jobname>] [-y <jobtype>] [-x <jobstatus>]
                           [--dbtype <dbtype>] [--dbport <dbport>] [--dbhost <dbhost>] [--dbname <dbname>]
                           [--dbuser <dbuser>] [--dbpass <dbpass>]
                           [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
@@ -21,6 +22,8 @@ Options:
     -c, --client <client>        Client to report on using SQL 'LIKE client' [default: %] (all clients)
     -j, --jobname <jobname>      Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
     -y, --jobtype <jobtype>      Type of job to report on. [default: DBRCcMgV] (all job types)
+    -x, --jobstatus <jobstatus>  Job status to report on [default: aABcCdDeEfFiIjmMpRsStT] (all job statuses)
+                                 Note: 'R'unning and 'C'reated jobs are always included
     --dbtype <dbtype>            Database type [default: pgsql] (pgsql | mysql | maria | sqlite)
     --dbport <dbport>            Database port (defaults pgsql 5432, mysql & maria 3306)
     --dbhost <dbhost>            Database host [default: localhost]
@@ -48,6 +51,7 @@ Notes:
 # baculabackupreport.py -e admin@example.com -c www%       (show only jobs where the client name starts with 'www')
 # baculabackupreport.py -e admin@example.com -j oracle-bck (show only the job named 'oracle-bck')
 # baculabackupreport.py -e admin@example.com -j %-prod-%   (show only jobs where the string '-prod-' appears in the name)
+# baculabackupreport.py -e admin@example.com -x Af         (Show only Aborted, Failed jobs.)
 
 - Multiple commands may be combined:
 # baculabackupreport.py -e admin@example.com -t 48 -c speedy-fd -j Catalog (48 hours for a specific client, and job)

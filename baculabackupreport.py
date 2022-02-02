@@ -218,8 +218,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.42'
-reldate = 'January 31, 2022'
+version = '1.43'
+reldate = 'February 1, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -357,6 +357,16 @@ def pn_job_id(ctrl_jobid, p_or_n):
     # of 'Prev' or 'New' as 'p_or_n' and return the previous or new jobid
     # -----------------------------------------------------------------------
     return re.sub('.*' + p_or_n + ' Backup JobId: +(.+?)\n.*', '\\1', ctrl_jobid['logtext'], flags = re.DOTALL)
+
+def ctrl_job_files_bytes(ctrl_jobid):
+    'Return SD Files/Bytes Written for Copy/Migration Control jobs.'
+    # Given a Copy Ctrl or Migration Ctrl job's jobid, perform a re.sub on
+    # the joblog's job summary block of 20+ lines of text using a search term
+    # of "SD Files/Bytes Written:"
+    # -----------------------------------------------------------------------
+    files = re.sub('.*SD Files Written: +(.+?)\n.*', '\\1', ctrl_jobid['logtext'], flags = re.DOTALL).replace(',','')
+    bytes = re.sub('.*SD Bytes Written: +(.+?) .*\n.*', '\\1', ctrl_jobid['logtext'], flags = re.DOTALL).replace(',','')
+    return files, bytes
 
 def v_job_id(vrfy_jobid):
     'Return a Verified jobid for Verify jobs.'
@@ -1044,62 +1054,6 @@ good_days_jobs = [r['jobname'] for r in alldaysjobrows if r['jobstatus'] == 'T']
 unique_bad_days_jobs = {r['jobname'] for r in alldaysjobrows if r['jobstatus'] not in ('T', 'R', 'C')}
 always_fail_jobs = set(unique_bad_days_jobs.difference(good_days_jobs)).intersection(alljobnames)
 
-# Email the summary table?
-# We need to build this table now to prevent any Copy/Migrate/Verify
-# jobs that are older than "-t hours" which might get pulled into
-# the alljobrows list from having their files/bytes included in the
-# optional stats: restored, copied, verified, migrated files/bytes
-# ------------------------------------------------------------------
-if emailsummary != 'none':
-    # Create the list of basic (non optional) information
-    # ---------------------------------------------------
-    emailsummarydata = [
-        {'label': 'Total Jobs', 'data': '{:,}'.format(numjobs)},
-        {'label': 'Bad Jobs', 'data': '{:,}'.format(numbadjobs)},
-        {'label': 'Jobs with Errors', 'data': '{:,}'.format(jobswitherrors)},
-        {'label': 'Total Job Errors', 'data': '{:,}'.format(totaljoberrors)},
-        {'label': 'Total Backup Files', 'data': '{:,}'.format(total_backup_files)},
-        {'label': 'Total Backup Bytes', 'data': humanbytes(total_backup_bytes)}
-    ]
-
-    # - Not everyone runs Copy, Migration, Verify jobs
-    # - Restores are (or should be) infrequent
-    # - Create variables for some optional statistics
-    #   and append the corresponding label and data to
-    #   the emailsummarydata list to be iterated through
-    # --------------------------------------------------
-    if restore_stats == 'yes':
-        total_restore_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'R'])
-        total_restore_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'R'])
-        emailsummarydata.append({'label': 'Total Restore Files', 'data': '{:,}'.format(total_restore_files)})
-        emailsummarydata.append({'label': 'Total Restore Bytes', 'data': humanbytes(total_restore_bytes)})
-    if copied_stats == 'yes':
-        total_copied_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'c'])
-        total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'c'])
-        emailsummarydata.append({'label': 'Total Copied Files', 'data': '{:,}'.format(total_copied_files)})
-        emailsummarydata.append({'label': 'Total Copied Bytes', 'data': humanbytes(total_copied_bytes)})
-    if migrated_stats == 'yes':
-        total_migrated_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'g'])
-        total_migrated_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'g'])
-        emailsummarydata.append({'label': 'Total Migrated Files', 'data': '{:,}'.format(total_migrated_files)})
-        emailsummarydata.append({'label': 'Total Migrated Bytes', 'data': humanbytes(total_migrated_bytes)})
-    if verified_stats == 'yes':
-        total_verify_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'V'])
-        total_verify_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'V'])
-        emailsummarydata.append({'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)})
-        emailsummarydata.append({'label': 'Total Verify Bytes', 'data': humanbytes(total_verify_bytes)})
-
-    summary = '<table style="' + summarytablestyle + '">' \
-            + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' + summarytableheadercellstyle + '">Summary</th></tr>'
-    counter = 0
-    for value in emailsummarydata:
-        summary += '<tr style="' + (summarytablerowevenstyle if counter % 2 == 0 else summarytablerowoddstyle) + '">' \
-                + '<td style="' + summarytablecellstyle + 'text-align: left;">' + value['label'] + '</td>' \
-                + '<td style="' + summarytablecellstyle + 'text-align: right;">' + value['data'] + '</td>' \
-                + '</tr>\n'
-        counter += 1
-    summary += '</table>'
-
 # For each Copy/Migration Control Job (c, g),
 # get the Job summary text from the log table
 # -------------------------------------------
@@ -1134,12 +1088,91 @@ if len(ctrl_jobids) != 0:
         if (conn):
             cur.close()
             conn.close()
+
     # For each row of the returned cji_rows (Ctrl Jobs), add to the
     # pn_jobids_dict dict of tuples as [CtrlJobid: ('PrevJobId', 'NewJobId')]
-    # -----------------------------------------------------------------------
+    # Also, a workaround to solve the issue of files/bytes for Copy/Migration
+    # Control jobs not being added to the catalog makes use of the information
+    # already obtained in the query above.
+    # ------------------------------------------------------------------------
     pn_jobids_dict = {}
+    total_copied_files = total_copied_bytes = total_migrated_files = total_migrated_bytes = 0
     for cji in cji_rows:
         pn_jobids_dict[str(cji['jobid'])] = (pn_job_id(cji, 'Prev'), pn_job_id(cji, 'New'))
+
+    # (**) This is to solve the issue where versions of Bacula
+    # community < 13.0 and Bacula Enterprise < 14.0 did not put
+    # the jobfiles and jobbytes of Copy/Migrate control jobs
+    # into the catalog. The only other place to find this
+    # information is in the Job's Summary text blob in the
+    # 'SD Files Written:' and 'SD Bytes Written:' lines
+    # ---------------------------------------------------------
+        files, bytes = ctrl_job_files_bytes(cji)
+        type = [r['type'] for r in alljobrows if r['jobid'] == cji['jobid']]
+        if type[0] == 'c':
+            total_copied_files += int(files)
+            total_copied_bytes += int(bytes)
+        else:
+            total_migrated_files += int(files)
+            total_migrated_bytes += int(bytes)
+
+# Email the summary table?
+# We need to build this table now to prevent any Copy/Migrate/Verify
+# jobs that are older than "-t hours" which might get pulled into
+# the alljobrows list from having their files/bytes included in the
+# optional stats: restored, copied, verified, migrated files/bytes
+# ------------------------------------------------------------------
+if emailsummary != 'none':
+    # Create the list of basic (non optional) information
+    # ---------------------------------------------------
+    emailsummarydata = [
+        {'label': 'Total Jobs', 'data': '{:,}'.format(numjobs)},
+        {'label': 'Bad Jobs', 'data': '{:,}'.format(numbadjobs)},
+        {'label': 'Jobs with Errors', 'data': '{:,}'.format(jobswitherrors)},
+        {'label': 'Total Job Errors', 'data': '{:,}'.format(totaljoberrors)},
+        {'label': 'Total Backup Files', 'data': '{:,}'.format(total_backup_files)},
+        {'label': 'Total Backup Bytes', 'data': humanbytes(total_backup_bytes)}
+    ]
+
+    # - Not everyone runs Copy, Migration, Verify jobs
+    # - Restores are (or should be) infrequent
+    # - Create variables for some optional statistics
+    #   and append the corresponding label and data to
+    #   the emailsummarydata list to be iterated through
+    # --------------------------------------------------
+    if restore_stats == 'yes':
+        total_restore_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'R'])
+        total_restore_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'R'])
+        emailsummarydata.append({'label': 'Total Restore Files', 'data': '{:,}'.format(total_restore_files)})
+        emailsummarydata.append({'label': 'Total Restore Bytes', 'data': humanbytes(total_restore_bytes)})
+    if copied_stats == 'yes':
+        # These cannot be added this way due to issue (**) noted above
+        # total_copied_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'c'])
+        # total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'c'])
+        emailsummarydata.append({'label': 'Total Copied Files', 'data': '{:,}'.format(total_copied_files)})
+        emailsummarydata.append({'label': 'Total Copied Bytes', 'data': humanbytes(total_copied_bytes)})
+    if migrated_stats == 'yes':
+        # These cannot be added this way due to issue (**) noted above
+        # total_migrated_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'g'])
+        # total_migrated_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'g'])
+        emailsummarydata.append({'label': 'Total Migrated Files', 'data': '{:,}'.format(total_migrated_files)})
+        emailsummarydata.append({'label': 'Total Migrated Bytes', 'data': humanbytes(total_migrated_bytes)})
+    if verified_stats == 'yes':
+        total_verify_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'V'])
+        total_verify_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'V'])
+        emailsummarydata.append({'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)})
+        emailsummarydata.append({'label': 'Total Verify Bytes', 'data': humanbytes(total_verify_bytes)})
+
+    summary = '<table style="' + summarytablestyle + '">' \
+            + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' + summarytableheadercellstyle + '">Summary</th></tr>'
+    counter = 0
+    for value in emailsummarydata:
+        summary += '<tr style="' + (summarytablerowevenstyle if counter % 2 == 0 else summarytablerowoddstyle) + '">' \
+                + '<td style="' + summarytablecellstyle + 'text-align: left;">' + value['label'] + '</td>' \
+                + '<td style="' + summarytablecellstyle + 'text-align: right;">' + value['data'] + '</td>' \
+                + '</tr>\n'
+        counter += 1
+    summary += '</table>'
 
 # For each Verify Job (V), get the
 # Job summary text from the log table

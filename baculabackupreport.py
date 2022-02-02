@@ -218,8 +218,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.43'
-reldate = 'February 1, 2022'
+version = '1.44'
+reldate = 'February 2, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -239,6 +239,10 @@ valid_col_lst = [
     'joberrors', 'type', 'level', 'jobfiles',
     'jobbytes', 'starttime', 'endtime', 'runtime'
     ]
+
+# Set some variables for the Summary stats for the special cases of Copy/Migration Control jobs
+# ---------------------------------------------------------------------------------------------
+total_copied_files = total_copied_bytes = total_migrated_files = total_migrated_bytes = 0
 
 # Set the string for docopt
 # -------------------------
@@ -1096,7 +1100,6 @@ if len(ctrl_jobids) != 0:
     # already obtained in the query above.
     # ------------------------------------------------------------------------
     pn_jobids_dict = {}
-    total_copied_files = total_copied_bytes = total_migrated_files = total_migrated_bytes = 0
     for cji in cji_rows:
         pn_jobids_dict[str(cji['jobid'])] = (pn_job_id(cji, 'Prev'), pn_job_id(cji, 'New'))
 

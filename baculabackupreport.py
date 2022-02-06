@@ -24,6 +24,11 @@
 # produce a nice HTML email showing a lot of valuable information to a backup
 # administrator? I say YES! Would I appreciate feedback? YES!
 #
+# If you use this script every day and think it is worth anything, I am
+# always grateful to receive donations of any size with Venmo: @waa2k
+#
+# The latest version of this script may be found at: https://github.com/waa
+#
 # ---------------------------------------------------------------------------
 # BSD 2-Clause License
 #
@@ -171,6 +176,7 @@ warnjobcolor = '#ffc800'                 # Background color of the Status cell f
 errorjobcolor = '#cc3300'                # Background color of the Status cell for jobs with errors
 alwaysfailcolor = '#ebd32a'              # Background color of the 'alwaysfailcolumn', or entire row for jobs "always failing in the past 'days'"
 virusfoundcolor = '#88eebb'              # Background color of the Banner and 'Type' Cell when a virus is found in a Verify, Level=Data job
+virusconnerrcolor = '#ffb3b3'            # Background color of the Banner and 'Type' Cell when there are errors connecting to AV service
 
 # HTML fonts
 # ----------
@@ -182,6 +188,7 @@ fontsizesumlog = '12px'   # Font size of job summaries and bad job logs
 # HTML styles
 # -----------
 virusfoundstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0; background-color: %s;' % virusfoundcolor
+virusconnerrstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0; background-color: %s;' % virusconnerrcolor
 alwaysfailstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0; background-color: %s;' % alwaysfailcolor
 jobsneedingoprstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
 jobsolderthantimestyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
@@ -195,6 +202,7 @@ jobtablecellstyle = 'text-align: center; padding: 5px;'
 jobtablealwaysfailrowstyle = 'background-color: %s;' % alwaysfailcolor
 jobtablealwaysfailcellstyle = 'text-align: center; background-color: %s;' % alwaysfailcolor
 jobtablevirusfoundcellstyle = 'text-align: center; background-color: %s;' % virusfoundcolor
+jobtablevirusconnerrcellstyle = 'text-align: center; background-color: %s;' % virusconnerrcolor
 summarytablestyle = 'width: 25%; margin-top: 20px; border-collapse: collapse;'
 summarytableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (summarytableheadercolor, summarytableheadertxtcolor)
 summarytableheadercellstyle = 'padding: 6px;'
@@ -218,8 +226,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.44'
-reldate = 'February 2, 2022'
+version = '1.45'
+reldate = 'February 5, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -240,6 +248,12 @@ valid_col_lst = [
     'jobbytes', 'starttime', 'endtime', 'runtime'
     ]
 
+# The text that is printed in the log
+# when the AV daemon cannot be reached
+# ------------------------------------
+avconnfailtext = 'Unable to connect to bacula_antivirus-fd'
+num_virus_conn_errs = 0
+
 # Set some variables for the Summary stats for the special cases of Copy/Migration Control jobs
 # ---------------------------------------------------------------------------------------------
 total_copied_files = total_copied_bytes = total_migrated_files = total_migrated_bytes = 0
@@ -249,7 +263,7 @@ total_copied_files = total_copied_bytes = total_migrated_files = total_migrated_
 doc_opt_str = """
 Usage:
     baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-d <days>]
-                          [-c <client>] [-j <jobname>] [-y <jobtype>] [-x <jobstatus>]
+                          [-a <avemail>] [-c <client>] [-j <jobname>] [-y <jobtype>] [-x <jobstatus>]
                           [--dbtype <dbtype>] [--dbport <dbport>] [--dbhost <dbhost>] [--dbname <dbname>]
                           [--dbuser <dbuser>] [--dbpass <dbpass>]
                           [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
@@ -257,11 +271,12 @@ Usage:
     baculabackupreport.py -v | --version
 
 Options:
-    -e, --email <email>          Email address to send report to
+    -e, --email <email>          Email address to send job report to
     -f, --fromemail <fromemail>  Email address to be set in the From: field of the email
     -s, --server <server>        Name of the Bacula Server [default: Bacula]
     -t, --time <time>            Time to report on in hours [default: 24]
     -d, --days <days>            Days to check for "always failing jobs" [default: 7]
+    -a, --avemail <avemail>      Email address to send separate AV email to. [default --email]
     -c, --client <client>        Client to report on using SQL 'LIKE client' [default: %] (all clients)
     -j, --jobname <jobname>      Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
     -y, --jobtype <jobtype>      Type of job to report on [default: DBRCcMgV] (all job types)
@@ -329,7 +344,7 @@ def print_opt_errors(opt):
         return '\nThe \'' + opt + '\' variable must not be empty.'
     elif opt in {'time', 'days', 'smtpport', 'dbport'}:
         return '\nThe \'' + opt + '\' variable must not be empty and must be an integer.'
-    elif opt in {'email', 'fromemail'}:
+    elif opt in {'email', 'fromemail', 'avemail'}:
         return '\nThe \'' + opt + '\' variable is either empty or it does not look like a valid email address.'
     elif opt == 'dbtype':
         return '\nThe \'' + opt + '\' variable must not be empty, and must be one of: ' + ', '.join(valid_db_lst)
@@ -354,13 +369,15 @@ def db_connect():
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
 
-def pn_job_id(ctrl_jobid, p_or_n):
+def pn_job_id(ctrl_jobid):
     'Return a Previous or New jobid for Copy and Migration Control jobs.'
-    # Given a Copy Ctrl or Migration Ctrl job's jobid, perform a re.sub on
-    # the joblog's job summary block of 20+ lines of text using a search term
-    # of 'Prev' or 'New' as 'p_or_n' and return the previous or new jobid
-    # -----------------------------------------------------------------------
-    return re.sub('.*' + p_or_n + ' Backup JobId: +(.+?)\n.*', '\\1', ctrl_jobid['logtext'], flags = re.DOTALL)
+    # Given a Copy Ctrl or Migration Ctrl job's jobid, perform a re.sub
+    # on the joblog's job summary block of 20+ lines of text and return
+    # the Prev Backup JobId and New Backup JobId as prev, new
+    # -----------------------------------------------------------------
+    prev = re.sub('.*Prev Backup JobId: +(.+?)\n.*', '\\1', ctrl_jobid['logtext'], flags = re.DOTALL)
+    new = re.sub('.*New Backup JobId: +(.+?)\n.*', '\\1', ctrl_jobid['logtext'], flags = re.DOTALL)
+    return prev, new
 
 def ctrl_job_files_bytes(ctrl_jobid):
     'Return SD Files/Bytes Written for Copy/Migration Control jobs.'
@@ -533,7 +550,7 @@ def set_subject_icon():
         else:
             subjecticon = goodjobsicon
     if 'num_virus_jobs' in globals() and num_virus_jobs != 0:
-        subjecticon += ' ' + virusfoundicon + ' '
+        subjecticon += ' ' + virusfoundicon
     if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
         subjecticon += ' (' + jobneedsopricon + ')'
     return subjecticon
@@ -597,6 +614,9 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
 
     if 'virus_dict' in globals() and col == 'type' and jobrow['jobid'] in virus_dict:
         tdo = '<td style="' + jobtablevirusfoundcellstyle + '">'
+
+    if 'virus_connerr_set' in globals() and col == 'type' and jobrow['jobid'] in virus_connerr_set:
+        tdo = '<td style="' + jobtablevirusconnerrcellstyle + '">'
 
     # Center the Client name and Job name?
     # ------------------------------------
@@ -704,21 +724,21 @@ def humanbytes(B):
     elif PB <= B:
        return '{0:.2f} PB'.format(B/PB)
 
-def send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport):
+def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport):
     'Send the email.'
     # Thank you to Aleksandr Varnin for this short and simple to implement solution
     # https://blog.mailtrap.io/sending-emails-in-python-tutorial-with-code-examples
     # -----------------------------------------------------------------------------
     # f-strings require Python version 3.6 or above
     # message = f"""Content-Type: text/html\nMIME-Version: 1.0\nTo: {email}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}"""
-    message = "Content-Type: text/html\nMIME-Version: 1.0\nTo: %s\nFrom: %s\nSubject: %s\n\n%s" % (email, fromemail, subject, msg)
+    message = "Content-Type: text/html\nMIME-Version: 1.0\nTo: %s\nFrom: %s\nSubject: %s\n\n%s" % (to, fromemail, subject, msg)
     try:
         with smtplib.SMTP(smtpserver, smtpport) as server:
             if smtpuser != '' and smtppass != '':
                 server.login(smtpuser, smtppass)
-            server.sendmail(fromemail, email, message)
+            server.sendmail(fromemail, to, message)
         if print_sent == 'yes':
-            print('Email successfully sent')
+            print('Email successfully sent to: ' + to + '\n')
     except (gaierror, ConnectionRefusedError):
         print('Failed to connect to the SMTP server. Bad connection settings?')
         sys.exit(1)
@@ -797,7 +817,8 @@ elif args['--dbtype'] not in valid_db_lst:
 # Need to assign/re-assign args[] vars based on cli vs env vs defaults
 # --------------------------------------------------------------------
 for ced_tup in [
-    ('--time', 'TIME'), ('--days', 'DAYS'), ('--email', 'EMAIL'),
+    ('--time', 'TIME'), ('--days', 'DAYS'),
+    ('--email', 'EMAIL'), ('--avemail', 'AVEMAIL'),
     ('--client', 'CLIENT'), ('--server', 'SERVER'),
     ('--dbtype', 'DBTYPE'), ('--dbport', 'DBPORT'),
     ('--dbhost', 'DBHOST'), ('--dbname', 'DBNAME'),
@@ -825,11 +846,18 @@ jobstatusset = set(args['--jobstatus'])
 if not jobstatusset.issubset(set(all_jobstatus_lst)):
     print(print_opt_errors('jobstatus'))
     usage()
-if args['--email'] is None or '@' not in args['--email']:
+if args['--email'] == None or '@' not in args['--email']:
     print(print_opt_errors('email'))
     usage()
 else:
     email = args['--email']
+if args['--avemail'] == None:
+    avemail = email
+elif '@' not in args['--avemail']:
+    print(print_opt_errors('avemail'))
+    usage()
+else:
+    avemail = args['--avemail']
 if args['--fromemail'] == None:
     fromemail = email
 elif '@' not in args['--fromemail']:
@@ -1101,7 +1129,7 @@ if len(ctrl_jobids) != 0:
     # ------------------------------------------------------------------------
     pn_jobids_dict = {}
     for cji in cji_rows:
-        pn_jobids_dict[str(cji['jobid'])] = (pn_job_id(cji, 'Prev'), pn_job_id(cji, 'New'))
+        pn_jobids_dict[str(cji['jobid'])] = (pn_job_id(cji))
 
     # (**) This is to solve the issue where versions of Bacula
     # community < 13.0 and Bacula Enterprise < 14.0 did not put
@@ -1165,7 +1193,6 @@ if emailsummary != 'none':
         total_verify_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'V'])
         emailsummarydata.append({'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)})
         emailsummarydata.append({'label': 'Total Verify Bytes', 'data': humanbytes(total_verify_bytes)})
-
     summary = '<table style="' + summarytablestyle + '">' \
             + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' + summarytableheadercellstyle + '">Summary</th></tr>'
     counter = 0
@@ -1313,7 +1340,7 @@ if include_pnv_jobs == 'yes':
 # Currently (20220106), virus detection is only possible
 # in Verify, Level=Data jobs and only in Bacula Enterprise
 # I am hoping AV plugin support will be released into the
-# community edition too.
+# Community edition too.
 # --------------------------------------------------------
 if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
     try:
@@ -1332,7 +1359,7 @@ if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
                 INNER JOIN Job ON Log.JobId=Job.JobId \
                 INNER JOIN Client ON Job.ClientId=Client.ClientId \
                 WHERE Log.JobId IN (" + ','.join(vrfy_data_jobids) + ") \
-                AND Log.LogText LIKE '%" + virusfoundtext + "%' \
+                AND (Log.LogText LIKE '%" + virusfoundtext + "%' OR Log.LogText LIKE '%" + avconnfailtext + "%') \
                 ORDER BY JobId DESC, Time ASC;"
         elif dbtype in ('mysql', 'maria'):
             query_str = "SELECT Log.jobid, CAST(Client.name as CHAR(50)) AS name, \
@@ -1341,7 +1368,7 @@ if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
                 INNER JOIN Job ON Log.jobid=Job.jobid \
                 INNER JOIN Client ON Job.clientid=Client.clientid \
                 WHERE Log.jobid IN (" + ','.join(vrfy_data_jobids) + ") \
-                AND Log.logtext LIKE '%" + virusfoundtext + "%' \
+                AND (Log.logtext LIKE '%" + virusfoundtext + "%' OR Log.logText LIKE '%" + avconnfailtext + "%') \
                 ORDER BY jobid DESC, time ASC;"
         elif dbtype == 'sqlite':
             query_str = "SELECT log.jobid, client.name, log.logtext \
@@ -1349,10 +1376,10 @@ if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
                 INNER JOIN job ON log.jobid=job.jobid \
                 INNER JOIN client ON Job.clientid=client.clientid \
                 WHERE log.jobid IN (" + ','.join(vrfy_data_jobids) + ") \
-                AND log.logtext LIKE '%" + virusfoundtext + "%' \
+                AND (log.logtext LIKE '%" + virusfoundtext + "%' OR log.logtext LIKE '%" + avconnfailtext + "%') \
                 ORDER BY log.jobid DESC, time ASC;"
         cur.execute(query_str)
-        virus_found_rows = cur.fetchall()
+        virus_info_rows = cur.fetchall()
     except sqlite3.OperationalError:
         print('\nSQLite3 Database locked while fetching verify job info for AV tests.')
         print('Is a Bacula Job running?')
@@ -1375,24 +1402,34 @@ if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
     # send in a separate email.
     # ------------------------------------------------------
     #
-    # Example ClamAV output in Bacula job log:
+    # Example ClamAV output in Bacula job log when a virus is detected:
     # centos7-fd JobId 1376: Error: /home/viruses/Stealth Virus detected stream: Win.Trojan.LBBCV-4 FOUND
     # centos7-fd JobId 1376: Error: /home/viruses/Hidenowt Virus detected stream: Win.Trojan.Hidenowt-1 FOUND
+    #
+    # Example Bacula log error message when the AV service cannot be contacted:
+    # Unable to connect to bacula_antivirus-fd on 127.0.0.1:3310. ERR=Connection refused
     # -------------------------------------------------------------------------------------------------------
     virus_dict = {}
-    num_virus_files = len(virus_found_rows)
+    num_virus_files = 0
     virus_client_set = set()
-    for row in virus_found_rows:
+    virus_connerr_set = set()
+    for row in virus_info_rows:
         client = row['name']
-        virus_client_set.add(client)
-        virus = re.sub('.* stream: (.*) FOUND.*\n.*', '\\1', row['logtext'])
-        file = re.sub('.* Error: (.*) ' + virusfoundtext + '.*\n.*', '\\1', row['logtext'])
-        if row['jobid'] not in virus_dict:
-            virus_dict[row['jobid']] = [(client, virus, file)]
-        else:
-            virus_dict[row['jobid']].append((client, virus, file))
+        if virusfoundtext in row['logtext']:
+            num_virus_files += 1
+            virus_client_set.add(client)
+            virus = re.sub('.* stream: (.*) FOUND.*\n.*', '\\1', row['logtext'])
+            file = re.sub('.* Error: (.*) ' + virusfoundtext + '.*\n.*', '\\1', row['logtext'])
+            if row['jobid'] not in virus_dict:
+                virus_dict[row['jobid']] = [(client, virus, file)]
+            else:
+                virus_dict[row['jobid']].append((client, virus, file))
+        elif avconnfailtext in row['logtext']:
+            num_virus_conn_errs += 1
+            virus_connerr_set.add(row['jobid'])
     num_virus_jobs = len(virus_dict)
     num_virus_clients = len(virus_client_set)
+    num_virus_conerr_jobs = len(virus_connerr_set)
 
 # Query the database to find Running jobs. These jobs
 # will be checked to see if they are waiting on media
@@ -1555,7 +1592,9 @@ if 'virus_dict' in globals() and checkforvirus == 'yes' and len(virus_set) != 0 
     + str(len(virus_dict)) + ' ' + ('Job' if len(virus_dict) == 1 else 'Jobs') + ' on ' \
     + str(num_virus_clients) + ' ' + ('Client' if num_virus_clients == 1 else 'Clients') + ' (' \
     + str(num_virus_files) + ' ' + ('File ' if num_virus_files == 1 else 'Files ') + 'Infected)'
-    send_email(email, fromemail, virusemailsubject, virussummaries, smtpuser, smtppass, smtpserver, smtpport)
+    if print_subject == 'yes':
+       print('Virus Report Subject: ' + re.sub('=.*=\)? (.*)$', '\\1', virusemailsubject))
+    send_email(avemail, fromemail, virusemailsubject, virussummaries, smtpuser, smtppass, smtpserver, smtpport)
 
 # Do we append all job summaries?
 # -------------------------------
@@ -1660,6 +1699,15 @@ if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
         + 'The ' + str(len(always_fail_jobs)) + ' ' + ('jobs' if len(always_fail_jobs) > 1 else 'job') + ' who\'s ' \
         + alwaysfailcolumn_str + ' has this background color ' + ('have' if len(always_fail_jobs) > 1 else 'has') \
         + ' always failed in the past ' + days + ' ' + ('days' if int(days) > 1 else 'day') + '.</p><br>\n'
+
+# Were there any errors connecting to the AV service?
+# ---------------------------------------------------
+if checkforvirus == 'yes' and num_virus_conn_errs != 0:
+    msg += '<p style="' + virusconnerrstyle + '">' \
+        + 'There ' + ('were ' if num_virus_conn_errs > 1 else 'was ') \
+        + str(num_virus_conn_errs) + (' errors' if num_virus_conn_errs > 1 else ' error') \
+        + ' reported when connecting to the AntiVirus service in ' + str(len(virus_connerr_set)) \
+        + ' Verify/AV Scan ' + ('jobs' if len(virus_connerr_set) > 1 else 'job') + '!</p><br>\n'
 
 # Do we have any Running jobs that are really just
 # sitting there waiting on media, possibly holding
@@ -1770,8 +1818,8 @@ if runningorcreated != 0 and addsubjectrunningorcreated == 'yes':
 else:
     runningorcreatedsubject = ''
 
-# Create the Subject
-# ------------------
+# Create the Subject for the Job report and summary
+# -------------------------------------------------
 subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
         + str(time) + ' ' + hour + ': ' + str(numbadjobs) + ' bad, ' \
         + str(jobswitherrors) + ' with errors, for ' + clientstr + ', ' \
@@ -1779,7 +1827,7 @@ subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
 if addsubjecticon == 'yes':
     subject = set_subject_icon() + ' ' + subject
 if print_subject == 'yes':
-    print(re.sub('=.*=\)? (.*)$', '\\1', subject))
+    print('Job Report Subject: ' + re.sub('=.*=\)? (.*)$', '\\1', subject))
 
 # Build the final message and send the email
 # ------------------------------------------

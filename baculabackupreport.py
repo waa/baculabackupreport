@@ -226,8 +226,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.45'
-reldate = 'February 5, 2022'
+version = '1.46'
+reldate = 'February 6, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -397,6 +397,44 @@ def v_job_id(vrfy_jobid):
     # -------------------------------------------------------------
     return re.sub('.*Verify JobId: +(.+?)\n.*', '\\1', vrfy_jobid['logtext'], flags = re.DOTALL)
 
+def get_verify_client_name(vrfy_jobid):
+    'Return the Client name of a jobid that was verified'
+    # Given a Verify JobId, perform a SQL query to return the Client's name
+    # ---------------------------------------------------------------------
+    try:
+        db_connect()
+        if dbtype == 'pgsql':
+            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
+                FROM Job \
+                INNER JOIN Client on Job.ClientID=Client.ClientID \
+                WHERE JobId='" + v_jobids_dict[str(vrfy_jobid)] + "';"
+        elif dbtype in ('mysql', 'maria'):
+            query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
+                CAST(Job.name as CHAR(50)) AS jobname \
+                FROM Job \
+                INNER JOIN Client on Job.clientid=Client.clientid \
+                WHERE jobid='" + v_jobids_dict[str(vrfy_jobid)] + "';"
+        elif dbtype == 'sqlite':
+            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
+                FROM Job \
+                INNER JOIN Client on Job.clientid=Client.clientid \
+                WHERE JobId='" + v_jobids_dict[str(vrfy_jobid)] + "';"
+        cur.execute(query_str)
+        row = cur.fetchone()
+    except sqlite3.OperationalError:
+            print('\nSQLite3 Database locked while fetching all jobs.')
+            print('Is a Bacula Job running?')
+            print('Exiting.\n')
+            sys.exit(1)
+    except:
+        print('Problem communicating with database \'' + dbname + '\' while fetching all jobs.\n')
+        sys.exit(1)
+    finally:
+        if (conn):
+            cur.close()
+            conn.close()
+    return row['jobid'], row['client'], row['jobname']
+
 def copied_ids(jobid):
     'For a given Backup or Migration job, return a list of jobids that it was copied to.'
     copied_jobids=[]
@@ -514,7 +552,7 @@ def translate_job_type(jobtype, jobid, priorjobid):
 
     if jobtype == 'V':
         if str(jobid) in v_jobids_dict.keys():
-            if jobid in virus_dict:
+            if 'virus_dict' in globals() and jobid in virus_dict:
                 virus_found_str = ' (' + str(len(virus_dict[jobid])) + ' ' + virusfoundbodyicon + ')'
             else:
                 virus_found_str = ''
@@ -1046,8 +1084,7 @@ vrfy_jobids = [str(r['jobid']) for r in alljobrows if r['type'] == 'V']
 # This next one is special. It
 # is only used for the AV tests
 # -----------------------------
-if checkforvirus == 'yes':
-    vrfy_data_jobids = [str(r['jobid']) for r in alljobrows if r['type'] == 'V' and r['level'] == 'A']
+vrfy_data_jobids = [str(r['jobid']) for r in alljobrows if r['type'] == 'V' and r['level'] == 'A']
 
 # Get a list of jobs that have always failed for the
 # past 'days' days so that we can display a column
@@ -1354,13 +1391,13 @@ if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
             # to finally obtain the Client.Name from the
             # Client table.
             # ----------------------------------------------
-            query_str = "SELECT Log.JobId, Client.Name, Log.LogText \
+            query_str = "SELECT Job.Name AS JobName, Log.JobId, Client.Name, Log.LogText \
                 FROM Log \
                 INNER JOIN Job ON Log.JobId=Job.JobId \
                 INNER JOIN Client ON Job.ClientId=Client.ClientId \
                 WHERE Log.JobId IN (" + ','.join(vrfy_data_jobids) + ") \
                 AND (Log.LogText LIKE '%" + virusfoundtext + "%' OR Log.LogText LIKE '%" + avconnfailtext + "%') \
-                ORDER BY JobId DESC, Time ASC;"
+                ORDER BY Log.JobId DESC, Time ASC;"
         elif dbtype in ('mysql', 'maria'):
             query_str = "SELECT Log.jobid, CAST(Client.name as CHAR(50)) AS name, \
                 CAST(Log.logtext as CHAR(1000)) AS logtext \
@@ -1402,28 +1439,31 @@ if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
     # send in a separate email.
     # ------------------------------------------------------
     #
-    # Example ClamAV output in Bacula job log when a virus is detected:
-    # centos7-fd JobId 1376: Error: /home/viruses/Stealth Virus detected stream: Win.Trojan.LBBCV-4 FOUND
-    # centos7-fd JobId 1376: Error: /home/viruses/Hidenowt Virus detected stream: Win.Trojan.Hidenowt-1 FOUND
+    # Example ClamAV outputs in Bacula job log when a virus is detected:
+    # "centos7-fd JobId 1376: Error: /home/viruses/Stealth Virus detected stream: Win.Trojan.LBBCV-4 FOUND"
+    # "centos7-fd JobId 1376: Error: /home/viruses/Hidenowt Virus detected stream: Win.Trojan.Hidenowt-1 FOUND"
     #
     # Example Bacula log error message when the AV service cannot be contacted:
-    # Unable to connect to bacula_antivirus-fd on 127.0.0.1:3310. ERR=Connection refused
-    # -------------------------------------------------------------------------------------------------------
+    # "Unable to connect to bacula_antivirus-fd on 127.0.0.1:3310. ERR=Connection refused"
+    # ---------------------------------------------------------------------------------------------------------
     virus_dict = {}
     num_virus_files = 0
     virus_client_set = set()
     virus_connerr_set = set()
     for row in virus_info_rows:
-        client = row['name']
+        verified_job_info = get_verify_client_name(row['jobid'])
+        verified_jobid = verified_job_info[0]
+        verified_client = verified_job_info[1]
+        verified_job = verified_job_info[2]
         if virusfoundtext in row['logtext']:
             num_virus_files += 1
-            virus_client_set.add(client)
+            virus_client_set.add(verified_client)
             virus = re.sub('.* stream: (.*) FOUND.*\n.*', '\\1', row['logtext'])
             file = re.sub('.* Error: (.*) ' + virusfoundtext + '.*\n.*', '\\1', row['logtext'])
             if row['jobid'] not in virus_dict:
-                virus_dict[row['jobid']] = [(client, virus, file)]
+                virus_dict[row['jobid']] = [(verified_client, virus, file, verified_jobid, verified_job, row['jobname'])]
             else:
-                virus_dict[row['jobid']].append((client, virus, file))
+                virus_dict[row['jobid']].append((verified_client, virus, file, verified_jobid, verified_job, row['jobname']))
         elif avconnfailtext in row['logtext']:
             num_virus_conn_errs += 1
             virus_connerr_set.add(row['jobid'])
@@ -1561,8 +1601,13 @@ if 'virus_dict' in globals() and checkforvirus == 'yes' and \
     virussummaries = ''
     for virusjobid in virus_dict:
         job_virus_set = set()
-        virussummaries += '--------------------\nJobId: ' + str(virusjobid) \
-        + '\nClient: ' + str(virus_dict[virusjobid][1][0]) + '\n--------------------\n'
+        virussummaries += '--------------------------------' \
+        + '\nVerify JobId:    ' + str(virusjobid) \
+        + '\nVerify Job:      ' + virus_dict[virusjobid][1][5] \
+        + '\nVerified JobId:  ' + str(virus_dict[virusjobid][1][3]) \
+        + '\nVerified Job:    ' + virus_dict[virusjobid][1][4] \
+        + '\nVerified Client: ' + str(virus_dict[virusjobid][1][0]) \
+        + '\n--------------------------------\n'
         for virus_and_file in virus_dict[virusjobid]:
             job_virus_set.add(virus_and_file[1])
         for virus in job_virus_set:
@@ -1586,15 +1631,18 @@ else:
 
 # Do we email the virus summary report in a separate email?
 # ---------------------------------------------------------
-if 'virus_dict' in globals() and checkforvirus == 'yes' and len(virus_set) != 0 and emailvirussummary == 'yes':
-    virusemailsubject = server + ' - Virus Report: ' + str(len(virus_set)) + ' ' \
+if 'virus_dict' in globals() and checkforvirus == 'yes' and len(virus_set) != 0:
+    # We build this subject first, as it will also be used in the warning banner
+    # --------------------------------------------------------------------------
+    virusemailsubject = server + ' - Virus Report: ' + str(len(virus_set)) + ' Unique ' \
     + ('Virus ' if len(virus_set) == 1 else 'Viruses') + ' Found in ' \
     + str(len(virus_dict)) + ' ' + ('Job' if len(virus_dict) == 1 else 'Jobs') + ' on ' \
     + str(num_virus_clients) + ' ' + ('Client' if num_virus_clients == 1 else 'Clients') + ' (' \
     + str(num_virus_files) + ' ' + ('File ' if num_virus_files == 1 else 'Files ') + 'Infected)'
     if print_subject == 'yes':
-       print('Virus Report Subject: ' + re.sub('=.*=\)? (.*)$', '\\1', virusemailsubject))
-    send_email(avemail, fromemail, virusemailsubject, virussummaries, smtpuser, smtppass, smtpserver, smtpport)
+        print('Virus Report Subject: ' + re.sub('=.*=\)? (.*)$', '\\1', virusemailsubject))
+    if emailvirussummary == 'yes':
+        send_email(avemail, fromemail, virusemailsubject, virussummaries, smtpuser, smtppass, smtpserver, smtpport)
 
 # Do we append all job summaries?
 # -------------------------------
@@ -1687,10 +1735,8 @@ msg = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" cont
 # Are we going to be highlighting Verify Jobs where virus(s) were found?
 # ----------------------------------------------------------------------
 if 'num_virus_jobs' in globals() and checkforvirus == 'yes' and num_virus_jobs != 0:
-    msg += '<p style="' + virusfoundstyle + '">' \
-        + 'The ' + str(num_virus_jobs) + ' Verify ' + ('jobs' if num_virus_jobs > 1 else 'job') + ' who\'s ' \
-        + ' Type cell has this background color ' + ('have' if num_virus_jobs > 1 else 'has') \
-        + ' detected at least one virus!</p><br>\n'
+   msg += '<p style="' + virusfoundstyle + '">' \
+       + 'There were' + re.sub('^' + server + ' - Virus Report:(.*$)', '\\1', virusemailsubject) + '!</p><br>\n'
 
 # Are we going to be highlighting Jobs that are always failing?
 # -------------------------------------------------------------

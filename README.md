@@ -101,5 +101,5 @@ Shows the Antivirus features. Starting with Bacula Enterprise Edition 14.0.2, th
 ![AVFeatures-20220206_163456](https://user-images.githubusercontent.com/108133/152706741-cba5cc49-58ae-4f37-b7cc-6ccb599f38c4.png)
 
 #### Screenshot ten:
-If enabled, a new virus summary can be appended to the email, and you can also send a separate "Virus Report" email to a different '-a <avemail>' email address. The default is to send the Virus report to the same email address as the main report. The image below shows a sample of the Virus Report email. The text in the body of the Virus Report email is the same text that would be appended to the jobs report if that feature is enabled.
+If enabled, a new virus summary can be appended to the job report email, and you can also send a separate "Virus Report" email to a different '-a <avemail>' email address. The default is to send the Virus Report to the same email address as the jobs report. The image below shows a sample of the Virus Report email. The text in the body of the Virus Report email is the same text that would be appended to the jobs report if that feature is also enabled.
 ![AVEmailReport-20220206_165223](https://user-images.githubusercontent.com/108133/152706957-f2838179-cb91-4e31-b360-80fe7bee44c0.png)

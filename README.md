@@ -1,7 +1,6 @@
-# bacula
-## Bacula related scripts
+# baculabackupreport.py
 
-- **baculabackupreport.py:** Sends an HTML email report of jobs that have run in the past x hours. Can filter on Client, Job Name, Job Type, and Job Status  (-c client-fd, -j jobname, -y jobtype -x jobstatus).
+- Sends an HTML email report of jobs that have run in the past x hours. Can filter on Client, Job Name, Job Type, and Job Status (-c client-fd, -j jobname, -y jobtype -x jobstatus).
 
 ```
 Usage:

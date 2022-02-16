@@ -25,7 +25,8 @@
 # administrator? I say YES! Would I appreciate feedback? YES!
 #
 # If you use this script every day and think it is worth anything, I am
-# always grateful to receive donations of any size with Venmo: @waa2k
+# always grateful to receive donations of any size with Venmo: @waa2k, or
+# or PayPal: @billarlofski
 #
 # The latest version of this script may be found at: https://github.com/waa
 #
@@ -78,9 +79,10 @@ boldstatus = 'yes'        # Bold the Status in HTML emails?
 starbadjobids = 'no'      # Wrap bad Jobs jobids with asterisks "*"?
 sortorder = 'DESC'        # Which direction to sort jobids by? (ASC or DESC)
 showcopiedto = 'yes'      # Show the jobids that Migrated/Backup jobs have been copied to
-print_subject = 'no'      # Print (stdout) the subject of the email being sent
-print_sent = 'no'         # Print (stdout) when the email is successfully sent
+print_subject = 'yes'     # Print (stdout) the subject of the email being sent
+print_sent = 'yes'        # Print (stdout) when the email is successfully sent
 flagrescheduled = 'yes'   # Should we flag jobs which had failed but succeeded after having been rescheduled?
+show_db_stats = 'yes'     # Include a row at the top of the Jobs table showing database statistics?
 include_pnv_jobs = 'yes'  # Include copied, migrated, verified jobs who's endtime is older than "-t hours"?
                           # NOTE:
                           # - Copied/Migrated jobs inherit the endtime of the original backup job which
@@ -194,6 +196,7 @@ jobsneedingoprstyle = 'display: inline-block; font-size: 13px; font-weight: bold
 jobsolderthantimestyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
 rescheduledjobsstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
 jobtablestyle = 'width: 100%; border-collapse: collapse;'
+dbstatstableheaderstyle = 'width: 40%; border-collapse: collapse;'
 jobtableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (jobtableheadercolor, jobtableheadertxtcolor)
 jobtableheadercellstyle = 'padding: 6px'
 jobtablerowevenstyle = 'background-color: %s; color: %s;' % (jobtablerowevencolor, jobtableroweventxtcolor)
@@ -226,8 +229,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.46'
-reldate = 'February 6, 2022'
+version = '1.47'
+reldate = 'February 15, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -1081,9 +1084,8 @@ runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in 
 ctrl_jobids = [str(r['jobid']) for r in alljobrows if r['type'] in ('c', 'g')]
 vrfy_jobids = [str(r['jobid']) for r in alljobrows if r['type'] == 'V']
 
-# This next one is special. It
-# is only used for the AV tests
-# -----------------------------
+# This next one is special. It is only used for the AV tests
+# ----------------------------------------------------------
 vrfy_data_jobids = [str(r['jobid']) for r in alljobrows if r['type'] == 'V' and r['level'] == 'A']
 
 # Get a list of jobs that have always failed for the
@@ -1184,7 +1186,7 @@ if len(ctrl_jobids) != 0:
             total_migrated_files += int(files)
             total_migrated_bytes += int(bytes)
 
-# Email the summary table?
+# Include the summary table in the main job report?
 # We need to build this table now to prevent any Copy/Migrate/Verify
 # jobs that are older than "-t hours" which might get pulled into
 # the alljobrows list from having their files/bytes included in the
@@ -1433,13 +1435,14 @@ if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
     # Now we need the number of jobs with viruses and number
     # of files with viruses. We also build a dictionary with
     # JobIds as keys with the values being tuples containing
-    # (client, virus, file) for each file with a virus found
-    # by that job. This dict will be used later if/when we
-    # build the virus report to append to the email and/or
-    # send in a separate email.
+    # (verified_client, virus, file, verified_jobid,
+    # verified_job, verified job name)) for each file with a
+    # virus found by that job. This dict will be used later
+    # if/when we build the virus report to append to the
+    # email and/or send in a separate email.
     # ------------------------------------------------------
     #
-    # Example ClamAV outputs in Bacula job log when a virus is detected:
+    # Example ClamAV outputs in Bacula Verify job log when a virus is detected:
     # "centos7-fd JobId 1376: Error: /home/viruses/Stealth Virus detected stream: Win.Trojan.LBBCV-4 FOUND"
     # "centos7-fd JobId 1376: Error: /home/viruses/Hidenowt Virus detected stream: Win.Trojan.Hidenowt-1 FOUND"
     #
@@ -1611,7 +1614,7 @@ if 'virus_dict' in globals() and checkforvirus == 'yes' and \
         for virus_and_file in virus_dict[virusjobid]:
             job_virus_set.add(virus_and_file[1])
         for virus in job_virus_set:
-            virussummaries += '\n  Virus: ' + virus + '\n    Files:\n'
+            virussummaries += '\n  Virus: ' + virus + '\n  Files:\n'
             for virus_and_file in virus_dict[virusjobid]:
                 if virus_and_file[1] == virus:
                     virussummaries += '      ' + virus_and_file[2] + '\n'
@@ -1770,8 +1773,8 @@ if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
 # Do we have any copied or migrated jobs that have an
 # endtime outside of the "-t hours" setting? If yes,
 # then add a notice explaining that their endtime will
-# be preceded by an asterisk so they may be quickly identified.
-# -------------------------------------------------------------
+# be preceded by an asterisk so they may be identified.
+# -----------------------------------------------------
 if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
     msg += '<p style="' + jobsolderthantimestyle + '">The ' + str(len(pnv_jobids_lst)) \
         + ' Copied/Migrated/Verified ' + ('jobs' if len(pnv_jobids_lst) > 1 else 'job') + ' older than ' \
@@ -1788,18 +1791,111 @@ if flagrescheduled == 'yes' and len(rescheduledjobids) != 0:
         + ' represents the number of times ' + ('they' if len(set(rescheduledjobids)) > 1 else 'it') \
         + (' were' if len(set(rescheduledjobids)) > 1 else ' was') + ' rescheduled.</p><br>\n'
 
-# Create the table header from the columns in
-# the c2sl list in the order they are defined
-# -------------------------------------------
+# Do we display the database stats above
+# the main jobs report's table header?
+# --------------------------------------
+if show_db_stats == 'yes':
+    try:
+        db_connect()
+        query_str = "SELECT COUNT(*) FROM Client;"
+        cur.execute(query_str)
+        num_clients_qry = cur.fetchone()
+    except sqlite3.OperationalError:
+        print('\nSQLite3 Database locked while fetching verify job info.')
+        print('Is a Bacula Job running?')
+        print('Exiting.\n')
+        sys.exit(1)
+    except:
+        print('\nProblem communicating with database \'' + dbname + '\' while fetching total clients.\n')
+        sys.exit(1)
+    finally:
+        if (conn):
+            cur.close()
+            conn.close()
+
+    # Assign the num_clients variable based on db type
+    # ------------------------------------------------
+    if dbtype in ('mysql', 'maria'):
+        num_clients = num_clients_qry['COUNT(*)']
+    else:
+        num_clients = num_clients_qry[0]
+
+    # Get the total number of Jobs (B, C, M), total bytes/jobtype, total numner of files/jobtype
+    # ------------------------------------------------------------------------------------------
+    try:
+        db_connect()
+        query_str = "SELECT COUNT(*) AS num_jobs, SUM(JobFiles) AS num_files, SUM(JobBytes) AS num_bytes \
+            FROM Job WHERE Type IN ('B','C','M') AND JobStatus = 'T';"
+        cur.execute(query_str)
+        job_qry = cur.fetchone()
+    except sqlite3.OperationalError:
+        print('\nSQLite3 Database locked while fetching verify job info.')
+        print('Is a Bacula Job running?')
+        print('Exiting.\n')
+        sys.exit(1)
+    except:
+        print('\nProblem communicating with database \'' + dbname + '\' while fetching total clients.\n')
+        sys.exit(1)
+    finally:
+        if (conn):
+            cur.close()
+            conn.close()
+
+    # Assign the num_job, num_files, and num_bytes variables
+    # ------------------------------------------------------
+    num_jobs = job_qry['num_jobs']
+    num_files = job_qry['num_files']
+    num_bytes = job_qry['num_bytes']
+
+    # Get the total volumes (of any type) in use
+    # ------------------------------------------
+    try:
+        db_connect()
+        query_str = "SELECT COUNT(*) FROM Media;"
+        cur.execute(query_str)
+        num_vols_qry = cur.fetchone()
+    except sqlite3.OperationalError:
+        print('\nSQLite3 Database locked while fetching verify job info.')
+        print('Is a Bacula Job running?')
+        print('Exiting.\n')
+        sys.exit(1)
+    except:
+        print('\nProblem communicating with database \'' + dbname + '\' while fetching total clients.\n')
+        sys.exit(1)
+    finally:
+        if (conn):
+            cur.close()
+            conn.close()
+
+    # Assign the num_vols variable based on db type
+    # ---------------------------------------------
+    if dbtype in ('mysql', 'maria'):
+        num_vols = num_vols_qry['COUNT(*)']
+    else:
+        num_vols = num_vols_qry[0]
+
+    msg += '<table style="' + jobtablestyle + '"><tr style="' + jobtableheaderstyle + '">\n' \
+        + '<td><table style="' + dbstatstableheaderstyle + '"><tr style="' + jobtableheaderstyle + '">\n' \
+        + '<td align="left"><b>CATALOG TOTALS</b></td>\n' \
+        + '<td align="left"><b>Clients: </b>' + str('{:,}'.format(num_clients)) + '</td>\n' \
+        + '<td align="left"><b>Jobs: </b>' + str('{:,}'.format(num_jobs)) + '</td>\n' \
+        + '<td align="left"><b>Files: </b>' + str('{:,}'.format(num_files)) + '</td>\n' \
+        + '<td align="left"><b>Bytes: </b>' + str(humanbytes(num_bytes)) + '</td>\n' \
+        + '<td align="left"><b>Media: </b>' + str('{:,}'.format(num_vols)) + '</td>\n' \
+        + '</tr></table></td></tr></table>\n'
+
+# Create the main job table header from the columns
+# in the c2sl list in the order they are defined
+# -------------------------------------------------
 msg += '<table style="' + jobtablestyle + '">' \
     + '<tr style="' + jobtableheaderstyle + '">'
 for colname in c2sl:
     msg += col_hdr_dict[colname]
 msg += '</tr>\n'
 
-# Build the jobs table from the columns in
+# Build the main jobs table from the columns in
 # the c2sl list in the order they are defined
-# -------------------------------------------
+# ---------------------------------------------
 counter = 0
 for jobrow in alljobrows:
     # If this job is always failing, set the alwaysfailjob variable

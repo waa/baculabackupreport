@@ -196,7 +196,7 @@ jobsneedingoprstyle = 'display: inline-block; font-size: 13px; font-weight: bold
 jobsolderthantimestyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
 rescheduledjobsstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
 jobtablestyle = 'width: 100%; border-collapse: collapse;'
-dbstatstableheaderstyle = 'width: 40%; border-collapse: collapse;'
+dbstatstableheaderstyle = 'width: 35%; border-collapse: collapse;'
 jobtableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (jobtableheadercolor, jobtableheadertxtcolor)
 jobtableheadercellstyle = 'padding: 6px'
 jobtablerowevenstyle = 'background-color: %s; color: %s;' % (jobtablerowevencolor, jobtableroweventxtcolor)
@@ -229,8 +229,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.47'
-reldate = 'February 15, 2022'
+version = '1.48'
+reldate = 'March 1, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -372,6 +372,34 @@ def db_connect():
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
 
+def db_query(query_str, query, one_or_all=None):
+    'Query the database with the query string provided, test about what is being queried, and an optional "one" string'
+    try:
+        cur.execute(query_str)
+        # This prevents dealing with nested lists
+        # when we know we have only one row returned
+        # ------------------------------------------
+        if one_or_all == 'one':
+            rows = cur.fetchone()
+        else:
+            rows = cur.fetchall()
+
+    # TODO: Add all possible exceptions for each of the possible
+    # returns from the db modules so we can cleanly exit on errors
+    # ------------------------------------------------------------
+    # https://kb.objectrocket.com/postgresql/python-error-handling-with-the-psycopg2-postgresql-adapter-645#complete+list+of+the+psycopg2+exception+classes
+    # With the database not running, I found:
+    # psycopg2.OperationalError: could not connect to server: Connection refused
+    except sqlite3.OperationalError:
+            print('\nSQLite3 Database locked while fetching all jobs.')
+            print('Is a Bacula Job running?')
+            print('Exiting.\n')
+            sys.exit(1)
+    except:
+        print('Problem communicating with database \'' + dbname + '\' while fetching ' + query + '.\n')
+        sys.exit(1)
+    return rows
+
 def pn_job_id(ctrl_jobid):
     'Return a Previous or New jobid for Copy and Migration Control jobs.'
     # Given a Copy Ctrl or Migration Ctrl job's jobid, perform a re.sub
@@ -404,39 +432,25 @@ def get_verify_client_name(vrfy_jobid):
     'Return the Client name of a jobid that was verified'
     # Given a Verify JobId, perform a SQL query to return the Client's name
     # ---------------------------------------------------------------------
-    try:
-        db_connect()
-        if dbtype == 'pgsql':
-            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
-                FROM Job \
-                INNER JOIN Client on Job.ClientID=Client.ClientID \
-                WHERE JobId='" + v_jobids_dict[str(vrfy_jobid)] + "';"
-        elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
-                CAST(Job.name as CHAR(50)) AS jobname \
-                FROM Job \
-                INNER JOIN Client on Job.clientid=Client.clientid \
-                WHERE jobid='" + v_jobids_dict[str(vrfy_jobid)] + "';"
-        elif dbtype == 'sqlite':
-            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
-                FROM Job \
-                INNER JOIN Client on Job.clientid=Client.clientid \
-                WHERE JobId='" + v_jobids_dict[str(vrfy_jobid)] + "';"
-        cur.execute(query_str)
-        row = cur.fetchone()
-    except sqlite3.OperationalError:
-            print('\nSQLite3 Database locked while fetching all jobs.')
-            print('Is a Bacula Job running?')
-            print('Exiting.\n')
-            sys.exit(1)
-    except:
-        print('Problem communicating with database \'' + dbname + '\' while fetching all jobs.\n')
-        sys.exit(1)
-    finally:
-        if (conn):
-            cur.close()
-            conn.close()
-    return row['jobid'], row['client'], row['jobname']
+    if dbtype == 'pgsql':
+        query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
+            FROM Job \
+            INNER JOIN Client on Job.ClientID=Client.ClientID \
+            WHERE JobId='" + v_jobids_dict[str(vrfy_jobid)] + "';"
+    elif dbtype in ('mysql', 'maria'):
+        query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
+            CAST(Job.name as CHAR(50)) AS jobname \
+            FROM Job \
+            INNER JOIN Client on Job.clientid=Client.clientid \
+            WHERE jobid='" + v_jobids_dict[str(vrfy_jobid)] + "';"
+    elif dbtype == 'sqlite':
+        query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
+            FROM Job \
+            INNER JOIN Client on Job.clientid=Client.clientid \
+            WHERE JobId='" + v_jobids_dict[str(vrfy_jobid)] + "';"
+    row = db_query(query_str, 'the Client name of a jobid that was verified')
+    # return row['jobid'], row['client'], row['jobname']
+    return row[0][0], row[0][1], row[0][2]
 
 def copied_ids(jobid):
     'For a given Backup or Migration job, return a list of jobids that it was copied to.'
@@ -971,65 +985,56 @@ jobname = '%' if not args['--jobname'] else args['--jobname']
 smtpuser = '' if args['--smtpuser'] == None else args['--smtpuser']
 smtppass = '' if args['--smtppass'] == None else args['--smtppass']
 
-# Connect to database and query for all
-# matching jobs in the past 'time' hours
-# --------------------------------------
-try:
-    db_connect()
-    if dbtype == 'pgsql':
-        query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
-            JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
-            PriorJobId, AGE(EndTime, StartTime) AS RunTime \
-            FROM Job \
-            INNER JOIN Client on Job.ClientID=Client.ClientID \
-            WHERE (EndTime >= CURRENT_TIMESTAMP(2) - cast('" + time + " HOUR' as INTERVAL) \
-            OR JobStatus IN ('R', 'C')) \
-            AND Client.Name LIKE '" + client + "' \
-            AND Job.Name LIKE '" + jobname + "' \
-            AND Type IN ('" + "','".join(jobtypeset) + "') \
-            AND JobStatus IN ('" + "','".join(jobstatusset) + "') \
-            ORDER BY jobid " + sortorder + ";"
-    elif dbtype in ('mysql', 'maria'):
-        query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
-            CAST(Job.name as CHAR(50)) AS jobname, CAST(jobstatus as CHAR(1)) AS jobstatus, \
-            joberrors, CAST(type as CHAR(1)) AS type, CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
-            starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime \
-            FROM Job \
-            INNER JOIN Client on Job.clientid=Client.clientid \
-            WHERE (endtime >= DATE_ADD(NOW(), INTERVAL -" + time + " HOUR) \
-            OR jobstatus IN ('R','C')) \
-            AND Client.Name LIKE '" + client + "' \
-            AND Job.Name LIKE '" + jobname + "' \
-            AND type IN ('" + "','".join(jobtypeset) + "') \
-            AND jobstatus IN ('" + "','".join(jobstatusset) + "') \
-            ORDER BY jobid " + sortorder + ";"
-    elif dbtype == 'sqlite':
-        query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
-            JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
-            PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime \
-            FROM Job \
-            INNER JOIN Client on Job.clientid=Client.clientid \
-            WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + time + " hours') \
-            OR jobstatus IN ('R','C') \
-            AND Client.Name LIKE '" + client + "' \
-            AND Job.Name LIKE '" + jobname + "' \
-            AND Type IN ('" + "','".join(jobtypeset) + "') \
-            AND JobStatus IN ('" + "','".join(jobstatusset) + "') \
-            ORDER BY jobid " + sortorder + ";"
-    cur.execute(query_str)
-    alljobrows = cur.fetchall()
-except sqlite3.OperationalError:
-        print('\nSQLite3 Database locked while fetching all jobs.')
-        print('Is a Bacula Job running?')
-        print('Exiting.\n')
-        sys.exit(1)
-except:
-    print('Problem communicating with database \'' + dbname + '\' while fetching all jobs.\n')
-    sys.exit(1)
-finally:
-    if (conn):
-        cur.close()
-        conn.close()
+# Make the initial connection to the specified
+# database, keep open until all queries are done
+# ----------------------------------------------
+db_connect()
+
+# Create the query_str to send to the db_query() function
+# to query for all matching jobs in the past 'time' hours
+# with all other command line filters applied
+# -------------------------------------------------------
+if dbtype == 'pgsql':
+    query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
+        JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
+        PriorJobId, AGE(EndTime, StartTime) AS RunTime \
+        FROM Job \
+        INNER JOIN Client on Job.ClientID=Client.ClientID \
+        WHERE (EndTime >= CURRENT_TIMESTAMP(2) - cast('" + time + " HOUR' as INTERVAL) \
+        OR JobStatus IN ('R', 'C')) \
+        AND Client.Name LIKE '" + client + "' \
+        AND Job.Name LIKE '" + jobname + "' \
+        AND Type IN ('" + "','".join(jobtypeset) + "') \
+        AND JobStatus IN ('" + "','".join(jobstatusset) + "') \
+        ORDER BY jobid " + sortorder + ";"
+elif dbtype in ('mysql', 'maria'):
+    query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
+        CAST(Job.name as CHAR(50)) AS jobname, CAST(jobstatus as CHAR(1)) AS jobstatus, \
+        joberrors, CAST(type as CHAR(1)) AS type, CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
+        starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime \
+        FROM Job \
+        INNER JOIN Client on Job.clientid=Client.clientid \
+        WHERE (endtime >= DATE_ADD(NOW(), INTERVAL -" + time + " HOUR) \
+        OR jobstatus IN ('R','C')) \
+        AND Client.Name LIKE '" + client + "' \
+        AND Job.Name LIKE '" + jobname + "' \
+        AND type IN ('" + "','".join(jobtypeset) + "') \
+        AND jobstatus IN ('" + "','".join(jobstatusset) + "') \
+        ORDER BY jobid " + sortorder + ";"
+elif dbtype == 'sqlite':
+    query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
+        JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
+        PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime \
+        FROM Job \
+        INNER JOIN Client on Job.clientid=Client.clientid \
+        WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + time + " hours') \
+        OR jobstatus IN ('R','C') \
+        AND Client.Name LIKE '" + client + "' \
+        AND Job.Name LIKE '" + jobname + "' \
+        AND Type IN ('" + "','".join(jobtypeset) + "') \
+        AND JobStatus IN ('" + "','".join(jobstatusset) + "') \
+        ORDER BY jobid " + sortorder + ";"
+alljobrows = db_query(query_str, 'all jobs')
 
 # Assign the numjobs variable and minimal
 # other variables needed ASAP to be able to
@@ -1092,32 +1097,17 @@ vrfy_data_jobids = [str(r['jobid']) for r in alljobrows if r['type'] == 'V' and 
 # past 'days' days so that we can display a column
 # or the entire row in the 'alwaysfailcolor' color
 # --------------------------------------------------
-try:
-    db_connect()
-    if dbtype == 'pgsql':
-        query_str = "SELECT JobId, Job.Name AS JobName, JobStatus \
-            FROM Job WHERE endtime >= (NOW()) - (INTERVAL '" + days + " DAY') ORDER BY JobId DESC;"
-    elif dbtype in ('mysql', 'maria'):
-        query_str = "SELECT jobid, CAST(Job.name as CHAR(50)) AS jobname, \
-            CAST(jobstatus as CHAR(1)) AS jobstatus FROM Job \
-            WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + days + " DAY) ORDER BY jobid DESC;"
-    elif dbtype == 'sqlite':
-        query_str = "SELECT JobId, Job.Name AS JobName, JobStatus FROM Job \
-            WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + days + " days') ORDER BY JobId DESC;"
-    cur.execute(query_str)
-    alldaysjobrows = cur.fetchall()
-except sqlite3.OperationalError:
-        print('\nSQLite3 Database locked while fetching always failing jobs.')
-        print('Is a Bacula Job running?')
-        print('Exiting.\n')
-        sys.exit(1)
-except:
-    print('Problem communicating with database \'' + dbname + '\' while fetching always failing jobs.\n')
-    sys.exit(1)
-finally:
-    if (conn):
-        cur.close()
-        conn.close()
+if dbtype == 'pgsql':
+    query_str = "SELECT JobId, Job.Name AS JobName, JobStatus \
+        FROM Job WHERE endtime >= (NOW()) - (INTERVAL '" + days + " DAY') ORDER BY JobId DESC;"
+elif dbtype in ('mysql', 'maria'):
+    query_str = "SELECT jobid, CAST(Job.name as CHAR(50)) AS jobname, \
+        CAST(jobstatus as CHAR(1)) AS jobstatus FROM Job \
+        WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + days + " DAY) ORDER BY jobid DESC;"
+elif dbtype == 'sqlite':
+    query_str = "SELECT JobId, Job.Name AS JobName, JobStatus FROM Job \
+        WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + days + " days') ORDER BY JobId DESC;"
+alldaysjobrows = db_query(query_str, 'always failing jobs')
 
 # These are specific to the 'always failing jobs' features
 # --------------------------------------------------------
@@ -1131,34 +1121,19 @@ always_fail_jobs = set(unique_bad_days_jobs.difference(good_days_jobs)).intersec
 # cji = Control Job Information
 # -----------------------------
 if len(ctrl_jobids) != 0:
-    try:
-        db_connect()
-        if dbtype == 'pgsql':
-            query_str = "SELECT jobid, logtext FROM log \
-                WHERE jobid IN (" + ','.join(ctrl_jobids) + ") \
-                AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
-        elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
-                FROM Log WHERE jobid IN (" + ','.join(ctrl_jobids) + ") \
-                AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
-        elif dbtype == 'sqlite':
-            query_str = "SELECT jobid, logtext FROM log \
-                WHERE jobid IN (" + ','.join(ctrl_jobids) + ") \
-                AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
-        cur.execute(query_str)
-        cji_rows = cur.fetchall()
-    except sqlite3.OperationalError:
-        print('\nSQLite3 Database locked while fetching always control job info.')
-        print('Is a Bacula Job running?')
-        print('Exiting.\n')
-        sys.exit(1)
-    except:
-        print('Problem communicating with database \'' + dbname + '\' while fetching control job info.\n')
-        sys.exit(1)
-    finally:
-        if (conn):
-            cur.close()
-            conn.close()
+    if dbtype == 'pgsql':
+        query_str = "SELECT jobid, logtext FROM log \
+            WHERE jobid IN (" + ','.join(ctrl_jobids) + ") \
+            AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
+    elif dbtype in ('mysql', 'maria'):
+        query_str = "SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
+            FROM Log WHERE jobid IN (" + ','.join(ctrl_jobids) + ") \
+            AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
+    elif dbtype == 'sqlite':
+        query_str = "SELECT jobid, logtext FROM log \
+            WHERE jobid IN (" + ','.join(ctrl_jobids) + ") \
+            AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
+    cji_rows = db_query(query_str, 'control job information')
 
     # For each row of the returned cji_rows (Ctrl Jobs), add to the
     # pn_jobids_dict dict of tuples as [CtrlJobid: ('PrevJobId', 'NewJobId')]
@@ -1249,34 +1224,20 @@ if emailsummary != 'none':
 # vji = Verify Job Information
 # ----------------------------
 if len(vrfy_jobids) != 0:
-    try:
-        db_connect()
-        if dbtype == 'pgsql':
-            query_str = "SELECT jobid, logtext FROM log \
-                WHERE jobid IN (" + ','.join(vrfy_jobids) + ") AND logtext LIKE \
-                '%Termination:%' ORDER BY jobid DESC;"
-        elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
-                FROM Log WHERE jobid IN (" + ','.join(vrfy_jobids) + ") \
-                AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
-        elif dbtype == 'sqlite':
-            query_str = "SELECT jobid, logtext FROM log \
-                WHERE jobid IN (" + ','.join(vrfy_jobids) + ") AND logtext LIKE \
-                '%Termination:%' ORDER BY jobid DESC;"
-        cur.execute(query_str)
-        vji_rows = cur.fetchall()
-    except sqlite3.OperationalError:
-        print('\nSQLite3 Database locked while fetching verify job info.')
-        print('Is a Bacula Job running?')
-        print('Exiting.\n')
-        sys.exit(1)
-    except:
-        print('Problem communicating with database \'' + dbname + '\' while fetching verify job info.\n')
-        sys.exit(1)
-    finally:
-        if (conn):
-            cur.close()
-            conn.close()
+    if dbtype == 'pgsql':
+        query_str = "SELECT jobid, logtext FROM log \
+            WHERE jobid IN (" + ','.join(vrfy_jobids) + ") AND logtext LIKE \
+            '%Termination:%' ORDER BY jobid DESC;"
+    elif dbtype in ('mysql', 'maria'):
+        query_str = "SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
+            FROM Log WHERE jobid IN (" + ','.join(vrfy_jobids) + ") \
+            AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
+    elif dbtype == 'sqlite':
+        query_str = "SELECT jobid, logtext FROM log \
+            WHERE jobid IN (" + ','.join(vrfy_jobids) + ") AND logtext LIKE \
+            '%Termination:%' ORDER BY jobid DESC;"
+    vji_rows = db_query(query_str, 'verify job information')
+
     # For each row of the returned vji_rows (Vrfy Jobs), add
     # to the v_jobids_dict dict as [VrfyJobid: 'Verified JobId']
     # ------------------------------------------------------
@@ -1325,45 +1286,30 @@ if include_pnv_jobs == 'yes':
         # Connect to database again and query for the
         # Previous/New/Verified jobs in the pnv_jobids_lst
         # ------------------------------------------------
-        try:
-            db_connect()
-            if dbtype == 'pgsql':
-                query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
-                    JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
-                    PriorJobId, AGE(EndTime, StartTime) AS RunTime \
-                    FROM Job \
-                    INNER JOIN Client on Job.ClientID=Client.ClientID \
-                    WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ")";
-            elif dbtype in ('mysql', 'maria'):
-                query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
-                    CAST(Job.name as CHAR(50)) AS jobname, \
-                    CAST(jobstatus as CHAR(1)) AS jobstatus, joberrors, CAST(type as CHAR(1)) AS type, \
-                    CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
-                    starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime \
-                    FROM Job \
-                    INNER JOIN Client on Job.clientid=Client.clientid \
-                    WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ");"
-            elif dbtype == 'sqlite':
-                query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
-                    JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
-                    PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime \
-                    FROM Job \
-                    INNER JOIN Client on Job.ClientID=Client.ClientID \
-                    WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ")";
-            cur.execute(query_str)
-            pnv_jobrows = cur.fetchall()
-        except sqlite3.OperationalError:
-            print('\nSQLite3 Database locked while fetching previous, new, and verified jobs outside of "-t hours" range.')
-            print('Is a Bacula Job running?')
-            print('Exiting.\n')
-            sys.exit(1)
-        except:
-            print('Problem communicating with database \'' + dbname + '\' while fetching previous, new, and verified jobs outside of "-t hours" range.\n')
-            sys.exit(1)
-        finally:
-            if (conn):
-                cur.close()
-                conn.close()
+        if dbtype == 'pgsql':
+            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
+                JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
+                PriorJobId, AGE(EndTime, StartTime) AS RunTime \
+                FROM Job \
+                INNER JOIN Client on Job.ClientID=Client.ClientID \
+                WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ")";
+        elif dbtype in ('mysql', 'maria'):
+            query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
+                CAST(Job.name as CHAR(50)) AS jobname, \
+                CAST(jobstatus as CHAR(1)) AS jobstatus, joberrors, CAST(type as CHAR(1)) AS type, \
+                CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
+                starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime \
+                FROM Job \
+                INNER JOIN Client on Job.clientid=Client.clientid \
+                WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ");"
+        elif dbtype == 'sqlite':
+            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
+                JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
+                PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime \
+                FROM Job \
+                INNER JOIN Client on Job.ClientID=Client.ClientID \
+                WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ")";
+        pnv_jobrows = db_query(query_str, 'previous, new, and verified jobs outside of "-t hours" range')
 
         # Append the pnv_jobrows to
         # the alljobrows list of jobs
@@ -1382,61 +1328,38 @@ if include_pnv_jobs == 'yes':
 # Community edition too.
 # --------------------------------------------------------
 if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
-    try:
-        db_connect()
-        if dbtype == 'pgsql':
-            # If we want to include the Client name with the
-            # JobId in the virussummaries, then we need a
-            # couple INNER JOINS to link the Log.JobId to
-            # the JobId in the Job table, then the
-            # Job.ClientID to the ClientId in Client table
-            # to finally obtain the Client.Name from the
-            # Client table.
-            # ----------------------------------------------
-            query_str = "SELECT Job.Name AS JobName, Log.JobId, Client.Name, Log.LogText \
-                FROM Log \
-                INNER JOIN Job ON Log.JobId=Job.JobId \
-                INNER JOIN Client ON Job.ClientId=Client.ClientId \
-                WHERE Log.JobId IN (" + ','.join(vrfy_data_jobids) + ") \
-                AND (Log.LogText LIKE '%" + virusfoundtext + "%' OR Log.LogText LIKE '%" + avconnfailtext + "%') \
-                ORDER BY Log.JobId DESC, Time ASC;"
-        elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT Log.jobid, CAST(Client.name as CHAR(50)) AS name, \
-                CAST(Log.logtext as CHAR(1000)) AS logtext \
-                FROM Log \
-                INNER JOIN Job ON Log.jobid=Job.jobid \
-                INNER JOIN Client ON Job.clientid=Client.clientid \
-                WHERE Log.jobid IN (" + ','.join(vrfy_data_jobids) + ") \
-                AND (Log.logtext LIKE '%" + virusfoundtext + "%' OR Log.logText LIKE '%" + avconnfailtext + "%') \
-                ORDER BY jobid DESC, time ASC;"
-        elif dbtype == 'sqlite':
-            query_str = "SELECT log.jobid, client.name, log.logtext \
-                FROM log \
-                INNER JOIN job ON log.jobid=job.jobid \
-                INNER JOIN client ON Job.clientid=client.clientid \
-                WHERE log.jobid IN (" + ','.join(vrfy_data_jobids) + ") \
-                AND (log.logtext LIKE '%" + virusfoundtext + "%' OR log.logtext LIKE '%" + avconnfailtext + "%') \
-                ORDER BY log.jobid DESC, time ASC;"
-        cur.execute(query_str)
-        virus_info_rows = cur.fetchall()
-    except sqlite3.OperationalError:
-        print('\nSQLite3 Database locked while fetching verify job info for AV tests.')
-        print('Is a Bacula Job running?')
-        print('Exiting.\n')
-        sys.exit(1)
-    except:
-        print('Problem communicating with database \'' + dbname + '\' while fetching verify job info for AV tests.\n')
-        sys.exit(1)
-    finally:
-        if (conn):
-            cur.close()
-            conn.close()
+    if dbtype == 'pgsql':
+        query_str = "SELECT Job.Name AS JobName, Log.JobId, Client.Name, Log.LogText \
+            FROM Log \
+            INNER JOIN Job ON Log.JobId=Job.JobId \
+            INNER JOIN Client ON Job.ClientId=Client.ClientId \
+            WHERE Log.JobId IN (" + ','.join(vrfy_data_jobids) + ") \
+            AND (Log.LogText LIKE '%" + virusfoundtext + "%' OR Log.LogText LIKE '%" + avconnfailtext + "%') \
+            ORDER BY Log.JobId DESC, Time ASC;"
+    elif dbtype in ('mysql', 'maria'):
+        query_str = "SELECT Log.jobid, CAST(Client.name as CHAR(50)) AS name, \
+            CAST(Log.logtext as CHAR(1000)) AS logtext \
+            FROM Log \
+            INNER JOIN Job ON Log.jobid=Job.jobid \
+            INNER JOIN Client ON Job.clientid=Client.clientid \
+            WHERE Log.jobid IN (" + ','.join(vrfy_data_jobids) + ") \
+            AND (Log.logtext LIKE '%" + virusfoundtext + "%' OR Log.logText LIKE '%" + avconnfailtext + "%') \
+            ORDER BY jobid DESC, time ASC;"
+    elif dbtype == 'sqlite':
+        query_str = "SELECT log.jobid, client.name, log.logtext \
+            FROM log \
+            INNER JOIN job ON log.jobid=job.jobid \
+            INNER JOIN client ON Job.clientid=client.clientid \
+            WHERE log.jobid IN (" + ','.join(vrfy_data_jobids) + ") \
+            AND (log.logtext LIKE '%" + virusfoundtext + "%' OR log.logtext LIKE '%" + avconnfailtext + "%') \
+            ORDER BY log.jobid DESC, time ASC;"
+    virus_info_rows = db_query(query_str, 'verify job inforomation for AV tests')
 
     # Now we need the number of jobs with viruses and number
     # of files with viruses. We also build a dictionary with
     # JobIds as keys with the values being tuples containing
     # (verified_client, virus, file, verified_jobid,
-    # verified_job, verified job name)) for each file with a
+    # verified_job, verified job name) for each file with a
     # virus found by that job. This dict will be used later
     # if/when we build the virus report to append to the
     # email and/or send in a separate email.
@@ -1489,46 +1412,31 @@ if len(runningjobids) != 0:
     #                   returned, at the expense of a full text query against
     #                   all running jobs.
     # -----------------------------------------------------------------------
-    try:
-        db_connect()
-        if dbtype == 'pgsql':
-            # This works to limit the amount of data from the query
-            # at the expense of full text searches in the log table
-            # Is it worth it? I don't know. :-/ What if there are
-            # more than 1,000 jobs running? All log entries from all
-            # running jobs will be returned. Is this worse than using
-            # a query with 5 full text clauses? Again, I don't know
-            # -------------------------------------------------------
-            # query_str = "SELECT jobid, logtext FROM Log \
-                # WHERE jobid IN (" + ','.join(runningjobids) + ") \
-                # AND (logtext LIKE '%Please mount%' \
-                # OR logtext LIKE '%Please use the \"label\" command%' \
-                # OR logtext LIKE '%New volume%' \
-                # OR logtext LIKE '%Ready to append%' \
-                # OR logtext LIKE '%all previous data lost%') \
-                # ORDER BY jobid, time DESC;"
-            query_str = "SELECT jobid, logtext FROM Log \
-                WHERE jobid IN (" + ','.join(runningjobids) + ") ORDER BY jobid, time DESC;"
-        elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log \
-                WHERE jobid IN (" + ','.join(runningjobids) + ") ORDER BY jobid, time DESC;"
-        elif dbtype == 'sqlite':
-            query_str = "SELECT jobid, logtext FROM Log \
-                WHERE jobid IN (" + ','.join(runningjobids) + ") ORDER BY jobid, time DESC;"
-        cur.execute(query_str)
-        running_jobs_log_text = cur.fetchall()
-    except sqlite3.OperationalError:
-        print('\nSQLite3 Database locked while fetching all running jobs logs.')
-        print('Is a Bacula Job running?')
-        print('Exiting.\n')
-        sys.exit(1)
-    except:
-        print('\nProblem communicating with database \'' + dbname + '\' while fetching all running jobs logs.\n')
-        sys.exit(1)
-    finally:
-        if (conn):
-            cur.close()
-            conn.close()
+    if dbtype == 'pgsql':
+        # This works to limit the amount of data from the query
+        # at the expense of full text searches in the log table
+        # Is it worth it? I don't know. :-/ What if there are
+        # more than 1,000 jobs running? All log entries from all
+        # running jobs will be returned. Is this worse than using
+        # a query with 5 full text clauses? Again, I don't know
+        # -------------------------------------------------------
+        # query_str = "SELECT jobid, logtext FROM Log \
+            # WHERE jobid IN (" + ','.join(runningjobids) + ") \
+            # AND (logtext LIKE '%Please mount%' \
+            # OR logtext LIKE '%Please use the \"label\" command%' \
+            # OR logtext LIKE '%New volume%' \
+            # OR logtext LIKE '%Ready to append%' \
+            # OR logtext LIKE '%all previous data lost%') \
+            # ORDER BY jobid, time DESC;"
+        query_str = "SELECT jobid, logtext FROM Log \
+            WHERE jobid IN (" + ','.join(runningjobids) + ") ORDER BY jobid, time DESC;"
+    elif dbtype in ('mysql', 'maria'):
+        query_str = "SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log \
+            WHERE jobid IN (" + ','.join(runningjobids) + ") ORDER BY jobid, time DESC;"
+    elif dbtype == 'sqlite':
+        query_str = "SELECT jobid, logtext FROM Log \
+            WHERE jobid IN (" + ','.join(runningjobids) + ") ORDER BY jobid, time DESC;"
+    running_jobs_log_text = db_query(query_str, 'all running job logs')
 
     # Create 'job_needs_opr_lst'
     # --------------------------
@@ -1557,44 +1465,29 @@ if len(runningjobids) != 0:
 # a banner and then flag these jobs in the list so they may be easily identified?
 # ---------------------------------------------------------------------------------
 if flagrescheduled == 'yes':
-    try:
-        db_connect()
-        if dbtype == 'pgsql':
-            query_str = "SELECT Job.JobId \
-                FROM Job \
-                INNER JOIN Log on Job.JobId=Log.JobId \
-                WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
-                AND LogText LIKE '%Rescheduled Job%' \
-                ORDER BY Job.JobId ASC;"
-        elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT Job.jobid \
-                FROM Job \
-                INNER JOIN Log on Job.jobid=Log.jobid \
-                WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
-                AND logtext LIKE '%Rescheduled Job%' \
-                ORDER BY Job.jobid " + sortorder + ";"
-        elif dbtype == 'sqlite':
-            query_str = "SELECT Job.JobId \
-                FROM Job \
-                INNER JOIN Log on Job.JobId=Log.JobId \
-                WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
-                AND logtext LIKE '%Rescheduled Job%' \
-                ORDER BY Job.jobid " + sortorder + ";"
-        cur.execute(query_str)
-        rescheduledlogrows = cur.fetchall()
-        rescheduledjobids = [str(r['jobid']) for r in rescheduledlogrows]
-    except sqlite3.OperationalError:
-        print('\nSQLite3 Database locked while fetching verify job info.')
-        print('Is a Bacula Job running?')
-        print('Exiting.\n')
-        sys.exit(1)
-    except:
-        print('\nProblem communicating with database \'' + dbname + '\' while fetching rescheduled jobids.\n')
-        sys.exit(1)
-    finally:
-        if (conn):
-            cur.close()
-            conn.close()
+    if dbtype == 'pgsql':
+        query_str = "SELECT Job.JobId \
+            FROM Job \
+            INNER JOIN Log on Job.JobId=Log.JobId \
+            WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
+            AND LogText LIKE '%Rescheduled Job%' \
+            ORDER BY Job.JobId ASC;"
+    elif dbtype in ('mysql', 'maria'):
+        query_str = "SELECT Job.jobid \
+            FROM Job \
+            INNER JOIN Log on Job.jobid=Log.jobid \
+            WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
+            AND logtext LIKE '%Rescheduled Job%' \
+            ORDER BY Job.jobid " + sortorder + ";"
+    elif dbtype == 'sqlite':
+        query_str = "SELECT Job.JobId \
+            FROM Job \
+            INNER JOIN Log on Job.JobId=Log.JobId \
+            WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
+            AND logtext LIKE '%Rescheduled Job%' \
+            ORDER BY Job.jobid " + sortorder + ";"
+    rescheduledlogrows = db_query(query_str, 'rescheduled jobids')
+    rescheduledjobids = [str(r['jobid']) for r in rescheduledlogrows]
 
 # Do we append virus summary report?
 # ----------------------------------
@@ -1605,12 +1498,12 @@ if 'virus_dict' in globals() and checkforvirus == 'yes' and \
     for virusjobid in virus_dict:
         job_virus_set = set()
         virussummaries += '--------------------------------' \
-        + '\nVerify JobId:    ' + str(virusjobid) \
-        + '\nVerify Job:      ' + virus_dict[virusjobid][1][5] \
-        + '\nVerified JobId:  ' + str(virus_dict[virusjobid][1][3]) \
-        + '\nVerified Job:    ' + virus_dict[virusjobid][1][4] \
-        + '\nVerified Client: ' + str(virus_dict[virusjobid][1][0]) \
-        + '\n--------------------------------\n'
+                       + '\nVerify JobId:    ' + str(virusjobid) \
+                       + '\nVerify Job:      ' + virus_dict[virusjobid][1][5] \
+                       + '\nVerified JobId:  ' + str(virus_dict[virusjobid][1][3]) \
+                       + '\nVerified Job:    ' + virus_dict[virusjobid][1][4] \
+                       + '\nVerified Client: ' + str(virus_dict[virusjobid][1][0]) \
+                       + '\n--------------------------------\n'
         for virus_and_file in virus_dict[virusjobid]:
             job_virus_set.add(virus_and_file[1])
         for virus in job_virus_set:
@@ -1652,39 +1545,25 @@ if 'virus_dict' in globals() and checkforvirus == 'yes' and len(virus_set) != 0:
 if appendjobsummaries == 'yes':
     jobsummaries = '<pre>====================================\n' \
     + 'Job Summaries of All Terminated Jobs\n====================================\n'
-    try:
-        db_connect()
-        for job_id in alljobids:
-            if dbtype == 'pgsql':
-                query_str = "SELECT jobid, logtext FROM Log WHERE jobid=" \
-                    + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
-            elif dbtype in ('mysql', 'maria'):
-                query_str = "SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE jobid=" \
-                    + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
-            elif dbtype == 'sqlite':
-                query_str = "SELECT jobid, logtext FROM Log WHERE jobid=" \
-                    + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
-            cur.execute(query_str)
-            summaryrow = cur.fetchall()
-            # Migrated (M) Jobs have no joblog
-            # --------------------------------
-            if len(summaryrow) != 0:
-                jobsummaries += '==============\nJobID:' \
-                + '{:8}'.format(summaryrow[0]['jobid']) \
-                + '\n==============\n' + summaryrow[0]['logtext']
-        jobsummaries += '</pre>'
-    except sqlite3.OperationalError:
-       print('\nSQLite3 Database locked while fetching all job summaries.')
-       print('Is a Bacula Job running?')
-       print('Exiting.\n')
-       sys.exit(1)
-    except:
-        print('\nProblem communicating with database \'' + dbname + '\' while fetching all job summaries.\n')
-        sys.exit(1)
-    finally:
-        if (conn):
-            cur.close()
-            conn.close()
+    for job_id in alljobids:
+        if dbtype == 'pgsql':
+            query_str = "SELECT jobid, logtext FROM Log WHERE jobid=" \
+                + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
+        elif dbtype in ('mysql', 'maria'):
+            query_str = "SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE jobid=" \
+                + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
+        elif dbtype == 'sqlite':
+            query_str = "SELECT jobid, logtext FROM Log WHERE jobid=" \
+                + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
+        summaryrow = db_query(query_str, 'all job summaries')
+
+        # Migrated (M) Jobs have no joblog
+        # --------------------------------
+        if len(summaryrow) != 0:
+            jobsummaries += '==============\nJobID:' \
+            + '{:8}'.format(summaryrow[0]['jobid']) \
+            + '\n==============\n' + summaryrow[0]['logtext']
+    jobsummaries += '</pre>'
 else:
     jobsummaries = ''
 
@@ -1693,37 +1572,22 @@ else:
 if appendbadlogs == 'yes':
     badjoblogs = '<pre>=================\nBad Job Full Logs\n=================\n'
     if len(badjobids) != 0:
-        try:
-            db_connect()
-            for job_id in badjobids:
-                if dbtype == 'pgsql':
-                    query_str = "SELECT jobid, time, logtext FROM log WHERE jobid=" \
-                        + str(job_id) + " ORDER BY jobid, time ASC;"
-                elif dbtype in ('mysql', 'maria'):
-                    query_str = "SELECT jobid, time, CAST(logtext as CHAR(2000)) AS logtext \
-                        FROM Log WHERE jobid=" + str(job_id) + " ORDER BY jobid, time ASC;"
-                elif dbtype == 'sqlite':
-                    query_str = "SELECT jobid, time, logtext FROM log WHERE jobid=" \
-                        + str(job_id) + " ORDER BY jobid, time ASC;"
-                cur.execute(query_str)
-                badjobrow = cur.fetchall()
-                badjoblogs += '==============\nJobID:' \
-                + '{:8}'.format(job_id) + '\n==============\n'
-                for r in badjobrow:
-                    badjoblogs += str(r['time']) + ' ' + r['logtext']
-            badjoblogs += '</pre>'
-        except sqlite3.OperationalError:
-            print('\nSQLite3 Database locked while fetching all bad job logs.')
-            print('Is a Bacula Job running?')
-            print('Exiting.\n')
-            sys.exit(1)
-        except:
-            print('\nProblem communicating with database \'' + dbname + '\' while fetching bad job logs.\n')
-            sys.exit(1)
-        finally:
-            if (conn):
-                cur.close()
-                conn.close()
+        for job_id in badjobids:
+            if dbtype == 'pgsql':
+                query_str = "SELECT jobid, time, logtext FROM log WHERE jobid=" \
+                          + str(job_id) + " ORDER BY jobid, time ASC;"
+            elif dbtype in ('mysql', 'maria'):
+                query_str = "SELECT jobid, time, CAST(logtext as CHAR(2000)) AS logtext \
+                    FROM Log WHERE jobid=" + str(job_id) + " ORDER BY jobid, time ASC;"
+            elif dbtype == 'sqlite':
+                query_str = "SELECT jobid, time, logtext FROM log WHERE jobid=" \
+                          + str(job_id) + " ORDER BY jobid, time ASC;"
+            badjobrow = db_query(query_str, 'all bad job logs')
+            badjoblogs += '==============\nJobID:' \
+            + '{:8}'.format(job_id) + '\n==============\n'
+            for r in badjobrow:
+                badjoblogs += str(r['time']) + ' ' + r['logtext']
+        badjoblogs += '</pre>'
     else:
         badjoblogs += '\n===================\nNo Bad Jobs to List\n===================\n'
 else:
@@ -1784,7 +1648,7 @@ if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
 
 # Do we have any jobs had been rescheduled?
 # -----------------------------------------
-if flagrescheduled == 'yes' and len(rescheduledjobids) != 0:
+if 'rescheduledjobids' in globals() and flagrescheduled == 'yes' and len(rescheduledjobids) != 0:
     msg += '<p style="' + rescheduledjobsstyle + '">' \
         + 'The number in parentheses in the Status ' + ('fields' if len(set(rescheduledjobids)) > 1 else 'field') \
         + ' of ' + str(len(set(rescheduledjobids))) + (' jobs' if len(set(rescheduledjobids)) > 1 else ' job') \
@@ -1795,23 +1659,8 @@ if flagrescheduled == 'yes' and len(rescheduledjobids) != 0:
 # the main jobs report's table header?
 # --------------------------------------
 if show_db_stats == 'yes':
-    try:
-        db_connect()
-        query_str = "SELECT COUNT(*) FROM Client;"
-        cur.execute(query_str)
-        num_clients_qry = cur.fetchone()
-    except sqlite3.OperationalError:
-        print('\nSQLite3 Database locked while fetching verify job info.')
-        print('Is a Bacula Job running?')
-        print('Exiting.\n')
-        sys.exit(1)
-    except:
-        print('\nProblem communicating with database \'' + dbname + '\' while fetching total clients.\n')
-        sys.exit(1)
-    finally:
-        if (conn):
-            cur.close()
-            conn.close()
+    query_str = "SELECT COUNT(*) FROM Client;"
+    num_clients_qry = db_query(query_str, 'number of clients', 'one')
 
     # Assign the num_clients variable based on db type
     # ------------------------------------------------
@@ -1820,26 +1669,12 @@ if show_db_stats == 'yes':
     else:
         num_clients = num_clients_qry[0]
 
-    # Get the total number of Jobs (B, C, M), total bytes/jobtype, total numner of files/jobtype
-    # ------------------------------------------------------------------------------------------
-    try:
-        db_connect()
-        query_str = "SELECT COUNT(*) AS num_jobs, SUM(JobFiles) AS num_files, SUM(JobBytes) AS num_bytes \
-            FROM Job WHERE Type IN ('B','C','M') AND JobStatus = 'T';"
-        cur.execute(query_str)
-        job_qry = cur.fetchone()
-    except sqlite3.OperationalError:
-        print('\nSQLite3 Database locked while fetching verify job info.')
-        print('Is a Bacula Job running?')
-        print('Exiting.\n')
-        sys.exit(1)
-    except:
-        print('\nProblem communicating with database \'' + dbname + '\' while fetching total clients.\n')
-        sys.exit(1)
-    finally:
-        if (conn):
-            cur.close()
-            conn.close()
+    # Get the total number of Jobs (B, C, M), total bytes, total numner of files
+    # --------------------------------------------------------------------------
+    query_str = "SELECT COUNT(*) AS num_jobs, SUM(JobFiles) AS num_files, \
+                 SUM(JobBytes) AS num_bytes FROM Job WHERE Type IN ('B','C','M') \
+                 AND JobStatus = 'T';"
+    job_qry = db_query(query_str, 'the totals for jobs, files, and bytes', 'one')
 
     # Assign the num_job, num_files, and num_bytes variables
     # ------------------------------------------------------
@@ -1849,34 +1684,21 @@ if show_db_stats == 'yes':
 
     # Get the total volumes (of any type) in use
     # ------------------------------------------
-    try:
-        db_connect()
-        query_str = "SELECT COUNT(*) FROM Media;"
-        cur.execute(query_str)
-        num_vols_qry = cur.fetchone()
-    except sqlite3.OperationalError:
-        print('\nSQLite3 Database locked while fetching verify job info.')
-        print('Is a Bacula Job running?')
-        print('Exiting.\n')
-        sys.exit(1)
-    except:
-        print('\nProblem communicating with database \'' + dbname + '\' while fetching total clients.\n')
-        sys.exit(1)
-    finally:
-        if (conn):
-            cur.close()
-            conn.close()
+    query_str = "SELECT COUNT(*) FROM Media;"
+    num_vols_qry = db_query(query_str, 'the total number of volumes', 'one')
 
-    # Assign the num_vols variable based on db type
-    # ---------------------------------------------
+    # Get the num_vols variable based on db type
+    # ------------------------------------------
     if dbtype in ('mysql', 'maria'):
         num_vols = num_vols_qry['COUNT(*)']
     else:
         num_vols = num_vols_qry[0]
 
+    # Build the catalog statistics table
+    # ----------------------------------
     msg += '<table style="' + jobtablestyle + '"><tr style="' + jobtableheaderstyle + '">\n' \
         + '<td><table style="' + dbstatstableheaderstyle + '"><tr style="' + jobtableheaderstyle + '">\n' \
-        + '<td align="left"><b>CATALOG TOTALS</b></td>\n' \
+        + '<td align="center"><b>CATALOG TOTALS</b></td>\n' \
         + '<td align="left"><b>Clients: </b>' + str('{:,}'.format(num_clients)) + '</td>\n' \
         + '<td align="left"><b>Jobs: </b>' + str('{:,}'.format(num_jobs)) + '</td>\n' \
         + '<td align="left"><b>Files: </b>' + str('{:,}'.format(num_files)) + '</td>\n' \
@@ -1951,6 +1773,12 @@ for jobrow in alljobrows:
     msg += '</tr>\n'
     counter += 1
 msg += '</table>'
+
+# Close the database cursor and connection
+# ----------------------------------------
+if (conn):
+    cur.close()
+    conn.close()
 
 # Do we append the 'Running or Created' message to the Subject?
 # -------------------------------------------------------------

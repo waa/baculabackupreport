@@ -728,9 +728,9 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     # client is used, or when the Job is still running, there
     # will be no endtime, nor runtime
     # --------------------------------------------------------
-    if content == '----' or ((col == 'client' or col == 'runtime') and content in ('None', '0')):
+    if content == '----' or (col in ('client', 'runtime') and content in (None, '0')):
         content = '<hr width="20%">'
-    if content in ('None', '0') and col == 'endtime' and jobrow['jobstatus'] == 'R':
+    if content in (None, '0') and col == 'endtime' and jobrow['jobstatus'] == 'R':
         content = 'Still Running'
     if jobrow['jobstatus'] == 'C' and col == 'endtime':
         content = 'Created, not yet running'
@@ -740,7 +740,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     # ('D', 'c, 'g') will never have a value for jobfiles
     # nor jobbytes in the db, so we set them to a 20% hr
     # ---------------------------------------------------
-    if (jobrow['jobstatus'] in ('R', 'C') or jobtype in ('D', 'c', 'g')) and col in ('jobfiles', 'jobbytes'):
+    if (jobrow['jobstatus'] in ('R', 'C') or jobtype in ('D', 'c', 'g')) and col in ('client', 'jobfiles', 'jobbytes'):
         content = '<hr width="20%">'
 
     # If the copied/migrated/verfied job
@@ -1744,7 +1744,7 @@ for jobrow in alljobrows:
         elif colname == 'jobname':
             msg += html_format_cell(jobrow['jobname'], col = 'jobname')
         elif colname == 'client':
-            msg += html_format_cell(jobrow['client'], col = 'client')
+            msg += html_format_cell(jobrow['client'], col = 'client', jobtype = jobrow['type'])
         elif colname == 'status':
             msg += html_format_cell(translate_job_status(jobrow['jobstatus'], jobrow['joberrors']), col = 'status')
         elif colname == 'joberrors':

@@ -229,8 +229,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.48'
-reldate = 'March 1, 2022'
+version = '1.49'
+reldate = 'March 14, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -254,7 +254,7 @@ valid_col_lst = [
 # The text that is printed in the log
 # when the AV daemon cannot be reached
 # ------------------------------------
-avconnfailtext = 'Unable to connect to bacula_antivirus-fd'
+avconnfailtext = 'Unable to connect to antivirus-plugin-service'
 num_virus_conn_errs = 0
 
 # Set some variables for the Summary stats for the special cases of Copy/Migration Control jobs
@@ -735,11 +735,12 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     if jobrow['jobstatus'] == 'C' and col == 'endtime':
         content = 'Created, not yet running'
 
-    # Jobs with status: Created, Running ('C', 'R'), or
-    # Jobs with type: Admin, Copy Ctrl, Migration Ctrl
-    # ('D', 'c, 'g') will never have a value for jobfiles
-    # nor jobbytes in the db, so we set them to a 20% hr
-    # ---------------------------------------------------
+    # Jobs with status: Created, Running ('C', 'R'), or Jobs with
+    # type: Admin, Copy/Migration control jobs ('D', 'c, 'g') will
+    # never have a value for jobfiles nor jobbytes in the db, so
+    # we set them to a 20% hr. Also Copy/Migration control jobs
+    # never use a real Client, so we set them to a 20% hr too.
+    # ------------------------------------------------------------
     if (jobrow['jobstatus'] in ('R', 'C') or jobtype in ('D', 'c', 'g')) and col in ('client', 'jobfiles', 'jobbytes'):
         content = '<hr width="20%">'
 

@@ -230,7 +230,7 @@ from socket import gaierror
 # ------------------
 progname='Bacula Backup Report'
 version = '1.49'
-reldate = 'March 14, 2022'
+reldate = 'March 24, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -358,22 +358,69 @@ def print_opt_errors(opt):
     elif opt == 'emailsummary':
         return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_email_summary_lst)
 
+def chk_db_exceptions(err, query=None):
+    'Given a DB connection or SQL exception, print or the useful information'
+    # Thanks to the help from this page, I was able to trap any db
+    # connection or SQL query errors and just report a simple message:
+    # https://kb.objectrocket.com/postgresql/python-error-handling-with-the-psycopg2-postgresql-adapter-645
+    # -----------------------------------------------------------------------------------------------------
+    # Print the type of problem, and the dbname and query if called with a query string
+    # ---------------------------------------------------------------------------------
+    if query == None:
+        print('\nProblem connecting to the database.')
+    else:
+        print('\nProblem communicating with database \'' + dbname + '\' while fetching ' + query + '.')
+
+    # Get details about the exception
+    # -------------------------------
+    err_type, err_obj, traceback = sys.exc_info()
+
+    # Get the line number when exception occured
+    # ------------------------------------------
+    line_num = traceback.tb_lineno
+
+    # Print the Line number and the error
+    # -----------------------------------
+    print ('\nError on line number: ' + str(line_num))
+    print ('ERROR: ' + str(err))
+
+    # Print the error code and error exceptions
+    # -----------------------------------------
+    if dbtype == 'pgsql':
+        print ('pgcode: ' + str(err.pgcode) + '\n')
+    elif dbtype in ('mysql', 'maria'):
+        # TODO: Need to see if mysql, maria, and sqlite3 report an error code
+        # -------------------------------------------------------------------
+        print('\n')
+    elif dbtype == 'sqlite':
+        print('\n')
+    sys.exit(1)
+
 def db_connect():
     'Connect to the db using the appropriate database connector and create the right cursor'
     global conn, cur
     if dbtype == 'pgsql':
-        conn = psycopg2.connect(host=dbhost, port=dbport, dbname=dbname, user=dbuser, password=dbpass)
+        try:
+            conn = psycopg2.connect(host=dbhost, port=dbport, dbname=dbname, user=dbuser, password=dbpass)
+        except OperationalError as err:
+            chk_db_exceptions(err)
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     elif dbtype in ('mysql', 'maria'):
-        conn = mysql.connector.connect(host=dbhost, port=dbport, database=dbname, user=dbuser, password=dbpass)
+        try:
+            conn = mysql.connector.connect(host=dbhost, port=dbport, database=dbname, user=dbuser, password=dbpass)
+        except Exception as err:
+            chk_db_exceptions(err)
         cur = conn.cursor(dictionary=True)
     elif dbtype == 'sqlite':
-        conn = sqlite3.connect('/opt/bacula/working/bacula.db')
+        try:
+            conn = sqlite3.connect('/opt/bacula/working/bacula.db')
+        except sqlite3.OperationalError as err:
+            chk_db_exceptions(err)
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
 
 def db_query(query_str, query, one_or_all=None):
-    'Query the database with the query string provided, test about what is being queried, and an optional "one" string'
+    'Query the database with the query string provided, text about what is being queried, and an optional "one" string'
     try:
         cur.execute(query_str)
         # This prevents dealing with nested lists
@@ -383,21 +430,8 @@ def db_query(query_str, query, one_or_all=None):
             rows = cur.fetchone()
         else:
             rows = cur.fetchall()
-
-    # TODO: Add all possible exceptions for each of the possible
-    # returns from the db modules so we can cleanly exit on errors
-    # ------------------------------------------------------------
-    # https://kb.objectrocket.com/postgresql/python-error-handling-with-the-psycopg2-postgresql-adapter-645#complete+list+of+the+psycopg2+exception+classes
-    # With the database not running, I found:
-    # psycopg2.OperationalError: could not connect to server: Connection refused
-    except sqlite3.OperationalError:
-            print('\nSQLite3 Database locked while fetching all jobs.')
-            print('Is a Bacula Job running?')
-            print('Exiting.\n')
-            sys.exit(1)
-    except:
-        print('Problem communicating with database \'' + dbname + '\' while fetching ' + query + '.\n')
-        sys.exit(1)
+    except Exception as err:
+       chk_db_exceptions(err, query)
     return rows
 
 def pn_job_id(ctrl_jobid):
@@ -449,7 +483,6 @@ def get_verify_client_name(vrfy_jobid):
             INNER JOIN Client on Job.clientid=Client.clientid \
             WHERE JobId='" + v_jobids_dict[str(vrfy_jobid)] + "';"
     row = db_query(query_str, 'the Client name of a jobid that was verified')
-    # return row['jobid'], row['client'], row['jobname']
     return row[0][0], row[0][1], row[0][2]
 
 def copied_ids(jobid):
@@ -942,16 +975,17 @@ if not args['--server']:
 else:
     server = args['--server']
 # dbtype is already tested and
-# verified above, just assign
-# and check the type to assign
-# correct connector and cursor
-# ----------------------------
+# verified above, just check
+# and assign the type to import
+# the necessary modules
+# -----------------------------
 dbtype = args['--dbtype']
 if dbtype == 'pgsql':
-    import psycopg2
     import psycopg2.extras
+    from psycopg2 import connect, OperationalError, errorcodes, errors
 elif dbtype in ('mysql', 'maria'):
     import mysql.connector
+    from mysql.connector import errorcode
 elif dbtype == 'sqlite':
     import sqlite3
     from datetime import timedelta
@@ -1371,7 +1405,7 @@ if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
     # "centos7-fd JobId 1376: Error: /home/viruses/Hidenowt Virus detected stream: Win.Trojan.Hidenowt-1 FOUND"
     #
     # Example Bacula log error message when the AV service cannot be contacted:
-    # "Unable to connect to bacula_antivirus-fd on 127.0.0.1:3310. ERR=Connection refused"
+    # "Unable to connect to antivirus-plugin-service on 127.0.0.1:3310. ERR=Connection refused"
     # ---------------------------------------------------------------------------------------------------------
     virus_dict = {}
     num_virus_files = 0

@@ -94,6 +94,8 @@ include_pnv_jobs = 'yes'  # Include copied, migrated, verified jobs who's endtim
 checkforvirus = 'no'               # Enable the additional checks for Viruses
 virusfoundtext = 'Virus detected'  # Some unique text that your AV software prints to the Bacula Job
                                    # log when a virus is detected. ONLY ClamAV is supported at this time!
+show_verified_job_name = 'yes'     # Show the name of the Job that a Verify job verified?
+verified_job_name_col = 'type'     # What column should the job name of verified jobs go? (name, type, both)
 
 # Job summary table settings
 # --------------------------
@@ -136,6 +138,9 @@ jobneedsopricon = '=?utf-8?Q?=F0=9F=96=AD?='    # utf-8 'tape cartridge' icon wh
 # jobneedsopricon = '=?utf-8?Q?=F0=9F=92=BE?='  # utf-8 'floppy' icon
 virusfoundicon = '=?utf-8?Q?=F0=9F=A6=A0?='     # utf-8 'microbe' (virus) icon
 # virusfoundicon = '=?utf-8?Q?=F0=9F=90=9E?='   # utf-8 'ladybug' (virus) icon
+
+# Email body icons/emojis
+# -----------------------
 virusfoundbodyicon = '&#x1F9A0'                 # HEX encoding for emoji in email body 'microbe' (virus) icon
 # virusfoundbodyicon = '&#x1F41E'               # HEX encoding for emoji in email body 'ladybug' (virus) icon
 # virusfoundbodyicon = '&#x1F41B'               # HEX encoding for emoji in email body 'bug' (virus) icon
@@ -328,7 +333,7 @@ col_hdr_dict = {
 # Now for some functions
 # ----------------------
 def usage():
-    'Show the instructions'
+    'Show the instructions.'
     print(doc_opt_str)
     sys.exit(1)
 
@@ -359,7 +364,7 @@ def print_opt_errors(opt):
         return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_email_summary_lst)
 
 def chk_db_exceptions(err, query=None):
-    'Given a DB connection or SQL exception, print or the useful information'
+    'Given a DB connection exception or SQL query exception, print some useful information and exit.'
     # Thanks to the help from this page, I was able to trap any db
     # connection or SQL query errors and just report a simple message:
     # https://kb.objectrocket.com/postgresql/python-error-handling-with-the-psycopg2-postgresql-adapter-645
@@ -389,15 +394,16 @@ def chk_db_exceptions(err, query=None):
     if dbtype == 'pgsql':
         print ('pgcode: ' + str(err.pgcode) + '\n')
     elif dbtype in ('mysql', 'maria'):
-        # TODO: Need to see if mysql, maria, and sqlite3 report an error code
-        # -------------------------------------------------------------------
+        # TODO: Need to check if mysql, maria, and
+        # sqlite3 report some specific error codes
+        # ----------------------------------------
         print('\n')
     elif dbtype == 'sqlite':
         print('\n')
     sys.exit(1)
 
 def db_connect():
-    'Connect to the db using the appropriate database connector and create the right cursor'
+    'Connect to the db using the appropriate database connector and create the right cursor.'
     global conn, cur
     if dbtype == 'pgsql':
         try:
@@ -420,7 +426,7 @@ def db_connect():
         cur = conn.cursor()
 
 def db_query(query_str, query, one_or_all=None):
-    'Query the database with the query string provided, text about what is being queried, and an optional "one" string'
+    'Query the database with the query string provided, text about what is being queried, and an optional "one" string.'
     try:
         cur.execute(query_str)
         # This prevents dealing with nested lists
@@ -462,10 +468,8 @@ def v_job_id(vrfy_jobid):
     # -------------------------------------------------------------
     return re.sub('.*Verify JobId: +(.+?)\n.*', '\\1', vrfy_jobid['logtext'], flags = re.DOTALL)
 
-def get_verify_client_name(vrfy_jobid):
-    'Return the Client name of a jobid that was verified'
-    # Given a Verify JobId, perform a SQL query to return the Client's name
-    # ---------------------------------------------------------------------
+def get_verify_client_info(vrfy_jobid):
+    'Given a Verify Jobid, return the JobId, Client name, and Job Name of the jobid that was verified.'
     if dbtype == 'pgsql':
         query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
             FROM Job \
@@ -510,7 +514,7 @@ def migrated_id(jobid):
             return pn_jobids_dict[t][1]
 
 def copied_ids_str(jobid):
-    'For a given jobid, return a comma separated string of jobids, urlified if "webgui" is enabled'
+    'For a given jobid, return a comma separated string of jobids, urlified if "webgui" is enabled.'
     copied_ids_lst = []
     for id in copied_ids(jobid):
         copied_ids_lst.append((urlify_jobid(id) if gui and urlifyalljobs == 'yes' else id))
@@ -608,7 +612,9 @@ def translate_job_type(jobtype, jobid, priorjobid):
                 virus_found_str = ''
             return 'Verify of ' \
                    + (urlify_jobid(v_jobids_dict[str(jobid)]) if gui and urlifyalljobs == 'yes' else v_jobids_dict[str(jobid)]) \
-                   + virus_found_str
+                   + virus_found_str \
+                   + ('<br>(' + get_verify_client_info(jobrow['jobid'])[2] + ')' \
+                   if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
         else:
             return 'Verify'
 
@@ -653,6 +659,7 @@ def translate_job_level(joblevel, jobtype):
             'D': 'Diff', 'f': 'VFull', 'F': 'Full', 'I': 'Inc', 'O': 'VV2C', 'V': 'Init'}[joblevel]
 
 def urlify_jobid(content):
+    'Given a jobid, wrap it in HTML to link it to the job log in the specified webgui.'
     if webgui == 'bweb':
         return '<a href="' + webguisvc + '://' + webguihost + ':' \
                + webguiport + '/cgi-bin/bweb/bweb.pl?action=job_zoom&jobid=' \
@@ -890,6 +897,11 @@ else:
         alwaysfailcolumn_str = 'Run Time cell'
     else:
         alwaysfailcolumn_str = alwaysfailcolumn.title() + ' cell'
+
+if verified_job_name_col not in ('name', 'type', 'both'):
+    print('\nThe \'verified_job_name_col\' variable is not valid!\n')
+    print('Valid options are: name, type, both')
+    usage()
 
 # Set the default ports for the different databases if not set on command line
 # ----------------------------------------------------------------------------
@@ -1412,7 +1424,7 @@ if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
     virus_client_set = set()
     virus_connerr_set = set()
     for row in virus_info_rows:
-        verified_job_info = get_verify_client_name(row['jobid'])
+        verified_job_info = get_verify_client_info(row['jobid'])
         verified_jobid = verified_job_info[0]
         verified_client = verified_job_info[1]
         verified_job = verified_job_info[2]
@@ -1777,7 +1789,11 @@ for jobrow in alljobrows:
         if colname == 'jobid':
             msg += html_format_cell(str(jobrow['jobid']), col = 'jobid', star = '*' if starbadjobids == 'yes' and jobrow['jobstatus'] in bad_job_set else '')
         elif colname == 'jobname':
-            msg += html_format_cell(jobrow['jobname'], col = 'jobname')
+            if jobrow['type'] == 'V' and show_verified_job_name == 'yes' and verified_job_name_col in ('name', 'both'):
+                vjobname = get_verify_client_info(jobrow['jobid'])[2]
+                msg += html_format_cell(jobrow['jobname'] + '<br>(' + vjobname + ')', col = 'jobname')
+            else:
+                msg += html_format_cell(jobrow['jobname'], col = 'jobname')
         elif colname == 'client':
             msg += html_format_cell(jobrow['client'], col = 'client', jobtype = jobrow['type'])
         elif colname == 'status':

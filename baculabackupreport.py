@@ -235,7 +235,7 @@ from socket import gaierror
 # ------------------
 progname='Bacula Backup Report'
 version = '1.49'
-reldate = 'March 24, 2022'
+reldate = 'April 5, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \

@@ -72,13 +72,13 @@ urlifyalljobs = 'yes'  # Should jobids in the Status column for Copied/Migrated/
 
 # Toggles and other formatting settings
 # -------------------------------------
-centerjobname = 'yes'     # Center the Job Name in HTML emails?
-centerclientname = 'yes'  # Center the Client Name in HTML emails?
-boldjobname = 'yes'       # Bold the Job Name in HTML emails?
-boldstatus = 'yes'        # Bold the Status in HTML emails?
-starbadjobids = 'no'      # Wrap bad Jobs jobids with asterisks "*"?
+centerjobname = 'yes'     # Center the job name in HTML emails?
+centerclientname = 'yes'  # Center the client name in HTML emails?
+boldjobname = 'yes'       # Bold the job name in HTML emails?
+boldstatus = 'yes'        # Bold the status in HTML emails?
+starbadjobids = 'no'      # Wrap bad jobs jobids with asterisks "*"?
 sortorder = 'DESC'        # Which direction to sort jobids by? (ASC or DESC)
-showcopiedto = 'yes'      # Show the jobids that Migrated/Backup jobs have been copied to
+showcopiedto = 'yes'      # Show the jobids that migrated/backup jobs have been copied to
 print_subject = 'yes'     # Print (stdout) the subject of the email being sent
 print_sent = 'yes'        # Print (stdout) when the email is successfully sent
 flagrescheduled = 'yes'   # Should we flag jobs which had failed but succeeded after having been rescheduled?
@@ -91,15 +91,17 @@ include_pnv_jobs = 'yes'  # Include copied, migrated, verified jobs who's endtim
                           #   list refer to them but they are not listed.
                           # - Verify jobs can verify any job, even very old ones. This option makes sure
                           #   verified jobs older than the hours set are also included in the listing.
-checkforvirus = 'no'               # Enable the additional checks for Viruses
-virusfoundtext = 'Virus detected'  # Some unique text that your AV software prints to the Bacula Job
+checkforvirus = 'no'               # Enable the additional checks for viruses
+virusfoundtext = 'Virus detected'  # Some unique text that your AV software prints to the Bacula job
                                    # log when a virus is detected. ONLY ClamAV is supported at this time!
-show_verified_job_name = 'yes'     # Show the name of the Job that a Verify job verified?
-verified_job_name_col = 'type'     # What column should the job name of verified jobs go? (name, type, both)
+show_verified_job_name = 'yes'     # Show the name of the job that a Verify job verified?
+verified_job_name_col = 'both'     # What column should the job name of verified jobs go? (name, type, both)
+show_copied_migrated_job_name = 'yes'  # Show the name of the job that was Copied/Migrated
+copied_migrated_job_name_row = 'both'  # What column should the job name of Copied Migrated jobs go? (name, type, both)
 
 # Job summary table settings
 # --------------------------
-emailsummary = 'bottom'  # Print a short summary after the Job list table? (top, bottom, both, none)
+emailsummary = 'bottom'  # Print a short summary after the job list table? (top, bottom, both, none)
 restore_stats = 'yes'    # Print Restore Files/Bytes in summary table?
 copied_stats = 'yes'     # Print Copied Files/Bytes in the summary table?
 migrated_stats = 'yes'   # Print Migrated Files/Bytes in the summary table?
@@ -107,10 +109,10 @@ verified_stats = 'yes'   # Print Verified Files/Bytes in the summary table?
 
 # Additional Job logs and summaries
 # ---------------------------------
-emailvirussummary = 'yes'     # Email the Viruses Summary report as a separate email?
-appendvirussummaries = 'yes'  # Append virus summary information?
-appendjobsummaries = 'no'     # Append all Job summaries? Be careful with this, it can generate very large emails
-appendbadlogs = 'no'          # Append logs of bad Jobs? Be careful with this, it can generate very large emails
+emailvirussummary = 'yes'     # Email the viruses summary report as a separate email?
+appendvirussummaries = 'no'   # Append virus summary information?
+appendjobsummaries = 'no'     # Append all job summaries? Be careful with this, it can generate very large emails
+appendbadlogs = 'no'          # Append logs of bad jobs? Be careful with this, it can generate very large emails
 
 # Email subject settings including some example utf-8
 # icons to prepend the subject with. Examples from:
@@ -121,9 +123,9 @@ appendbadlogs = 'no'          # Append logs of bad Jobs? Be careful with this, i
 #       differently on other Linux distributions
 # ---------------------------------------------------
 addsubjecticon = 'yes'                          # Prepend the email Subject with UTF-8 icons? See (no|good|warn|bad|alwaysfail)jobsicon variables
-addsubjectrunningorcreated = 'yes'              # Append "(# Jobs still runnning/queued)" to Subject if running or queued Jobs > 0?
-nojobsicon = '=?utf-8?Q?=F0=9F=9A=AB?='         # utf-8 'no entry sign' icon when no Jobs have been run
-goodjobsicon = '=?utf-8?Q?=F0=9F=9F=A9?='       # utf-8 'green square' icon when all Jobs were "OK"
+addsubjectrunningorcreated = 'yes'              # Append "(# Jobs still runnning/queued)" to subject if running or queued Jobs > 0?
+nojobsicon = '=?utf-8?Q?=F0=9F=9A=AB?='         # utf-8 'no entry sign' icon when no jobs have been run
+goodjobsicon = '=?utf-8?Q?=F0=9F=9F=A9?='       # utf-8 'green square' icon when all jobs were "OK"
 # goodjobsicon = '=?UTF-8?Q?=E2=9C=85?='        # utf-8 'white checkmark in green box' icon
 # goodjobsicon = '=?UTF-8?Q?=E2=98=BA?='        # utf-8 'smiley face' icon
 warnjobsicon = '=?UTF-8?Q?=F0=9F=9F=A7?='       # utf-8 'orange square' icon when all jobs are "OK", but some have errors/warnings
@@ -133,7 +135,7 @@ badjobsicon = '=?utf-8?Q?=F0=9F=9F=A5?='        # utf-8 'red square' icon
 # badjobsicon = '=?utf-8?Q?=E2=9D=8C?='         # utf-8 'red X' icon
 # badjobsicon = '=?utf-8?Q?=E2=9D=97?='         # utf-8 'red !' icon
 # badjobsicon = '=?utf-8?Q?=E2=98=B9?='         # utf-8 'sad face'
-alwaysfailjobsicon = '=?utf-8?Q?=E2=9B=94?='    # utf-8 'red circle with white hyphen' icon when there are "always failing" Jobs
+alwaysfailjobsicon = '=?utf-8?Q?=E2=9B=94?='    # utf-8 'red circle with white hyphen' icon when there are "always failing" jobs
 jobneedsopricon = '=?utf-8?Q?=F0=9F=96=AD?='    # utf-8 'tape cartridge' icon when there are jobs that need operator attention
 # jobneedsopricon = '=?utf-8?Q?=F0=9F=92=BE?='  # utf-8 'floppy' icon
 virusfoundicon = '=?utf-8?Q?=F0=9F=A6=A0?='     # utf-8 'microbe' (virus) icon
@@ -234,8 +236,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.50'
-reldate = 'April 5, 2022'
+version = '1.51'
+reldate = 'April 8, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -259,8 +261,8 @@ valid_col_lst = [
 # The text that is printed in the log
 # when the AV daemon cannot be reached
 # ------------------------------------
-avconnfailtext = 'Unable to connect to antivirus-plugin-service'
 num_virus_conn_errs = 0
+avconnfailtext = 'Unable to connect to antivirus-plugin-service'
 
 # Set some variables for the Summary stats for the special cases of Copy/Migration Control jobs
 # ---------------------------------------------------------------------------------------------
@@ -470,6 +472,9 @@ def v_job_id(vrfy_jobid):
 
 def get_verify_client_info(vrfy_jobid):
     'Given a Verify Jobid, return the JobId, Client name, and Job Name of the jobid that was verified.'
+    # This was originally for the anti-virus feature, but is now
+    # also used to show the jobname of the job a Verify Job verified
+    # --------------------------------------------------------------
     if dbtype == 'pgsql':
         query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
             FROM Job \
@@ -489,8 +494,28 @@ def get_verify_client_info(vrfy_jobid):
     row = db_query(query_str, 'the Client name of a jobid that was verified')
     return row[0][0], row[0][1], row[0][2]
 
+def get_copied_migrated_job_name(copy_migrate_jobid):
+    'Given a Copy/Migration Control Jobid, return the Job name of the jobid that was copied/migrated.'
+    if dbtype == 'pgsql':
+        query_str = "SELECT Job.Name AS JobName FROM Job WHERE JobId='" + pn_jobids_dict[str(copy_migrate_jobid)][0] + "';"
+    elif dbtype in ('mysql', 'maria'):
+        query_str = "SELECT CAST(Job.name as CHAR(50)) AS jobname \
+            FROM Job \
+            WHERE jobid='" + pn_jobids_dict[str(copy_migrate_jobid)] + "';"
+    elif dbtype == 'sqlite':
+        query_str = "SELECT Job.Name AS JobName \
+            FROM Job \
+            WHERE JobId='" + pn_jobids_dict[str(copy_migrate_jobid)] + "';"
+    row = db_query(query_str, 'the Job name of a jobid that was copied/migrated')
+    if len(row) != 0:
+        return row[0][0]
+    else:
+        return None
+
 def copied_ids(jobid):
     'For a given Backup or Migration job, return a list of jobids that it was copied to.'
+    # TODO: 20220407 - Need to also consider Copied jobs that get copied.
+    # -------------------------------------------------------------------
     copied_jobids=[]
     for t in pn_jobids_dict:
         # Make sure that only copy jobids are listed, not the jobid it was migrated to
@@ -584,7 +609,9 @@ def translate_job_type(jobtype, jobid, priorjobid):
             return 'Copy Ctrl:\n' \
                    + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
                    + '->' \
-                   + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1])
+                   + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1]) \
+                   + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                   if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
 
     if jobtype == 'g':
         if jobrow['jobstatus'] in ('R', 'C'):
@@ -602,7 +629,9 @@ def translate_job_type(jobtype, jobid, priorjobid):
             return 'Migration Ctrl:\n' \
                    + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
                    + '->' \
-                   + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1])
+                   + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1]) \
+                   + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                   if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
 
     if jobtype == 'V':
         if str(jobid) in v_jobids_dict.keys():
@@ -1784,7 +1813,6 @@ for jobrow in alljobrows:
              msg += '<tr style="' + jobtablerowevenstyle + '">'
         else :
              msg += '<tr style="' + jobtablerowoddstyle + '">'
-
     for colname in c2sl:
         if colname == 'jobid':
             msg += html_format_cell(str(jobrow['jobid']), col = 'jobid', star = '*' if starbadjobids == 'yes' and jobrow['jobstatus'] in bad_job_set else '')
@@ -1792,6 +1820,12 @@ for jobrow in alljobrows:
             if jobrow['type'] == 'V' and show_verified_job_name == 'yes' and verified_job_name_col in ('name', 'both'):
                 vjobname = get_verify_client_info(jobrow['jobid'])[2]
                 msg += html_format_cell(jobrow['jobname'] + '<br>(' + vjobname + ')', col = 'jobname')
+            elif jobrow['type'] in ('c', 'g') and show_copied_migrated_job_name == 'yes' and copied_migrated_job_name_row in ('name', 'both'):
+                cmjobname = get_copied_migrated_job_name(jobrow['jobid'])
+                if cmjobname == None:
+                    msg += html_format_cell(jobrow['jobname'], col = 'jobname')
+                else:
+                    msg += html_format_cell(jobrow['jobname'] + '<br>(' + cmjobname + ')', col = 'jobname')
             else:
                 msg += html_format_cell(jobrow['jobname'], col = 'jobname')
         elif colname == 'client':

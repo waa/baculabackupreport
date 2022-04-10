@@ -236,8 +236,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.51'
-reldate = 'April 8, 2022'
+version = '1.52'
+reldate = 'April 10, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -497,7 +497,9 @@ def get_verify_client_info(vrfy_jobid):
 def get_copied_migrated_job_name(copy_migrate_jobid):
     'Given a Copy/Migration Control Jobid, return the Job name of the jobid that was copied/migrated.'
     if dbtype == 'pgsql':
-        query_str = "SELECT Job.Name AS JobName FROM Job WHERE JobId='" + pn_jobids_dict[str(copy_migrate_jobid)][0] + "';"
+        query_str = "SELECT Job.Name AS JobName \
+            FROM Job \
+            WHERE JobId='" + pn_jobids_dict[str(copy_migrate_jobid)][0] + "';"
     elif dbtype in ('mysql', 'maria'):
         query_str = "SELECT CAST(Job.name as CHAR(50)) AS jobname \
             FROM Job \
@@ -1191,9 +1193,20 @@ good_days_jobs = [r['jobname'] for r in alldaysjobrows if r['jobstatus'] == 'T']
 unique_bad_days_jobs = {r['jobname'] for r in alldaysjobrows if r['jobstatus'] not in ('T', 'R', 'C')}
 always_fail_jobs = set(unique_bad_days_jobs.difference(good_days_jobs)).intersection(alljobnames)
 
-# For each Copy/Migration Control Job (c, g),
-# get the Job summary text from the log table
-# -------------------------------------------
+# For each Copy/Migration Control Job (c, g), get the Job summary
+# text from the log table.
+# TODO:
+# Even though we have a full list of all control jobids `ctrl_jobids`,
+# This DB query will only return rows for completed jobs, not running
+# jobs because running jobs do not have a Summary!
+# Now, after realizing this, I want to show the Name of the Job that
+# a running Copy/Migration Control Job is copying/migrating, or that
+# a running Verify Job is verifying and also for Copy/Migration/Verify
+# jobs that failed, so I cannot use the pn_jobids_dict dictionary that
+# we create after this query because the jobids of the running
+# Copy/Migration/Verify jobs will not/cannot be in the dictionary
+# due to the above.
+# --------------------------------------------------------------------
 # cji = Control Job Information
 # -----------------------------
 if len(ctrl_jobids) != 0:
@@ -1323,11 +1336,11 @@ if len(vrfy_jobids) != 0:
 
 # Now that we have the jobids of the Previous/New jobids of Copy/Migrated jobs in the
 # pn_jobids_dict dictionary, and the jobids of Verified jobs in the v_jobids_dict
-# dictionary we can get information about them and add their job rows to alljobrows
+# dictionary we can get information about them and add their job rows to alljobrows.
 # If the 'include_pnv_jobs' option is disabled, it can be confusing to see Copy,
 # Migrate, or Verify control jobs referencing jobids which are not in the listing
-# NOTE: No statisitics (Files, bytes, etc) are counted for these jobs that are pulled in
-# --------------------------------------------------------------------------------------
+# NOTE: Statisitics (Files, bytes, etc) are not counted for these jobs that are pulled in
+# ---------------------------------------------------------------------------------------
 if include_pnv_jobs == 'yes':
     pnv_jobids_lst = []
     # waa - 20210830 - TODO - There is a minor bug here. If a job is copied, migrated, or
@@ -1817,10 +1830,27 @@ for jobrow in alljobrows:
         if colname == 'jobid':
             msg += html_format_cell(str(jobrow['jobid']), col = 'jobid', star = '*' if starbadjobids == 'yes' and jobrow['jobstatus'] in bad_job_set else '')
         elif colname == 'jobname':
-            if jobrow['type'] == 'V' and show_verified_job_name == 'yes' and verified_job_name_col in ('name', 'both'):
+            # TODO:
+            # There is no Job summary with Prev Backup JobId: and New Backup JobId: for Running
+            # Copy/Migration control, nor for Verify jobs.
+            # Currently the two dictionaries pn_jobids_dict and v_jobids_dict are built by using re.sub
+            # against these Job Summaries. To get the Job Name for one of these type of running Jobs, I
+            # will need to have a query which looks for this line in running Copy/Migration Jobs:
+            # `bacula-dir JobId 46852: Copying using JobId=46839 Job=Catalog.2022-04-10_02.45.00_24`
+            #
+            # and this line in running Verify Jobs:
+            # `bacula-dir JobId 46843: Verifying against JobId=46839 Job=Catalog.2022-04-10_02.45.00_24`
+            # ------------------------------------------------------------------------------------------
+            if jobrow['type'] == 'V' and jobrow['jobstatus'] != 'R' \
+                and str(jobrow['jobid']) in v_jobids_dict \
+                and show_verified_job_name == 'yes' \
+                and verified_job_name_col in ('name', 'both'):
                 vjobname = get_verify_client_info(jobrow['jobid'])[2]
                 msg += html_format_cell(jobrow['jobname'] + '<br>(' + vjobname + ')', col = 'jobname')
-            elif jobrow['type'] in ('c', 'g') and show_copied_migrated_job_name == 'yes' and copied_migrated_job_name_row in ('name', 'both'):
+            elif jobrow['type'] in ('c', 'g') and jobrow['jobstatus'] != 'R' \
+                and str(jobrow['jobid']) in pn_jobids_dict \
+                and show_copied_migrated_job_name == 'yes' \
+                and copied_migrated_job_name_row in ('name', 'both'):
                 cmjobname = get_copied_migrated_job_name(jobrow['jobid'])
                 if cmjobname == None:
                     msg += html_format_cell(jobrow['jobname'], col = 'jobname')

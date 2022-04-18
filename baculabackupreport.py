@@ -236,8 +236,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.52'
-reldate = 'April 10, 2022'
+version = '1.53'
+reldate = 'April 17, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -475,44 +475,82 @@ def get_verify_client_info(vrfy_jobid):
     # This was originally for the anti-virus feature, but is now
     # also used to show the jobname of the job a Verify Job verified
     # --------------------------------------------------------------
-    if dbtype == 'pgsql':
-        query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
-            FROM Job \
-            INNER JOIN Client on Job.ClientID=Client.ClientID \
-            WHERE JobId='" + v_jobids_dict[str(vrfy_jobid)] + "';"
-    elif dbtype in ('mysql', 'maria'):
-        query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
-            CAST(Job.name as CHAR(50)) AS jobname \
-            FROM Job \
-            INNER JOIN Client on Job.clientid=Client.clientid \
-            WHERE jobid='" + v_jobids_dict[str(vrfy_jobid)] + "';"
-    elif dbtype == 'sqlite':
-        query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
-            FROM Job \
-            INNER JOIN Client on Job.clientid=Client.clientid \
-            WHERE JobId='" + v_jobids_dict[str(vrfy_jobid)] + "';"
-    row = db_query(query_str, 'the Client name of a jobid that was verified')
-    return row[0][0], row[0][1], row[0][2]
+    if [r['jobstatus'] for r in alljobrows if r['jobid'] == vrfy_jobid][0] == 'C':
+        return '', '', 'No info yet'
+    elif [r['jobstatus'] for r in alljobrows if r['jobid'] == vrfy_jobid][0] in ('A', 'E', 'f', 'R'):
+        if dbtype in ('pgsql', 'sqlite'):
+            query_str = "SELECT logtext \
+                FROM log WHERE jobid='" + str(vrfy_jobid) + "' \
+                AND logtext LIKE '%Verifying against JobId=%' \
+                ORDER BY time DESC LIMIT 1;"
+        elif dbtype in ('mysql', 'maria'):
+            query_str = "SELECT CAST(logtext as CHAR(2000)) AS logtext \
+                FROM Log WHERE jobid='" + str(vrfy_jobid) + "' \
+                AND logtext LIKE '%Verifying against JobId=%' \
+                ORDER BY time DESC LIMIT 1;"
+        row = db_query(query_str, 'the Job name (from log table) of a jobid that was copied/migrated')
+        if len(row) == 0:
+            return '', '', 'No info'
+        else:
+            return '', '', re.sub('.*Verifying against JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row[0][0], flags=re.DOTALL)
+    else:
+        if dbtype == 'pgsql':
+            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
+                FROM Job \
+                INNER JOIN Client on Job.ClientID=Client.ClientID \
+                WHERE JobId='" + v_jobids_dict[str(vrfy_jobid)] + "';"
+        elif dbtype in ('mysql', 'maria'):
+            query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
+                CAST(Job.name as CHAR(50)) AS jobname \
+                FROM Job \
+                INNER JOIN Client on Job.clientid=Client.clientid \
+                WHERE jobid='" + v_jobids_dict[str(vrfy_jobid)] + "';"
+        elif dbtype == 'sqlite':
+            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
+                FROM Job \
+                INNER JOIN Client on Job.clientid=Client.clientid \
+                WHERE JobId='" + v_jobids_dict[str(vrfy_jobid)] + "';"
+    row = db_query(query_str, 'the JobId, Client Name, and Job Name of a job that was verified')
+    return row[0][str('jobid')], row[0]['client'], row[0]['jobname']
 
 def get_copied_migrated_job_name(copy_migrate_jobid):
     'Given a Copy/Migration Control Jobid, return the Job name of the jobid that was copied/migrated.'
-    if dbtype == 'pgsql':
-        query_str = "SELECT Job.Name AS JobName \
-            FROM Job \
-            WHERE JobId='" + pn_jobids_dict[str(copy_migrate_jobid)][0] + "';"
-    elif dbtype in ('mysql', 'maria'):
-        query_str = "SELECT CAST(Job.name as CHAR(50)) AS jobname \
-            FROM Job \
-            WHERE jobid='" + pn_jobids_dict[str(copy_migrate_jobid)] + "';"
-    elif dbtype == 'sqlite':
-        query_str = "SELECT Job.Name AS JobName \
-            FROM Job \
-            WHERE JobId='" + pn_jobids_dict[str(copy_migrate_jobid)] + "';"
-    row = db_query(query_str, 'the Job name of a jobid that was copied/migrated')
-    if len(row) != 0:
-        return row[0][0]
+    if [r['jobstatus'] for r in alljobrows if r['jobid'] == copy_migrate_jobid][0] == 'C':
+        return '', '', 'No Info Yet'
+    # If the job is aborted/running/failed, see if we can scrape some
+    # info about the job name being copied/migrated from the job logs
+    # ---------------------------------------------------------------
+    elif [r['jobstatus'] for r in alljobrows if r['jobid'] == copy_migrate_jobid][0] in ('A', 'E', 'f', 'R'):
+        if dbtype in ('pgsql', 'sqlite'):
+            query_str = "SELECT logtext \
+                FROM log WHERE jobid='" + str(copy_migrate_jobid) + "' \
+                AND (logtext LIKE '%Copying using JobId=%' OR logtext LIKE '%Migration using JobId=%') \
+                ORDER BY time DESC LIMIT 1;"
+        elif dbtype in ('mysql', 'maria'):
+            query_str = "SELECT CAST(logtext as CHAR(2000)) AS logtext \
+                FROM log WHERE jobid='" + str(copy_migrate_jobid) + "' \
+                AND (logtext LIKE '%Copying using JobId=%' OR logtext LIKE '%Migration using JobId=%') \
+                ORDER BY time DESC LIMIT 1;"
+        row = db_query(query_str, 'the Job name (from log table) of a jobid that was copied/migrated')
+        return re.sub('.*[Copying\|Migration] using JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row[0][0], flags=re.DOTALL)
     else:
-        return None
+        if dbtype == 'pgsql':
+            query_str = "SELECT Job.Name AS JobName \
+                FROM Job \
+                WHERE JobId='" + pn_jobids_dict[str(copy_migrate_jobid)][0] + "';"
+        elif dbtype in ('mysql', 'maria'):
+            query_str = "SELECT CAST(Job.name as CHAR(50)) AS jobname \
+                FROM Job \
+                WHERE jobid='" + pn_jobids_dict[str(copy_migrate_jobid)][0] + "';"
+        elif dbtype == 'sqlite':
+            query_str = "SELECT Job.Name AS JobName \
+                FROM Job \
+                WHERE JobId='" + pn_jobids_dict[str(copy_migrate_jobid)][0] + "';"
+        row = db_query(query_str, 'the Job name of a jobid (from Job table) that was copied/migrated')
+        if len(row) != 0:
+            return row[0]['jobname']
+        else:
+            return None
 
 def copied_ids(jobid):
     'For a given Backup or Migration job, return a list of jobids that it was copied to.'
@@ -596,58 +634,75 @@ def translate_job_type(jobtype, jobid, priorjobid):
             return 'Migrated'
 
     if jobtype == 'c':
-        if jobrow['jobstatus'] in ('R', 'C'):
+        if jobrow['jobstatus'] == 'C':
             return 'Copy Ctrl'
+        if jobrow['jobstatus'] == 'R':
+            return 'Copy Ctrl' \
+                + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
         if jobrow['jobstatus'] in bad_job_set:
-            return 'Copy Ctrl: Failed'
+            return 'Copy Ctrl: Failed' \
+                + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
         if pn_jobids_dict[str(jobid)][1] == '0':
             if pn_jobids_dict[str(jobid)][0] != '0':
                 return 'Copy Ctrl: ' \
-                       + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
-                       + ' (No files to copy)'
+                    + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
+                    + ' (No files to copy)' \
+                    + ('<br>' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                    if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
             else:
                 return 'Copy Ctrl: No jobs to copy'
         else:
             return 'Copy Ctrl:\n' \
-                   + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
-                   + '->' \
-                   + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1]) \
-                   + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                   if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
+                + '->' \
+                + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1]) \
+                + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
 
     if jobtype == 'g':
-        if jobrow['jobstatus'] in ('R', 'C'):
+        if jobrow['jobstatus'] == 'C':
             return 'Migration Ctrl'
+        if jobrow['jobstatus'] == 'R':
+            return 'Migration Ctrl' \
+                + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
         if jobrow['jobstatus'] in bad_job_set:
-            return 'Migration Ctrl: Failed'
+            return 'Migration Ctrl: Failed' \
+                + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
         if pn_jobids_dict[str(jobid)][1] == '0':
             if pn_jobids_dict[str(jobid)][0] != '0':
                 return 'Migration Ctrl: ' \
-                       + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
-                       + ' (No data to migrate)'
+                    + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
+                    + ' (No data to migrate)' \
+                    + ('<br>' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                    if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
             else:
                 return 'Migration Ctrl: No jobs to migrate'
         else:
             return 'Migration Ctrl:\n' \
-                   + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
-                   + '->' \
-                   + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1]) \
-                   + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                   if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
+                + '->' \
+                + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1]) \
+                + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
 
     if jobtype == 'V':
-        if str(jobid) in v_jobids_dict.keys():
-            if 'virus_dict' in globals() and jobid in virus_dict:
-                virus_found_str = ' (' + str(len(virus_dict[jobid])) + ' ' + virusfoundbodyicon + ')'
-            else:
-                virus_found_str = ''
+        if jobrow['jobstatus'] == 'R' or v_jobids_dict[str(jobid)] == '0':
+            return 'Verify of n/a' + ('<br>(No info)' if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
+        else:
+            if str(jobid) in v_jobids_dict.keys():
+                if 'virus_dict' in globals() and jobid in virus_dict:
+                    virus_found_str = ' (' + str(len(virus_dict[jobid])) + ' ' + virusfoundbodyicon + ')'
+                else:
+                    virus_found_str = ''
             return 'Verify of ' \
                    + (urlify_jobid(v_jobids_dict[str(jobid)]) if gui and urlifyalljobs == 'yes' else v_jobids_dict[str(jobid)]) \
                    + virus_found_str \
                    + ('<br>(' + get_verify_client_info(jobrow['jobid'])[2] + ')' \
                    if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
-        else:
-            return 'Verify'
 
     # Catchall for the last two Job types
     # -----------------------------------
@@ -799,9 +854,9 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     # client is used, or when the Job is still running, there
     # will be no endtime, nor runtime
     # --------------------------------------------------------
-    if content == '----' or (col in ('client', 'runtime') and content in (None, '0')):
+    if content == '----' or (col in ('client', 'runtime') and content in (None, 'None', '0')):
         content = '<hr width="20%">'
-    if content in (None, '0') and col == 'endtime' and jobrow['jobstatus'] == 'R':
+    if content in (None, 'None', '0') and col == 'endtime' and jobrow['jobstatus'] == 'R':
         content = 'Still Running'
     if jobrow['jobstatus'] == 'C' and col == 'endtime':
         content = 'Created, not yet running'
@@ -1526,7 +1581,6 @@ if len(runningjobids) != 0:
         query_str = "SELECT jobid, logtext FROM Log \
             WHERE jobid IN (" + ','.join(runningjobids) + ") ORDER BY jobid, time DESC;"
     running_jobs_log_text = db_query(query_str, 'all running job logs')
-
     # Create 'job_needs_opr_lst'
     # --------------------------
     job_needs_opr_lst = []
@@ -1540,10 +1594,10 @@ if len(runningjobids) != 0:
         # stuck waiting on media
         # --------------------------------------------------------------
         for rjlt in running_jobs_log_text:
-            if str(rjlt[0]) == rj:
-                log_text += rjlt[1]
-                if 'Please mount' in rjlt[1] or \
-                   'Please use the "label" command' in rjlt[1]:
+            if str(rjlt['jobid']) == rj:
+                log_text += rjlt['logtext']
+                if 'Please mount' in rjlt['logtext'] or \
+                   'Please use the "label" command' in rjlt['logtext']:
                     if 'New volume' not in log_text and \
                        'Ready to append' not in log_text and \
                        'all previous data lost' not in log_text:
@@ -1841,21 +1895,27 @@ for jobrow in alljobrows:
             # and this line in running Verify Jobs:
             # `bacula-dir JobId 46843: Verifying against JobId=46839 Job=Catalog.2022-04-10_02.45.00_24`
             # ------------------------------------------------------------------------------------------
-            if jobrow['type'] == 'V' and jobrow['jobstatus'] != 'R' \
-                and str(jobrow['jobid']) in v_jobids_dict \
+                # Temporarily moved these out of the if statement below
+                # -----------------------------------------------------
+                # and jobrow['jobstatus'] != 'R' \
+                # and str(jobrow['jobid']) in v_jobids_dict \
+            if jobrow['type'] == 'V' \
                 and show_verified_job_name == 'yes' \
                 and verified_job_name_col in ('name', 'both'):
-                vjobname = get_verify_client_info(jobrow['jobid'])[2]
-                msg += html_format_cell(jobrow['jobname'] + '<br>(' + vjobname + ')', col = 'jobname')
-            elif jobrow['type'] in ('c', 'g') and jobrow['jobstatus'] != 'R' \
-                and str(jobrow['jobid']) in pn_jobids_dict \
+                    vjobname = get_verify_client_info(jobrow['jobid'])[2]
+                    msg += html_format_cell(jobrow['jobname'] + '<br>(' + vjobname + ')', col = 'jobname')
+                # Temporarily moved these out of the elif statement below
+                # -------------------------------------------------------
+                # and jobrow['jobstatus'] != 'R' \
+                # and str(jobrow['jobid']) in pn_jobids_dict \
+            elif jobrow['type'] in ('c', 'g') \
                 and show_copied_migrated_job_name == 'yes' \
                 and copied_migrated_job_name_row in ('name', 'both'):
-                cmjobname = get_copied_migrated_job_name(jobrow['jobid'])
-                if cmjobname == None:
-                    msg += html_format_cell(jobrow['jobname'], col = 'jobname')
-                else:
-                    msg += html_format_cell(jobrow['jobname'] + '<br>(' + cmjobname + ')', col = 'jobname')
+                    cmjobname = get_copied_migrated_job_name(jobrow['jobid'])
+                    if cmjobname == None:
+                        msg += html_format_cell(jobrow['jobname'], col = 'jobname')
+                    else:
+                        msg += html_format_cell(jobrow['jobname'] + '<br>(' + cmjobname + ')', col = 'jobname')
             else:
                 msg += html_format_cell(jobrow['jobname'], col = 'jobname')
         elif colname == 'client':

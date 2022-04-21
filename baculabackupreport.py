@@ -95,9 +95,9 @@ checkforvirus = 'no'               # Enable the additional checks for viruses
 virusfoundtext = 'Virus detected'  # Some unique text that your AV software prints to the Bacula job
                                    # log when a virus is detected. ONLY ClamAV is supported at this time!
 show_verified_job_name = 'yes'     # Show the name of the job that a Verify job verified?
-verified_job_name_col = 'both'     # What column should the job name of verified jobs go? (name, type, both)
+verified_job_name_col = 'name'     # What column should the job name of verified jobs go? (name, type, both)
 show_copied_migrated_job_name = 'yes'  # Show the name of the job that was Copied/Migrated
-copied_migrated_job_name_row = 'both'  # What column should the job name of Copied Migrated jobs go? (name, type, both)
+copied_migrated_job_name_row = 'name'  # What column should the job name of Copied Migrated jobs go? (name, type, both)
 
 # Job summary table settings
 # --------------------------

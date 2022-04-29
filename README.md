@@ -80,11 +80,11 @@ Shows the tail end of the (optional) summary/totals table followed by the (optio
 ![baculabackupreport-Sample_4-2021-05-06_16-49](https://user-images.githubusercontent.com/108133/117374978-65690280-ae8b-11eb-8b8a-3e7b82a1f0f7.png)
 
 #### Screenshot five:
-Shows the "always failing jobs" feature (red arrows). Jobs that have been only/always failing in the past "-d days" (default 7) can have any column or their entire row  highlighted. When there are jobs that are "always failing" the special subject icon can quickly alert you. Additionally, if using BWeb or Baculum, the Job's name can be a link to its history in the Web Gui. The blue arrows shows that there are some copy and migration jobs that ran in the past 24 hours which had copied jobs that are outside of this 24 hours. They are pulled into the list so they may be quickly accessed. Their files/bytes stats are not counted in the summary.
+Shows the "Always failing jobs" feature (red arrows). Jobs that have been only/always failing in the past "-d days" (default 7) can have any column or their entire row highlighted. When there are jobs that are "always failing" the special subject icon can quickly alert you. Additionally, if using BWeb or Baculum, the Job's name can be a link to its history in the Web Gui. The blue arrows show that there are some copy and migration jobs that ran in the past 24 hours which had copied jobs that were outside of the 24 hours. They are pulled into the list so they may be quickly accessed. Their files/bytes stats are not counted in the summary.
 ![BaculaReport-5-20210902_231153](https://user-images.githubusercontent.com/108133/131954405-ea9776b6-adaa-47df-b5ba-8414175819e7.png)
 
 #### Screenshot six:
-Shows the "always failing jobs" feature, the copied/migrated jobs older than 24 hours feature, along with the ability to choose any columns and display them in any order
+Shows the "Always failing jobs" feature, the copied/migrated jobs older than 24 hours feature, along with the ability to choose any columns and display them in any order
 ![BackupReport-6-20210902_232145](https://user-images.githubusercontent.com/108133/131954696-3851a7ed-5db4-499f-83e7-99987fc23de3.png)
 
 #### Screenshot seven:

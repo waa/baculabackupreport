@@ -157,10 +157,13 @@ virusfoundbodyicon = '&#x1F9A0'                 # HEX encoding for emoji in emai
 # as these may have special formatting applied by default in certain cases
 # ------------------------------------------------------------------------
 cols2show = 'jobid jobname client status joberrors type level jobfiles jobbytes starttime endtime runtime'
+# Dorian's minimalist preference
+# ------------------------------
+# cols2show = 'jobid jobname client status type level jobbytes'
 
 # Set the column to colorize for jobs that are always failing
 # -----------------------------------------------------------
-alwaysfailcolumn = 'jobname'  # Column to colorize for "always failing jobs" - column name, row, none
+alwaysfailcolumn = 'jobname'  # Column to colorize for "always failing jobs" (column name, row, none)
 
 # HTML colors
 # -----------
@@ -516,7 +519,7 @@ def get_verify_client_info(vrfy_jobid):
 def get_copied_migrated_job_name(copy_migrate_jobid):
     'Given a Copy/Migration Control Jobid, return the Job name of the jobid that was copied/migrated.'
     if [r['jobstatus'] for r in alljobrows if r['jobid'] == copy_migrate_jobid][0] == 'C':
-        return '', '', 'No Info Yet'
+        return 'No Info Yet'
     # If the job is aborted/running/failed, see if we can scrape some
     # info about the job name being copied/migrated from the job logs
     # ---------------------------------------------------------------
@@ -634,10 +637,8 @@ def translate_job_type(jobtype, jobid, priorjobid):
             return 'Migrated'
 
     if jobtype == 'c':
-        if jobrow['jobstatus'] == 'C':
-            return 'Copy Ctrl'
-        if jobrow['jobstatus'] == 'R':
-            return 'Copy Ctrl' \
+        if jobrow['jobstatus'] in ('C', 'R'):
+            return 'Copy Ctrl:' \
                 + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
                 if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
         if jobrow['jobstatus'] in bad_job_set:
@@ -662,10 +663,8 @@ def translate_job_type(jobtype, jobid, priorjobid):
                 if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
 
     if jobtype == 'g':
-        if jobrow['jobstatus'] == 'C':
-            return 'Migration Ctrl'
-        if jobrow['jobstatus'] == 'R':
-            return 'Migration Ctrl' \
+        if jobrow['jobstatus'] in ('C', 'R'):
+            return 'Migration Ctrl:' \
                 + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
                 if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
         if jobrow['jobstatus'] in bad_job_set:
@@ -741,8 +740,9 @@ def translate_job_level(joblevel, jobtype):
     # ---------------------------------
     if jobtype in ('D', 'R', 'g', 'c'):
         return '----'
-    return {' ': '----', '-': 'Base', 'A': 'Data', 'C': 'VCat', 'd': 'VD2C',
-            'D': 'Diff', 'f': 'VFull', 'F': 'Full', 'I': 'Inc', 'O': 'VV2C', 'V': 'Init'}[joblevel]
+    else:
+        return {' ': '----', '-': 'Base', 'A': 'Data', 'C': 'VCat', 'd': 'VD2C',
+                'D': 'Diff', 'f': 'VFull', 'F': 'Full', 'I': 'Inc', 'O': 'VV2C', 'V': 'Init'}[joblevel]
 
 def urlify_jobid(content):
     'Given a jobid, wrap it in HTML to link it to the job log in the specified webgui.'

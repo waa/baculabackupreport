@@ -95,9 +95,9 @@ checkforvirus = 'no'               # Enable the additional checks for viruses
 virusfoundtext = 'Virus detected'  # Some unique text that your AV software prints to the Bacula job
                                    # log when a virus is detected. ONLY ClamAV is supported at this time!
 show_verified_job_name = 'yes'     # Show the name of the job that a Verify job verified?
-verified_job_name_col = 'name'     # What column should the job name of verified jobs go? (name, type, both)
+verified_job_name_col = 'both'     # What column should the job name of verified jobs go? (name, type, both)
 show_copied_migrated_job_name = 'yes'  # Show the name of the job that was Copied/Migrated
-copied_migrated_job_name_row = 'name'  # What column should the job name of Copied Migrated jobs go? (name, type, both)
+copied_migrated_job_name_row = 'both'  # What column should the job name of Copied Migrated jobs go? (name, type, both)
 
 # Job summary table settings
 # --------------------------
@@ -239,8 +239,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.53'
-reldate = 'April 17, 2022'
+version = '1.54'
+reldate = 'May 06, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -521,8 +521,8 @@ def get_copied_migrated_job_name(copy_migrate_jobid):
     if [r['jobstatus'] for r in alljobrows if r['jobid'] == copy_migrate_jobid][0] == 'C':
         return 'No Info Yet'
     # If the job is aborted/running/failed, see if we can scrape some
-    # info about the job name being copied/migrated from the job logs
-    # ---------------------------------------------------------------
+    # info about the job name being copied/migrated from the Log table
+    # ----------------------------------------------------------------
     elif [r['jobstatus'] for r in alljobrows if r['jobid'] == copy_migrate_jobid][0] in ('A', 'E', 'f', 'R'):
         if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT logtext \
@@ -537,6 +537,9 @@ def get_copied_migrated_job_name(copy_migrate_jobid):
         row = db_query(query_str, 'the Job name (from log table) of a jobid that was copied/migrated')
         return re.sub('.*[Copying\|Migration] using JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row[0][0], flags=re.DOTALL)
     else:
+        # If the jobstatus is not one of the above,
+        # query the Job table to get the jobname
+        # -----------------------------------------
         if dbtype == 'pgsql':
             query_str = "SELECT Job.Name AS JobName \
                 FROM Job \
@@ -551,6 +554,9 @@ def get_copied_migrated_job_name(copy_migrate_jobid):
                 WHERE JobId='" + pn_jobids_dict[str(copy_migrate_jobid)][0] + "';"
         row = db_query(query_str, 'the Job name of a jobid (from Job table) that was copied/migrated')
         if len(row) != 0:
+            # If a JobName was returned from the
+            # query, return it, otherwise return None
+            # ---------------------------------------
             return row[0]['jobname']
         else:
             return None
@@ -689,8 +695,20 @@ def translate_job_type(jobtype, jobid, priorjobid):
                 if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
 
     if jobtype == 'V':
-        if jobrow['jobstatus'] == 'R' or v_jobids_dict[str(jobid)] == '0':
-            return 'Verify of n/a' + ('<br>(No info)' if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
+        # TODO: I want to be able to use this simple 'if' test, but can't until I fix the TODO below
+        # if jobrow['jobstatus'] in ('C', 'R') and v_jobids_dict[str(jobid)] == '0':
+        # ------------------------------------------------------------------------------------------
+        if jobrow['jobstatus'] in ('C', 'R') and jobid not in v_jobids_dict:
+            return 'Verify of n/a' + ('<br>(No info yet)' if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
+        # TODO: See related TODO on or near line 1904 Need to fix this! In
+        # this temporary workaround, I am returning the same exact thing
+        # for two different if/elif tests. Basically, we cannot include
+        # this 'if' in the above one because the jobid will not be in the
+        # v_jobids_dict for Jobs with jobstatus of 'C' and the script will
+        # fail with a keyerror.
+        # ----------------------------------------------------------------
+        elif jobid in v_jobids_dict and v_jobids_dict[str(jobid)] == '0':
+            return 'Verify of n/a' + ('<br>(No info yet)' if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
         else:
             if str(jobid) in v_jobids_dict.keys():
                 if 'virus_dict' in globals() and jobid in virus_dict:
@@ -1884,9 +1902,10 @@ for jobrow in alljobrows:
         if colname == 'jobid':
             msg += html_format_cell(str(jobrow['jobid']), col = 'jobid', star = '*' if starbadjobids == 'yes' and jobrow['jobstatus'] in bad_job_set else '')
         elif colname == 'jobname':
-            # TODO:
-            # There is no Job summary with Prev Backup JobId: and New Backup JobId: for Running
-            # Copy/Migration control, nor for Verify jobs.
+            # TODO: See related TODO on or near line 703
+            # There is no Job summary with Prev Backup JobId: and New
+            # Backup JobId: for Running or Created, not yet running
+            # Copy/Migration control, nor Verify JobId: for Verify jobs.
             # Currently the two dictionaries pn_jobids_dict and v_jobids_dict are built by using re.sub
             # against these Job Summaries. To get the Job Name for one of these type of running Jobs, I
             # will need to have a query which looks for this line in running Copy/Migration Jobs:
@@ -1894,6 +1913,9 @@ for jobrow in alljobrows:
             #
             # and this line in running Verify Jobs:
             # `bacula-dir JobId 46843: Verifying against JobId=46839 Job=Catalog.2022-04-10_02.45.00_24`
+            #
+            # ...and then add them to the correct dictionary. A value of '0' will be used for Created,
+            # not yet running Copy/Migration/Verify jobs
             # ------------------------------------------------------------------------------------------
                 # Temporarily moved these out of the if statement below
                 # -----------------------------------------------------

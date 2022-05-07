@@ -239,8 +239,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.54'
-reldate = 'May 06, 2022'
+version = '1.55'
+reldate = 'May 07, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -520,9 +520,10 @@ def get_copied_migrated_job_name(copy_migrate_jobid):
     'Given a Copy/Migration Control Jobid, return the Job name of the jobid that was copied/migrated.'
     if [r['jobstatus'] for r in alljobrows if r['jobid'] == copy_migrate_jobid][0] == 'C':
         return 'No Info Yet'
-    # If the job is aborted/running/failed, see if we can scrape some
-    # info about the job name being copied/migrated from the Log table
-    # ----------------------------------------------------------------
+    # If the job is aborted/running/failed, there may be
+    # no Job Summary, so let's see if we can scrape some info
+    # about the job name being copied/migrated from the Log table
+    # -----------------------------------------------------------
     elif [r['jobstatus'] for r in alljobrows if r['jobid'] == copy_migrate_jobid][0] in ('A', 'E', 'f', 'R'):
         if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT logtext \
@@ -535,7 +536,16 @@ def get_copied_migrated_job_name(copy_migrate_jobid):
                 AND (logtext LIKE '%Copying using JobId=%' OR logtext LIKE '%Migration using JobId=%') \
                 ORDER BY time DESC LIMIT 1;"
         row = db_query(query_str, 'the Job name (from log table) of a jobid that was copied/migrated')
-        return re.sub('.*[Copying\|Migration] using JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row[0][0], flags=re.DOTALL)
+        if len(row)!= 0:
+            # If a JobName was returned from the
+            # query, return it, otherwise return 'No Info'
+            # --------------------------------------------
+            return re.sub('.*[Copying\|Migration] using JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row[0][0], flags=re.DOTALL)
+        else:
+            # This is for when a Copy/Migration control job is canceled due to:
+            # Fatal error: JobId 47454 already running. Duplicate job not allowed.
+            # ------------------------------------------------------------------------
+            return 'No Info'
     else:
         # If the jobstatus is not one of the above,
         # query the Job table to get the jobname
@@ -1917,19 +1927,11 @@ for jobrow in alljobrows:
             # ...and then add them to the correct dictionary. A value of '0' will be used for Created,
             # not yet running Copy/Migration/Verify jobs
             # ------------------------------------------------------------------------------------------
-                # Temporarily moved these out of the if statement below
-                # -----------------------------------------------------
-                # and jobrow['jobstatus'] != 'R' \
-                # and str(jobrow['jobid']) in v_jobids_dict \
             if jobrow['type'] == 'V' \
                 and show_verified_job_name == 'yes' \
                 and verified_job_name_col in ('name', 'both'):
                     vjobname = get_verify_client_info(jobrow['jobid'])[2]
                     msg += html_format_cell(jobrow['jobname'] + '<br>(' + vjobname + ')', col = 'jobname')
-                # Temporarily moved these out of the elif statement below
-                # -------------------------------------------------------
-                # and jobrow['jobstatus'] != 'R' \
-                # and str(jobrow['jobid']) in pn_jobids_dict \
             elif jobrow['type'] in ('c', 'g') \
                 and show_copied_migrated_job_name == 'yes' \
                 and copied_migrated_job_name_row in ('name', 'both'):

@@ -239,8 +239,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.55'
-reldate = 'May 07, 2022'
+version = '1.56'
+reldate = 'May 09, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -717,8 +717,10 @@ def translate_job_type(jobtype, jobid, priorjobid):
         # v_jobids_dict for Jobs with jobstatus of 'C' and the script will
         # fail with a keyerror.
         # ----------------------------------------------------------------
-        elif jobid in v_jobids_dict and v_jobids_dict[str(jobid)] == '0':
+        elif jobrow['jobstatus'] in ('C', 'R') and str(jobid) in v_jobids_dict and v_jobids_dict[str(jobid)] == '0':
             return 'Verify of n/a' + ('<br>(No info yet)' if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
+        elif str(jobid) in v_jobids_dict and v_jobids_dict[str(jobid)] == '0':
+            return 'Verify of n/a' + ('<br>(No info)' if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
         else:
             if str(jobid) in v_jobids_dict.keys():
                 if 'virus_dict' in globals() and jobid in virus_dict:

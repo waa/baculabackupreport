@@ -239,8 +239,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.56'
-reldate = 'May 09, 2022'
+version = '1.57'
+reldate = 'June 01, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -1842,16 +1842,18 @@ if show_db_stats == 'yes':
     else:
         num_clients = num_clients_qry[0]
 
-    # Get the total number of Jobs (B, C, M), total bytes, total numner of files
-    # --------------------------------------------------------------------------
-    query_str = "SELECT COUNT(*) AS num_jobs, SUM(JobFiles) AS num_files, \
+    # Get the total number of Jobs in the catalog (includes failed jobs, etc)
+    # -----------------------------------------------------------------------
+    query_str = "SELECT COUNT(*) FROM Job;"
+    job_qry = db_query(query_str, 'the total jobs', 'one')
+    num_jobs = job_qry[0]
+
+    # Get the total bytes, total number of files for successful Jobs of type (B, C, M)
+    # --------------------------------------------------------------------------------
+    query_str = "SELECT SUM(JobFiles) AS num_files, \
                  SUM(JobBytes) AS num_bytes FROM Job WHERE Type IN ('B','C','M') \
                  AND JobStatus = 'T';"
-    job_qry = db_query(query_str, 'the totals for jobs, files, and bytes', 'one')
-
-    # Assign the num_job, num_files, and num_bytes variables
-    # ------------------------------------------------------
-    num_jobs = job_qry['num_jobs']
+    job_qry = db_query(query_str, 'the total files, and bytes', 'one')
     num_files = job_qry['num_files']
     num_bytes = job_qry['num_bytes']
 
@@ -1860,8 +1862,8 @@ if show_db_stats == 'yes':
     query_str = "SELECT COUNT(*) FROM Media;"
     num_vols_qry = db_query(query_str, 'the total number of volumes', 'one')
 
-    # Get the num_vols variable based on db type
-    # ------------------------------------------
+    # assign the num_vols variable based on db type
+    # ---------------------------------------------
     if dbtype in ('mysql', 'maria'):
         num_vols = num_vols_qry['COUNT(*)']
     else:

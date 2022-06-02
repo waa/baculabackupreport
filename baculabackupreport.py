@@ -239,8 +239,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.57'
-reldate = 'June 01, 2022'
+version = '1.58'
+reldate = 'June 02, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -1846,7 +1846,10 @@ if show_db_stats == 'yes':
     # -----------------------------------------------------------------------
     query_str = "SELECT COUNT(*) FROM Job;"
     job_qry = db_query(query_str, 'the total jobs', 'one')
-    num_jobs = job_qry[0]
+    if dbtype in ('mysql', 'maria'):
+        num_jobs = job_qry['COUNT(*)']
+    else:
+        num_jobs = job_qry[0]
 
     # Get the total bytes, total number of files for successful Jobs of type (B, C, M)
     # --------------------------------------------------------------------------------

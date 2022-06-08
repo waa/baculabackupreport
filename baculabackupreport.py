@@ -83,7 +83,7 @@ print_subject = 'yes'     # Print (stdout) the subject of the email being sent
 print_sent = 'yes'        # Print (stdout) when the email is successfully sent
 flagrescheduled = 'yes'   # Should we flag jobs which had failed but succeeded after having been rescheduled?
 show_db_stats = 'yes'     # Include a row at the top of the Jobs table showing database statistics?
-include_pnv_jobs = 'yes'  # Include copied, migrated, verified jobs who's endtime is older than "-t hours"?
+include_pnv_jobs = 'yes'  # Include copied, migrated, verified jobs whose endtime is older than "-t hours"?
                           # NOTE:
                           # - Copied/Migrated jobs inherit the endtime of the original backup job which
                           #   can often be older than the number of hours set. These jobs would not normally
@@ -1782,7 +1782,7 @@ if 'num_virus_jobs' in globals() and checkforvirus == 'yes' and num_virus_jobs !
 # -------------------------------------------------------------
 if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
     msg += '<p style="' + alwaysfailstyle + '">' \
-        + 'The ' + str(len(always_fail_jobs)) + ' ' + ('jobs' if len(always_fail_jobs) > 1 else 'job') + ' who\'s ' \
+        + 'The ' + str(len(always_fail_jobs)) + ' ' + ('jobs' if len(always_fail_jobs) > 1 else 'job') + ' whose ' \
         + alwaysfailcolumn_str + ' has this background color ' + ('have' if len(always_fail_jobs) > 1 else 'has') \
         + ' always failed in the past ' + days + ' ' + ('days' if int(days) > 1 else 'day') + '.</p><br>\n'
 

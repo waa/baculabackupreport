@@ -239,8 +239,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.58'
-reldate = 'June 02, 2022'
+version = '1.59'
+reldate = 'June 21, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -532,7 +532,7 @@ def get_copied_migrated_job_name(copy_migrate_jobid):
                 ORDER BY time DESC LIMIT 1;"
         elif dbtype in ('mysql', 'maria'):
             query_str = "SELECT CAST(logtext as CHAR(2000)) AS logtext \
-                FROM log WHERE jobid='" + str(copy_migrate_jobid) + "' \
+                FROM Log WHERE jobid='" + str(copy_migrate_jobid) + "' \
                 AND (logtext LIKE '%Copying using JobId=%' OR logtext LIKE '%Migration using JobId=%') \
                 ORDER BY time DESC LIMIT 1;"
         row = db_query(query_str, 'the Job name (from log table) of a jobid that was copied/migrated')
@@ -540,7 +540,10 @@ def get_copied_migrated_job_name(copy_migrate_jobid):
             # If a JobName was returned from the
             # query, return it, otherwise return 'No Info'
             # --------------------------------------------
-            return re.sub('.*[Copying\|Migration] using JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row[0][0], flags=re.DOTALL)
+            if dbtype in ('pgsql', 'sqlite'):
+                return re.sub('.*[Copying\|Migration] using JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row[0][0], flags=re.DOTALL)
+            elif dbtype in ('mysql', 'maria'):
+                return re.sub('.*[Copying\|Migration] using JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row[0]['logtext'], flags=re.DOTALL)
         else:
             # This is for when a Copy/Migration control job is canceled due to:
             # Fatal error: JobId 47454 already running. Duplicate job not allowed.
@@ -550,7 +553,7 @@ def get_copied_migrated_job_name(copy_migrate_jobid):
         # If the jobstatus is not one of the above,
         # query the Job table to get the jobname
         # -----------------------------------------
-        if dbtype == 'pgsql':
+        if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT Job.Name AS JobName \
                 FROM Job \
                 WHERE JobId='" + pn_jobids_dict[str(copy_migrate_jobid)][0] + "';"
@@ -558,10 +561,6 @@ def get_copied_migrated_job_name(copy_migrate_jobid):
             query_str = "SELECT CAST(Job.name as CHAR(50)) AS jobname \
                 FROM Job \
                 WHERE jobid='" + pn_jobids_dict[str(copy_migrate_jobid)][0] + "';"
-        elif dbtype == 'sqlite':
-            query_str = "SELECT Job.Name AS JobName \
-                FROM Job \
-                WHERE JobId='" + pn_jobids_dict[str(copy_migrate_jobid)][0] + "';"
         row = db_query(query_str, 'the Job name of a jobid (from Job table) that was copied/migrated')
         if len(row) != 0:
             # If a JobName was returned from the

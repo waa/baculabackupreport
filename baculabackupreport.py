@@ -98,6 +98,7 @@ show_verified_job_name = 'yes'     # Show the name of the job that a Verify job 
 verified_job_name_col = 'both'     # What column should the job name of verified jobs go? (name, type, both)
 show_copied_migrated_job_name = 'yes'  # Show the name of the job that was Copied/Migrated
 copied_migrated_job_name_row = 'both'  # What column should the job name of Copied Migrated jobs go? (name, type, both)
+warn_on_will_not_descend = 'yes'        # Should 'OK' jobs be set to 'OK/Warnings' when "will not descend" is reported?
 
 # Job summary table settings
 # --------------------------
@@ -239,8 +240,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.59'
-reldate = 'June 21, 2022'
+version = '1.60'
+reldate = 'June 23, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -260,6 +261,10 @@ valid_col_lst = [
     'joberrors', 'type', 'level', 'jobfiles',
     'jobbytes', 'starttime', 'endtime', 'runtime'
     ]
+will_not_descend_ignore_lst = [
+    '/dev', '/misc', '/net', '/proc',
+     '/run', '/srv', '/sys'
+    ]
 
 # The text that is printed in the log
 # when the AV daemon cannot be reached
@@ -270,6 +275,10 @@ avconnfailtext = 'Unable to connect to antivirus-plugin-service'
 # Set some variables for the Summary stats for the special cases of Copy/Migration Control jobs
 # ---------------------------------------------------------------------------------------------
 total_copied_files = total_copied_bytes = total_migrated_files = total_migrated_bytes = 0
+
+# Set the num_will_not_descend_jobs variable to zero
+# --------------------------------------------------
+num_will_not_descend_jobs = 0
 
 # Set the string for docopt
 # -------------------------
@@ -738,9 +747,10 @@ def translate_job_type(jobtype, jobid, priorjobid):
 
 def translate_job_status(jobstatus, joberrors):
     'jobstatus is stored in the catalog as a single character, replace with words.'
+    # will_not_descend = True
     return {'A': 'Canceled', 'C': 'Created', 'D': 'Verify Diffs',
             'E': 'Errors', 'f': 'Failed', 'I': 'Incomplete',
-            'T': ('OK', 'OK/Warnings')[joberrors > 0],
+            'T': ('OK', 'OK/Warnings')[joberrors > 0 or (warn_on_will_not_descend == 'yes' and will_not_descend == True)],
             'R': ('Running', 'Needs Media')[job_needs_opr == 'yes']}[jobstatus]
 
 def set_subject_icon():
@@ -753,7 +763,7 @@ def set_subject_icon():
                subjecticon = alwaysfailjobsicon
            else:
                subjecticon = badjobsicon
-        elif jobswitherrors != 0:
+        elif jobswitherrors != 0 or (warn_on_will_not_descend == 'yes' and num_will_not_descend_jobs > 0):
            subjecticon = warnjobsicon
         else:
             subjecticon = goodjobsicon
@@ -805,7 +815,10 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
                 bgcolor = errorjobcolor
             elif jobrow['jobstatus'] == 'T':
                 if jobrow['joberrors'] == 0:
-                    bgcolor = goodjobcolor
+                    if warn_on_will_not_descend != 'yes' or (warn_on_will_not_descend == 'yes' and will_not_descend == False):
+                        bgcolor = goodjobcolor
+                    else:
+                        bgcolor = warnjobcolor
                 else:
                     bgcolor = warnjobcolor
             elif jobrow['jobstatus'] in bad_job_set:
@@ -960,6 +973,18 @@ def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtp
         print('Error occurred while communicating with SMTP server ' + smtpserver + ':' + str(smtpport))
         print('Error was: ' + str(e))
         sys.exit(1)
+
+def chk_will_not_descend():
+    'Return True if "will not descend" warnings are in job log, else return False - ignore warnings about dirs in "will_not_descend_ignore_lst"'
+    global num_will_not_descend_jobs
+    query_str = "SELECT logtext FROM Log WHERE jobid=" + str(jobrow['jobid']) + " AND logtext LIKE '%Will not descend%';"
+    will_not_descend_qry = db_query(query_str, 'jobs with \'will not descend\' warnings')
+    for txt in will_not_descend_qry:
+        if not any(dir in str(txt) for dir in will_not_descend_ignore_lst):
+            num_will_not_descend_jobs += 1
+            return True
+        else:
+            return false
 
 # Assign docopt doc string variable
 # ---------------------------------
@@ -1897,6 +1922,9 @@ msg += '</tr>\n'
 # ---------------------------------------------
 counter = 0
 for jobrow in alljobrows:
+    if warn_on_will_not_descend == 'yes':
+        will_not_descend = True if chk_will_not_descend() else False
+
     # If this job is always failing, set the alwaysfailjob variable
     # -------------------------------------------------------------
     alwaysfailjob = 'yes' if len(always_fail_jobs) != 0 and jobrow['jobname'] in always_fail_jobs else 'no'

@@ -206,6 +206,7 @@ alwaysfailstyle = 'display: inline-block; font-size: 13px; font-weight: bold; pa
 jobsneedingoprstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
 jobsolderthantimestyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
 rescheduledjobsstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
+willnotdescendstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
 jobtablestyle = 'width: 100%; border-collapse: collapse;'
 dbstatstableheaderstyle = 'width: 35%; border-collapse: collapse;'
 jobtableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (jobtableheadercolor, jobtableheadertxtcolor)
@@ -240,8 +241,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.61'
-reldate = 'June 24, 2022'
+version = '1.62'
+reldate = 'June 25, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -279,8 +280,8 @@ avconnfailtext = 'Unable to connect to antivirus-plugin-service'
 # ---------------------------------------------------------------------------------------------
 total_copied_files = total_copied_bytes = total_migrated_files = total_migrated_bytes = 0
 
-# Initialize the will_not_descend and num_will_not_descend_jobs variables
-# -----------------------------------------------------------------------
+# Initialize the num_will_not_descend_jobs variable
+# -------------------------------------------------
 num_will_not_descend_jobs = 0
 
 # Set the string for docopt
@@ -977,15 +978,15 @@ def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtp
         sys.exit(1)
 
 def chk_will_not_descend():
-    'Return True if "will not descend" warnings are in job log, else return False - ignore warnings about dirs in "will_not_descend_ignore_lst"'
+    'Return True if "Will not descend" warnings are in job log, else return False - ignore warnings about dirs in "will_not_descend_ignore_lst"'
     global num_will_not_descend_jobs
     query_str = "SELECT logtext FROM Log WHERE jobid=" + str(jobrow['jobid']) + " AND logtext LIKE '%Will not descend%';"
     will_not_descend_qry = db_query(query_str, 'jobs with \'will not descend\' warnings')
     if len(will_not_descend_qry) == 0:
         return False
     else:
-        for logtxt in will_not_descend_qry:
-            if not any(dir in str(logtxt) for dir in will_not_descend_ignore_lst):
+        for logtext in will_not_descend_qry:
+            if not any(dir in str(logtext) for dir in will_not_descend_ignore_lst):
                 num_will_not_descend_jobs += 1
                 return True
         return False
@@ -1794,12 +1795,7 @@ if appendbadlogs == 'yes':
 else:
     badjoblogs = ''
 
-# Start creating the msg to send
-# ------------------------------
-msg = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' \
-    + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
-    + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n'
-
+msg = ''
 # Are we going to be highlighting Verify Jobs where virus(s) were found?
 # ----------------------------------------------------------------------
 if 'num_virus_jobs' in globals() and checkforvirus == 'yes' and num_virus_jobs != 0:
@@ -1927,10 +1923,10 @@ msg += '</tr>\n'
 counter = 0
 for jobrow in alljobrows:
     # Set the will_not_descend variable, then check for
-    # "Will not descend" only for good Backup jobs
+    # "Will not descend", but only for good Backup jobs
     # -------------------------------------------------
     will_not_descend = False
-    if warn_on_will_not_descend == 'yes' and jobrow['type'] == 'B' and jobrow['jobstatus'] == 'T':
+    if warn_on_will_not_descend == 'yes' and jobrow['type'] == 'B' and jobrow['jobstatus'] == 'T' and jobrow['joberrors'] == 0:
         will_not_descend = chk_will_not_descend()
 
     # If this job is always failing, set the alwaysfailjob variable
@@ -2014,6 +2010,27 @@ for jobrow in alljobrows:
     msg += '</tr>\n'
     counter += 1
 msg += '</table>'
+
+# The creation of the HTML header had to be moved down here
+# after the main jobs table has already been created because
+# the 'num_will_not_descend_jobs' variable is created and
+# updated as we process the job list from the rows of jobs
+# ----------------------------------------------------------
+#
+# Create the HTML header for the HTML msg variable
+# ------------------------------------------------
+msg = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' \
+    + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
+    + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n' + msg
+
+# Are we going to flag OK jobs that have 'Will not descend' log entries?
+# ----------------------------------------------------------------------
+if warn_on_will_not_descend == 'yes' and num_will_not_descend_jobs != 0:
+   msg = '<p style="' + willnotdescendstyle + '">' \
+       + 'There were ' + str(num_will_not_descend_jobs) + ' \'OK\' backup job' \
+       + ('s' if num_will_not_descend_jobs > 1 else '') + ' with zero errors' \
+       + ' which had \'Will not descend\' warnings. ' + ('Its' if num_will_not_descend_jobs == 1 else 'Their') \
+       + ' Status has been changed to \'OK/Warnings\'</p><br>\n' + msg
 
 # Close the database cursor and connection
 # ----------------------------------------

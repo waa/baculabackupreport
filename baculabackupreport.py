@@ -240,8 +240,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.60'
-reldate = 'June 23, 2022'
+version = '1.61'
+reldate = 'June 24, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -261,6 +261,9 @@ valid_col_lst = [
     'joberrors', 'type', 'level', 'jobfiles',
     'jobbytes', 'starttime', 'endtime', 'runtime'
     ]
+
+# Directories to ignore when checking the "Will not descend" messages
+# -------------------------------------------------------------------
 will_not_descend_ignore_lst = [
     '/dev', '/misc', '/net', '/proc',
      '/run', '/srv', '/sys'
@@ -276,8 +279,8 @@ avconnfailtext = 'Unable to connect to antivirus-plugin-service'
 # ---------------------------------------------------------------------------------------------
 total_copied_files = total_copied_bytes = total_migrated_files = total_migrated_bytes = 0
 
-# Set the num_will_not_descend_jobs variable to zero
-# --------------------------------------------------
+# Initialize the will_not_descend and num_will_not_descend_jobs variables
+# -----------------------------------------------------------------------
 num_will_not_descend_jobs = 0
 
 # Set the string for docopt
@@ -747,7 +750,6 @@ def translate_job_type(jobtype, jobid, priorjobid):
 
 def translate_job_status(jobstatus, joberrors):
     'jobstatus is stored in the catalog as a single character, replace with words.'
-    # will_not_descend = True
     return {'A': 'Canceled', 'C': 'Created', 'D': 'Verify Diffs',
             'E': 'Errors', 'f': 'Failed', 'I': 'Incomplete',
             'T': ('OK', 'OK/Warnings')[joberrors > 0 or (warn_on_will_not_descend == 'yes' and will_not_descend == True)],
@@ -979,12 +981,14 @@ def chk_will_not_descend():
     global num_will_not_descend_jobs
     query_str = "SELECT logtext FROM Log WHERE jobid=" + str(jobrow['jobid']) + " AND logtext LIKE '%Will not descend%';"
     will_not_descend_qry = db_query(query_str, 'jobs with \'will not descend\' warnings')
-    for txt in will_not_descend_qry:
-        if not any(dir in str(txt) for dir in will_not_descend_ignore_lst):
-            num_will_not_descend_jobs += 1
-            return True
-        else:
-            return false
+    if len(will_not_descend_qry) == 0:
+        return False
+    else:
+        for logtxt in will_not_descend_qry:
+            if not any(dir in str(logtxt) for dir in will_not_descend_ignore_lst):
+                num_will_not_descend_jobs += 1
+                return True
+        return False
 
 # Assign docopt doc string variable
 # ---------------------------------
@@ -1922,8 +1926,12 @@ msg += '</tr>\n'
 # ---------------------------------------------
 counter = 0
 for jobrow in alljobrows:
-    if warn_on_will_not_descend == 'yes':
-        will_not_descend = True if chk_will_not_descend() else False
+    # Set the will_not_descend variable, then check for
+    # "Will not descend" only for good Backup jobs
+    # -------------------------------------------------
+    will_not_descend = False
+    if warn_on_will_not_descend == 'yes' and jobrow['type'] == 'B' and jobrow['jobstatus'] == 'T':
+        will_not_descend = chk_will_not_descend()
 
     # If this job is always failing, set the alwaysfailjob variable
     # -------------------------------------------------------------

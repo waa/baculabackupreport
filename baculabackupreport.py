@@ -241,8 +241,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.62'
-reldate = 'June 25, 2022'
+version = '1.63'
+reldate = 'July 2, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -722,7 +722,7 @@ def translate_job_type(jobtype, jobid, priorjobid):
         # ------------------------------------------------------------------------------------------
         if jobrow['jobstatus'] in ('C', 'R') and jobid not in v_jobids_dict:
             return 'Verify of n/a' + ('<br>(No info yet)' if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
-        # TODO: See related TODO on or near line 1904 Need to fix this! In
+        # TODO: See related TODO on or near line 1959 Need to fix this! In
         # this temporary workaround, I am returning the same exact thing
         # for two different if/elif tests. Basically, we cannot include
         # this 'if' in the above one because the jobid will not be in the
@@ -1795,7 +1795,13 @@ if appendbadlogs == 'yes':
 else:
     badjoblogs = ''
 
+# Create the HTML header for the HTML msg variable
+# ------------------------------------------------
 msg = ''
+msg_header = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' \
+    + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
+    + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n'
+
 # Are we going to be highlighting Verify Jobs where virus(s) were found?
 # ----------------------------------------------------------------------
 if 'num_virus_jobs' in globals() and checkforvirus == 'yes' and num_virus_jobs != 0:
@@ -1950,7 +1956,7 @@ for jobrow in alljobrows:
         if colname == 'jobid':
             msg += html_format_cell(str(jobrow['jobid']), col = 'jobid', star = '*' if starbadjobids == 'yes' and jobrow['jobstatus'] in bad_job_set else '')
         elif colname == 'jobname':
-            # TODO: See related TODO on or near line 703
+            # TODO: See related TODO on or near line 725
             # There is no Job summary with Prev Backup JobId: and New
             # Backup JobId: for Running or Created, not yet running
             # Copy/Migration control, nor Verify JobId: for Verify jobs.
@@ -2011,32 +2017,28 @@ for jobrow in alljobrows:
     counter += 1
 msg += '</table>'
 
-# The creation of the HTML header had to be moved down here
-# after the main jobs table has already been created because
-# the 'num_will_not_descend_jobs' variable is created and
-# updated as we process the job list from the rows of jobs
-# ----------------------------------------------------------
-#
-# Create the HTML header for the HTML msg variable
-# ------------------------------------------------
-msg = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' \
-    + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
-    + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n' + msg
-
-# Are we going to flag OK jobs that have 'Will not descend' log entries?
-# ----------------------------------------------------------------------
-if warn_on_will_not_descend == 'yes' and num_will_not_descend_jobs != 0:
-   msg = '<p style="' + willnotdescendstyle + '">' \
-       + 'There were ' + str(num_will_not_descend_jobs) + ' \'OK\' backup job' \
-       + ('s' if num_will_not_descend_jobs > 1 else '') + ' with zero errors' \
-       + ' which had \'Will not descend\' warnings. ' + ('Its' if num_will_not_descend_jobs == 1 else 'Their') \
-       + ' Status has been changed to \'OK/Warnings\'</p><br>\n' + msg
-
 # Close the database cursor and connection
 # ----------------------------------------
 if (conn):
     cur.close()
     conn.close()
+
+# The 'num_will_not_descend_jobs' variable is created
+# and updated as we process the job list from the rows
+# of jobs so it is not available when the rest of the
+# banner warnings are created above
+# ----------------------------------------------------
+# Are we going to flag OK jobs that have 'Will not descend' log entries?
+# ----------------------------------------------------------------------
+if warn_on_will_not_descend == 'yes' and num_will_not_descend_jobs != 0:
+   msg = msg_header \
+       + '<p style="' + willnotdescendstyle + '">' \
+       + 'There ' + ('was ' if num_will_not_descend_jobs == 1 else 'were ') + str(num_will_not_descend_jobs) + ' \'OK\' backup job' \
+       + ('s' if num_will_not_descend_jobs > 1 else '') + ' with zero errors' \
+       + ' which had \'Will not descend\' warnings. ' + ('Its' if num_will_not_descend_jobs == 1 else 'Their') \
+       + ' Status has been changed to \'OK/Warnings\'</p><br>\n' + msg
+else:
+    msg = msg_header + msg
 
 # Do we append the 'Running or Created' message to the Subject?
 # -------------------------------------------------------------

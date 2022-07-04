@@ -103,6 +103,7 @@ warn_on_will_not_descend = 'yes'        # Should 'OK' jobs be set to 'OK/Warning
 # Job summary table settings
 # --------------------------
 emailsummary = 'bottom'  # Print a short summary after the job list table? (top, bottom, both, none)
+db_version = 'yes'       # Print the database version in the Summary?
 restore_stats = 'yes'    # Print Restore Files/Bytes in summary table?
 copied_stats = 'yes'     # Print Copied Files/Bytes in the summary table?
 migrated_stats = 'yes'   # Print Migrated Files/Bytes in the summary table?
@@ -241,8 +242,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.63'
-reldate = 'July 2, 2022'
+version = '1.64'
+reldate = 'July 4, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -1381,6 +1382,25 @@ if emailsummary != 'none':
         {'label': 'Total Backup Files', 'data': '{:,}'.format(total_backup_files)},
         {'label': 'Total Backup Bytes', 'data': humanbytes(total_backup_bytes)}
     ]
+
+    # Do we include the database version in the summary table?
+    # --------------------------------------------------------
+    if db_version == 'yes':
+        if dbtype == 'pgsql':
+            query_str = "SHOW server_version;"
+            db_type_str = 'PostgreSQL'
+        elif dbtype in ('mysql', 'maria'):
+            db_type_str = 'MySQL/MariaDB'
+            query_str = "SELECT VERSION();"
+        elif dbtype == 'sqlite':
+            db_type_str = 'SQLite'
+            query_str = "SELECT sqlite_version();"
+        db_ver_row = db_query(query_str, 'db version', 'one')
+        if dbtype in ('mysql', 'maria'):
+            db_ver = db_ver_row['VERSION()']
+        else:
+            db_ver = db_ver_row[0]
+        emailsummarydata.insert(0, {'label': db_type_str + ' Version', 'data': str(db_ver)})
 
     # - Not everyone runs Copy, Migration, Verify jobs
     # - Restores are (or should be) infrequent

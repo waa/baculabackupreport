@@ -102,12 +102,13 @@ warn_on_will_not_descend = 'yes'        # Should 'OK' jobs be set to 'OK/Warning
 
 # Job summary table settings
 # --------------------------
-emailsummary = 'bottom'  # Print a short summary after the job list table? (top, bottom, both, none)
-db_version = 'yes'       # Print the database version in the Summary?
-restore_stats = 'yes'    # Print Restore Files/Bytes in summary table?
-copied_stats = 'yes'     # Print Copied Files/Bytes in the summary table?
-migrated_stats = 'yes'   # Print Migrated Files/Bytes in the summary table?
-verified_stats = 'yes'   # Print Verified Files/Bytes in the summary table?
+emailsummary = 'bottom'      # Print a short summary after the job list table? (top, bottom, both, none)
+db_version = 'yes'           # Print the database version?
+print_success_rates = 'yes'  # Print the success rates for the intervals in the success_rate_interval_dict dictionary?
+restore_stats = 'yes'        # Print Restore Files/Bytes?
+copied_stats = 'yes'         # Print Copied Files/Bytes?
+migrated_stats = 'yes'       # Print Migrated Files/Bytes?
+verified_stats = 'yes'       # Print Verified Files/Bytes?
 
 # Additional Job logs and summaries
 # ---------------------------------
@@ -242,8 +243,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.64'
-reldate = 'July 4, 2022'
+version = '1.65'
+reldate = 'July 8, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -266,10 +267,11 @@ valid_col_lst = [
 
 # Directories to ignore when checking the "Will not descend" messages
 # -------------------------------------------------------------------
-will_not_descend_ignore_lst = [
-    '/dev', '/misc', '/net', '/proc',
-     '/run', '/srv', '/sys'
-    ]
+will_not_descend_ignore_lst = [ '/dev', '/misc', '/net', '/proc', '/run', '/srv', '/sys' ]
+
+# Dictionaries for the success rate intervals
+# -------------------------------------------
+success_rate_interval_dict = {'Day': 1, 'Week': 7, 'Month': 30, 'Three Months': 90, 'Six Months': 180, 'Year': 365}
 
 # The text that is printed in the log
 # when the AV daemon cannot be reached
@@ -1219,14 +1221,14 @@ elif dbtype == 'sqlite':
         JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
         PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime \
         FROM Job \
-        INNER JOIN Client on Job.clientid=Client.clientid \
-        WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + time + " hours') \
-        OR jobstatus IN ('R','C') \
+        INNER JOIN Client on Job.ClientId=Client.ClientId \
+        WHERE (strftime('%s', EndTime) >= strftime('%s', 'now', '-" + time + " hours') \
+        OR JobStatus IN ('R','C')) \
         AND Client.Name LIKE '" + client + "' \
         AND Job.Name LIKE '" + jobname + "' \
         AND Type IN ('" + "','".join(jobtypeset) + "') \
         AND JobStatus IN ('" + "','".join(jobstatusset) + "') \
-        ORDER BY jobid " + sortorder + ";"
+        ORDER BY JobId " + sortorder + ";"
 alljobrows = db_query(query_str, 'all jobs')
 
 # Assign the numjobs variable and minimal
@@ -1372,6 +1374,10 @@ if len(ctrl_jobids) != 0:
 # optional stats: restored, copied, verified, migrated files/bytes
 # ------------------------------------------------------------------
 if emailsummary != 'none':
+    summary = '<table style="' + summarytablestyle + '">' \
+            + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
+            + summarytableheadercellstyle + '">Summary</th></tr>'
+
     # Create the list of basic (non optional) information
     # ---------------------------------------------------
     emailsummarydata = [
@@ -1430,8 +1436,80 @@ if emailsummary != 'none':
         total_verify_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'V'])
         emailsummarydata.append({'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)})
         emailsummarydata.append({'label': 'Total Verify Bytes', 'data': humanbytes(total_verify_bytes)})
-    summary = '<table style="' + summarytablestyle + '">' \
-            + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' + summarytableheadercellstyle + '">Summary</th></tr>'
+
+# Do we include the success rates in the Summary table?
+# -----------------------------------------------------
+if print_success_rates == 'yes':
+    for key, days in success_rate_interval_dict.items():
+        if dbtype == 'pgsql':
+            all_query_str = "SELECT COUNT(JobId) \
+                FROM Job \
+                INNER JOIN Client on Job.ClientID=Client.ClientID \
+                WHERE endtime >= (NOW()) - (INTERVAL '" + str(days) + " DAY') \
+                AND Client.Name LIKE '" + client + "' \
+                AND Job.Name LIKE '" + jobname + "' \
+                AND Type IN ('" + "','".join(jobtypeset) + "') \
+                AND JobStatus IN ('" + "','".join(jobstatusset) + "');"
+            bad_query_str = "SELECT COUNT(JobId) \
+                FROM Job \
+                INNER JOIN Client on Job.clientid=Client.clientid \
+                WHERE endtime >= (NOW()) - (INTERVAL '" + str(days) + " DAY') \
+                AND Client.Name LIKE '" + client + "' \
+                AND Job.Name LIKE '" + jobname + "' \
+                AND Type IN ('" + "','".join(jobtypeset) + "') \
+                AND JobStatus IN ('" + "','".join(bad_job_set) + "');"
+        elif dbtype in ('mysql', 'maria'):
+            all_query_str = "SELECT COUNT(jobid) \
+                FROM Job \
+                INNER JOIN Client on Job.clientid=Client.clientid \
+                WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + str(days) + " DAY) \
+                AND Client.Name LIKE '" + client + "' \
+                AND Job.Name LIKE '" + jobname + "' \
+                AND type IN ('" + "','".join(jobtypeset) + "') \
+                AND jobstatus IN ('" + "','".join(jobstatusset) + "');"
+            bad_query_str = "SELECT COUNT(jobid) \
+                FROM Job \
+                INNER JOIN Client on Job.clientid=Client.clientid \
+                WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + str(days) + " DAY) \
+                AND Client.Name LIKE '" + client + "' \
+                AND Job.Name LIKE '" + jobname + "' \
+                AND type IN ('" + "','".join(jobtypeset) + "') \
+                AND jobstatus IN ('" + "','".join(bad_job_set) + "');"
+        elif dbtype == 'sqlite':
+           all_query_str = "SELECT COUNT(JobId) \
+                FROM Job \
+                INNER JOIN Client on Job.ClientId=Client.ClientId \
+                WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(days) + " days') \
+                AND Client.Name LIKE '" + client + "' \
+                AND Job.Name LIKE '" + jobname + "' \
+                AND Type IN ('" + "','".join(jobtypeset) + "') \
+                AND JobStatus IN ('" + "','".join(jobstatusset) + "');"
+           bad_query_str = "SELECT COUNT(JobId) \
+                FROM Job \
+                INNER JOIN Client on Job.ClientId=Client.ClientId \
+                WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(days) + " days') \
+                AND Client.Name LIKE '" + client + "' \
+                AND Job.Name LIKE '" + jobname + "' \
+                AND Type IN ('" + "','".join(jobtypeset) + "') \
+                AND JobStatus IN ('" + "','".join(bad_job_set) + "');"
+        allintervaljobs = db_query(all_query_str, 'all jobs in the past ' + str(days) + ' days for success rate caclulations', 'one')
+        badintervaljobs = db_query(bad_query_str, 'bad jobs in the past ' + str(days) + ' days for success rate caclulations', 'one')
+
+        if dbtype in ('pgsql', 'sqlite'):
+            allintervaljobs = allintervaljobs[0]
+            badintervaljobs = badintervaljobs[0]
+        elif dbtype in ('mysql', 'maria'):
+            allintervaljobs = allintervaljobs['COUNT(jobid)']
+            badintervaljobs = badintervaljobs['COUNT(jobid)']
+
+        if badintervaljobs == 0:
+            success_rate = 100
+        else:
+            success_rate = '{:.0f}'.format(100 - ((badintervaljobs / allintervaljobs) * 100))
+        emailsummarydata.append({'label': 'Success Rate - ' + key, 'data': str(success_rate) + ' %'})
+
+    # Fill the Summary table with the label/data pairs and end the HTML table
+    # -----------------------------------------------------------------------
     counter = 0
     for value in emailsummarydata:
         summary += '<tr style="' + (summarytablerowevenstyle if counter % 2 == 0 else summarytablerowoddstyle) + '">' \

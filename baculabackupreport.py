@@ -243,8 +243,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.65'
-reldate = 'July 8, 2022'
+version = '1.66'
+reldate = 'July 9, 2022'
 prog_info = '<p style="font-size: 8px;">' \
           + progname + ' - v' + version \
           + ' - <a href="https://github.com/waa/" \
@@ -265,8 +265,8 @@ valid_col_lst = [
     'jobbytes', 'starttime', 'endtime', 'runtime'
     ]
 
-# Directories to ignore when checking the "Will not descend" messages
-# -------------------------------------------------------------------
+# Directories to always ignore for the "Will not descend" feature
+# ---------------------------------------------------------------
 will_not_descend_ignore_lst = [ '/dev', '/misc', '/net', '/proc', '/run', '/srv', '/sys' ]
 
 # Dictionaries for the success rate intervals
@@ -588,8 +588,8 @@ def get_copied_migrated_job_name(copy_migrate_jobid):
 
 def copied_ids(jobid):
     'For a given Backup or Migration job, return a list of jobids that it was copied to.'
-    # TODO: 20220407 - Need to also consider Copied jobs that get copied.
-    # -------------------------------------------------------------------
+    # TODO: 20220407 - Need to also consider Copied jobs that get copied
+    # ------------------------------------------------------------------
     copied_jobids=[]
     for t in pn_jobids_dict:
         # Make sure that only copy jobids are listed, not the jobid it was migrated to
@@ -1440,12 +1440,12 @@ if emailsummary != 'none':
 # Do we include the success rates in the Summary table?
 # -----------------------------------------------------
 if print_success_rates == 'yes':
-    for key, days in success_rate_interval_dict.items():
+    for interval_key, interval_days in success_rate_interval_dict.items():
         if dbtype == 'pgsql':
             all_query_str = "SELECT COUNT(JobId) \
                 FROM Job \
                 INNER JOIN Client on Job.ClientID=Client.ClientID \
-                WHERE endtime >= (NOW()) - (INTERVAL '" + str(days) + " DAY') \
+                WHERE endtime >= (NOW()) - (INTERVAL '" + str(interval_days) + " DAY') \
                 AND Client.Name LIKE '" + client + "' \
                 AND Job.Name LIKE '" + jobname + "' \
                 AND Type IN ('" + "','".join(jobtypeset) + "') \
@@ -1453,7 +1453,7 @@ if print_success_rates == 'yes':
             bad_query_str = "SELECT COUNT(JobId) \
                 FROM Job \
                 INNER JOIN Client on Job.clientid=Client.clientid \
-                WHERE endtime >= (NOW()) - (INTERVAL '" + str(days) + " DAY') \
+                WHERE endtime >= (NOW()) - (INTERVAL '" + str(interval_days) + " DAY') \
                 AND Client.Name LIKE '" + client + "' \
                 AND Job.Name LIKE '" + jobname + "' \
                 AND Type IN ('" + "','".join(jobtypeset) + "') \
@@ -1462,7 +1462,7 @@ if print_success_rates == 'yes':
             all_query_str = "SELECT COUNT(jobid) \
                 FROM Job \
                 INNER JOIN Client on Job.clientid=Client.clientid \
-                WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + str(days) + " DAY) \
+                WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + str(interval_days) + " DAY) \
                 AND Client.Name LIKE '" + client + "' \
                 AND Job.Name LIKE '" + jobname + "' \
                 AND type IN ('" + "','".join(jobtypeset) + "') \
@@ -1470,7 +1470,7 @@ if print_success_rates == 'yes':
             bad_query_str = "SELECT COUNT(jobid) \
                 FROM Job \
                 INNER JOIN Client on Job.clientid=Client.clientid \
-                WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + str(days) + " DAY) \
+                WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + str(interval_days) + " DAY) \
                 AND Client.Name LIKE '" + client + "' \
                 AND Job.Name LIKE '" + jobname + "' \
                 AND type IN ('" + "','".join(jobtypeset) + "') \
@@ -1479,7 +1479,7 @@ if print_success_rates == 'yes':
            all_query_str = "SELECT COUNT(JobId) \
                 FROM Job \
                 INNER JOIN Client on Job.ClientId=Client.ClientId \
-                WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(days) + " days') \
+                WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(interval_days) + " days') \
                 AND Client.Name LIKE '" + client + "' \
                 AND Job.Name LIKE '" + jobname + "' \
                 AND Type IN ('" + "','".join(jobtypeset) + "') \
@@ -1487,13 +1487,13 @@ if print_success_rates == 'yes':
            bad_query_str = "SELECT COUNT(JobId) \
                 FROM Job \
                 INNER JOIN Client on Job.ClientId=Client.ClientId \
-                WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(days) + " days') \
+                WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(interval_days) + " days') \
                 AND Client.Name LIKE '" + client + "' \
                 AND Job.Name LIKE '" + jobname + "' \
                 AND Type IN ('" + "','".join(jobtypeset) + "') \
                 AND JobStatus IN ('" + "','".join(bad_job_set) + "');"
-        allintervaljobs = db_query(all_query_str, 'all jobs in the past ' + str(days) + ' days for success rate caclulations', 'one')
-        badintervaljobs = db_query(bad_query_str, 'bad jobs in the past ' + str(days) + ' days for success rate caclulations', 'one')
+        allintervaljobs = db_query(all_query_str, 'all jobs in the past ' + str(interval_days) + ' days for success rate caclulations', 'one')
+        badintervaljobs = db_query(bad_query_str, 'bad jobs in the past ' + str(interval_days) + ' days for success rate caclulations', 'one')
 
         if dbtype in ('pgsql', 'sqlite'):
             allintervaljobs = allintervaljobs[0]
@@ -1506,7 +1506,7 @@ if print_success_rates == 'yes':
             success_rate = 100
         else:
             success_rate = '{:.0f}'.format(100 - ((badintervaljobs / allintervaljobs) * 100))
-        emailsummarydata.append({'label': 'Success Rate - ' + key, 'data': str(success_rate) + ' %'})
+        emailsummarydata.append({'label': 'Success Rate - ' + interval_key, 'data': str(success_rate) + ' %'})
 
     # Fill the Summary table with the label/data pairs and end the HTML table
     # -----------------------------------------------------------------------
@@ -1630,7 +1630,7 @@ if include_pnv_jobs == 'yes':
 # --------------------------------------------------------
 if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
     if dbtype == 'pgsql':
-        query_str = "SELECT Job.Name AS JobName, Log.JobId, Client.Name, Log.LogText \
+        query_str = "SELECT Log.JobId, Client.Name, Log.LogText \
             FROM Log \
             INNER JOIN Job ON Log.JobId=Job.JobId \
             INNER JOIN Client ON Job.ClientId=Client.ClientId \
@@ -1713,7 +1713,7 @@ if len(runningjobids) != 0:
     #                   returned, at the expense of a full text query against
     #                   all running jobs.
     # -----------------------------------------------------------------------
-    if dbtype == 'pgsql':
+    if dbtype in ('pgsql', 'sqlite'):
         # This works to limit the amount of data from the query
         # at the expense of full text searches in the log table
         # Is it worth it? I don't know. :-/ What if there are
@@ -1722,22 +1722,20 @@ if len(runningjobids) != 0:
         # a query with 5 full text clauses? Again, I don't know
         # -------------------------------------------------------
         # query_str = "SELECT jobid, logtext FROM Log \
-            # WHERE jobid IN (" + ','.join(runningjobids) + ") \
-            # AND (logtext LIKE '%Please mount%' \
-            # OR logtext LIKE '%Please use the \"label\" command%' \
-            # OR logtext LIKE '%New volume%' \
-            # OR logtext LIKE '%Ready to append%' \
-            # OR logtext LIKE '%all previous data lost%') \
-            # ORDER BY jobid, time DESC;"
+        #     WHERE jobid IN (" + ','.join(runningjobids) + ") \
+        #     AND (logtext LIKE '%Please mount%' \
+        #     OR logtext LIKE '%Please use the \"label\" command%' \
+        #     OR logtext LIKE '%New volume%' \
+        #     OR logtext LIKE '%Ready to append%' \
+        #     OR logtext LIKE '%all previous data lost%') \
+        #     ORDER BY jobid, time DESC;"
         query_str = "SELECT jobid, logtext FROM Log \
             WHERE jobid IN (" + ','.join(runningjobids) + ") ORDER BY jobid, time DESC;"
     elif dbtype in ('mysql', 'maria'):
         query_str = "SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log \
             WHERE jobid IN (" + ','.join(runningjobids) + ") ORDER BY jobid, time DESC;"
-    elif dbtype == 'sqlite':
-        query_str = "SELECT jobid, logtext FROM Log \
-            WHERE jobid IN (" + ','.join(runningjobids) + ") ORDER BY jobid, time DESC;"
     running_jobs_log_text = db_query(query_str, 'all running job logs')
+
     # Create 'job_needs_opr_lst'
     # --------------------------
     job_needs_opr_lst = []
@@ -1771,7 +1769,7 @@ if flagrescheduled == 'yes':
             INNER JOIN Log on Job.JobId=Log.JobId \
             WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
             AND LogText LIKE '%Rescheduled Job%' \
-            ORDER BY Job.JobId ASC;"
+            ORDER BY Job.JobId " + sortorder + ";"
     elif dbtype in ('mysql', 'maria'):
         query_str = "SELECT Job.jobid \
             FROM Job \

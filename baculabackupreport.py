@@ -97,8 +97,8 @@ virusfoundtext = 'Virus detected'  # Some unique text that your AV software prin
 show_verified_job_name = 'yes'     # Show the name of the job that a Verify job verified?
 verified_job_name_col = 'both'     # What column should the job name of verified jobs go? (name, type, both)
 show_copied_migrated_job_name = 'yes'  # Show the name of the job that was Copied/Migrated
-copied_migrated_job_name_row = 'both'  # What column should the job name of Copied Migrated jobs go? (name, type, both)
-warn_on_will_not_descend = 'yes'        # Should 'OK' jobs be set to 'OK/Warnings' when "will not descend" is reported?
+copied_migrated_job_name_col = 'name'  # What column should the job name of Copied/Migrated jobs go? (name, type, both)
+warn_on_will_not_descend = 'yes'       # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported?
 
 # Job summary table settings
 # --------------------------
@@ -220,7 +220,8 @@ jobtablealwaysfailrowstyle = 'background-color: %s;' % alwaysfailcolor
 jobtablealwaysfailcellstyle = 'text-align: center; background-color: %s;' % alwaysfailcolor
 jobtablevirusfoundcellstyle = 'text-align: center; background-color: %s;' % virusfoundcolor
 jobtablevirusconnerrcellstyle = 'text-align: center; background-color: %s;' % virusconnerrcolor
-summarytablestyle = 'width: 25%; margin-top: 20px; border-collapse: collapse;'
+# summarytablestyle = 'width: 25%; margin-top: 20px; border-collapse: collapse;'
+summarytablestyle = 'width: 100%; margin-top: 20px; border-collapse: collapse;'
 summarytableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (summarytableheadercolor, summarytableheadertxtcolor)
 summarytableheadercellstyle = 'padding: 6px;'
 summarytablerowevenstyle = 'font-weight: bold; background-color: %s; color: %s;' % (summarytablerowevencolor, summarytableroweventxtcolor)
@@ -243,14 +244,14 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.66'
-reldate = 'July 9, 2022'
+version = '1.67'
+reldate = 'July 14, 2022'
 prog_info = '<p style="font-size: 8px;">' \
-          + progname + ' - v' + version \
-          + ' - <a href="https://github.com/waa/" \
-          + target="_blank">baculabackupreport.py</a>' \
-          + '<br>By: Bill Arlofski waa@revpol.com (c) ' \
-          + reldate + '</body></html>'
+            + progname + ' - v' + version \
+            + ' - <a href="https://github.com/waa/"' \
+            + ' target="_blank">baculabackupreport.py</a>' \
+            + '<br>By: Bill Arlofski waa@revpol.com (c) ' \
+            + reldate + '</body></html>'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
@@ -258,7 +259,7 @@ all_jobtype_lst = ['B', 'C', 'c', 'D', 'g', 'M', 'R', 'V']
 all_jobstatus_lst = ['a', 'A', 'B', 'c', 'C', 'd', 'D', \
                      'e', 'E', 'f', 'F', 'i', 'I', 'j', \
                      'm', 'M', 'p', 'R', 's', 'S', 't', 'T']
-valid_email_summary_lst = ['top', 'bottom', 'both', 'none']
+valid_summary_location_lst = ['top', 'bottom', 'both', 'none']
 valid_col_lst = [
     'jobid', 'jobname', 'client', 'status',
     'joberrors', 'type', 'level', 'jobfiles',
@@ -269,8 +270,8 @@ valid_col_lst = [
 # ---------------------------------------------------------------
 will_not_descend_ignore_lst = [ '/dev', '/misc', '/net', '/proc', '/run', '/srv', '/sys' ]
 
-# Dictionaries for the success rate intervals
-# -------------------------------------------
+# Dictionary for the success rate intervals
+# -----------------------------------------
 success_rate_interval_dict = {'Day': 1, 'Week': 7, 'Month': 30, 'Three Months': 90, 'Six Months': 180, 'Year': 365}
 
 # The text that is printed in the log
@@ -382,7 +383,7 @@ def print_opt_errors(opt):
     elif opt == 'jobstatus':
         return '\nThe \'' + opt + '\' variable must be one or more of the following characters: ' + ''.join(all_jobstatus_lst)
     elif opt == 'emailsummary':
-        return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_email_summary_lst)
+        return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_summary_location_lst)
 
 def chk_db_exceptions(err, query=None):
     'Given a DB connection exception or SQL query exception, print some useful information and exit.'
@@ -495,7 +496,7 @@ def get_verify_client_info(vrfy_jobid):
     # also used to show the jobname of the job a Verify Job verified
     # --------------------------------------------------------------
     if [r['jobstatus'] for r in alljobrows if r['jobid'] == vrfy_jobid][0] == 'C':
-        return '', '', 'No info yet'
+        return '', '', 'No Info Yet'
     elif [r['jobstatus'] for r in alljobrows if r['jobid'] == vrfy_jobid][0] in ('A', 'E', 'f', 'R'):
         if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT logtext \
@@ -509,7 +510,7 @@ def get_verify_client_info(vrfy_jobid):
                 ORDER BY time DESC LIMIT 1;"
         row = db_query(query_str, 'the Job name (from log table) of a jobid that was copied/migrated')
         if len(row) == 0:
-            return '', '', 'No info'
+            return '', '', 'No Info'
         else:
             return '', '', re.sub('.*Verifying against JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row[0][0], flags=re.DOTALL)
     else:
@@ -671,18 +672,18 @@ def translate_job_type(jobtype, jobid, priorjobid):
         if jobrow['jobstatus'] in ('C', 'R'):
             return 'Copy Ctrl:' \
                 + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                if copied_migrated_job_name_col in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
         if jobrow['jobstatus'] in bad_job_set:
             return 'Copy Ctrl: Failed' \
                 + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                if copied_migrated_job_name_col in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
         if pn_jobids_dict[str(jobid)][1] == '0':
             if pn_jobids_dict[str(jobid)][0] != '0':
                 return 'Copy Ctrl: ' \
                     + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
                     + ' (No files to copy)' \
                     + ('<br>' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                    if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                    if copied_migrated_job_name_col in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
             else:
                 return 'Copy Ctrl: No jobs to copy'
         else:
@@ -691,24 +692,24 @@ def translate_job_type(jobtype, jobid, priorjobid):
                 + '->' \
                 + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1]) \
                 + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                if copied_migrated_job_name_col in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
 
     if jobtype == 'g':
         if jobrow['jobstatus'] in ('C', 'R'):
             return 'Migration Ctrl:' \
                 + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                if copied_migrated_job_name_col in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
         if jobrow['jobstatus'] in bad_job_set:
             return 'Migration Ctrl: Failed' \
                 + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                if copied_migrated_job_name_col in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
         if pn_jobids_dict[str(jobid)][1] == '0':
             if pn_jobids_dict[str(jobid)][0] != '0':
                 return 'Migration Ctrl: ' \
                     + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
                     + ' (No data to migrate)' \
-                    + ('<br>' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                    if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                    + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                    if copied_migrated_job_name_col in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
             else:
                 return 'Migration Ctrl: No jobs to migrate'
         else:
@@ -717,14 +718,14 @@ def translate_job_type(jobtype, jobid, priorjobid):
                 + '->' \
                 + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1]) \
                 + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                if copied_migrated_job_name_row in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                if copied_migrated_job_name_col in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
 
     if jobtype == 'V':
         # TODO: I want to be able to use this simple 'if' test, but can't until I fix the TODO below
         # if jobrow['jobstatus'] in ('C', 'R') and v_jobids_dict[str(jobid)] == '0':
         # ------------------------------------------------------------------------------------------
         if jobrow['jobstatus'] in ('C', 'R') and jobid not in v_jobids_dict:
-            return 'Verify of n/a' + ('<br>(No info yet)' if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
+            return 'Verify of n/a' + ('<br>(No Info Yet)' if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
         # TODO: See related TODO on or near line 1959 Need to fix this! In
         # this temporary workaround, I am returning the same exact thing
         # for two different if/elif tests. Basically, we cannot include
@@ -733,9 +734,9 @@ def translate_job_type(jobtype, jobid, priorjobid):
         # fail with a keyerror.
         # ----------------------------------------------------------------
         elif jobrow['jobstatus'] in ('C', 'R') and str(jobid) in v_jobids_dict and v_jobids_dict[str(jobid)] == '0':
-            return 'Verify of n/a' + ('<br>(No info yet)' if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
+            return 'Verify of n/a' + ('<br>(No Info Yet)' if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
         elif str(jobid) in v_jobids_dict and v_jobids_dict[str(jobid)] == '0':
-            return 'Verify of n/a' + ('<br>(No info)' if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
+            return 'Verify of n/a' + ('<br>(No Info)' if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
         else:
             if str(jobid) in v_jobids_dict.keys():
                 if 'virus_dict' in globals() and jobid in virus_dict:
@@ -1081,7 +1082,7 @@ for ced_tup in [
 
 # Verify the emailsummary variable is valid
 # -----------------------------------------
-if emailsummary not in valid_email_summary_lst:
+if emailsummary not in valid_summary_location_lst:
     print(print_opt_errors('emailsummary'))
     usage()
 
@@ -1374,7 +1375,18 @@ if len(ctrl_jobids) != 0:
 # optional stats: restored, copied, verified, migrated files/bytes
 # ------------------------------------------------------------------
 if emailsummary != 'none':
-    summary = '<table style="' + summarytablestyle + '">' \
+    summary = ''
+    # If we are going to print the Summary and the Success Rates
+    # tables, we need to wrap both tables in a new table
+    # ----------------------------------------------------------
+    if print_success_rates == 'yes':
+        # summary = '<table style="width: 35%; margin-top: 20px; border-collapse: collapse;">' \
+        summary = '<table style="width: 35%">' \
+                + '<tr style="vertical-align: top;"><td>'
+
+    # Begin the Summary table
+    # -----------------------
+    summary += '<table style="' + summarytablestyle + '">' \
             + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
             + summarytableheadercellstyle + '">Summary</th></tr>'
 
@@ -1437,9 +1449,26 @@ if emailsummary != 'none':
         emailsummarydata.append({'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)})
         emailsummarydata.append({'label': 'Total Verify Bytes', 'data': humanbytes(total_verify_bytes)})
 
+    # Fill the Summary table with the label/data pairs and end the HTML table
+    # -----------------------------------------------------------------------
+    counter = 0
+    for value in emailsummarydata:
+        summary += '<tr style="' + (summarytablerowevenstyle if counter % 2 == 0 else summarytablerowoddstyle) + '">' \
+                + '<td style="' + summarytablecellstyle + 'text-align: left;">' + value['label'] + '</td>' \
+                + '<td style="' + summarytablecellstyle + 'text-align: right;">' + value['data'] + '</td>' \
+                + '</tr>\n'
+        counter += 1
+    summary += '</table>'
+
 # Do we include the success rates in the Summary table?
 # -----------------------------------------------------
 if print_success_rates == 'yes':
+    successratesummarydata = []
+    if emailsummary != 'none':
+        summary += '</td><td><table style="' + summarytablestyle + '">' \
+                + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
+                + summarytableheadercellstyle + '">Success Rates</th></tr>'
+
     for interval_key, interval_days in success_rate_interval_dict.items():
         if dbtype == 'pgsql':
             all_query_str = "SELECT COUNT(JobId) \
@@ -1506,18 +1535,23 @@ if print_success_rates == 'yes':
             success_rate = 100
         else:
             success_rate = '{:.0f}'.format(100 - ((badintervaljobs / allintervaljobs) * 100))
-        emailsummarydata.append({'label': 'Success Rate - ' + interval_key, 'data': str(success_rate) + ' %'})
+        successratesummarydata.append({'label': interval_key, 'data': str(success_rate) + ' %'})
 
-    # Fill the Summary table with the label/data pairs and end the HTML table
-    # -----------------------------------------------------------------------
-    counter = 0
-    for value in emailsummarydata:
+    # Fill the Success Rate table with the label/data pairs and end the HTML table(s)
+    # -------------------------------------------------------------------------------
+    counter = 1
+    for value in successratesummarydata:
         summary += '<tr style="' + (summarytablerowevenstyle if counter % 2 == 0 else summarytablerowoddstyle) + '">' \
                 + '<td style="' + summarytablecellstyle + 'text-align: left;">' + value['label'] + '</td>' \
                 + '<td style="' + summarytablecellstyle + 'text-align: right;">' + value['data'] + '</td>' \
                 + '</tr>\n'
         counter += 1
     summary += '</table>'
+    # If we also print the Summary table,
+    # now we need to close the outer table
+    # ------------------------------------
+    if emailsummary != 'none':
+        summary += '</td></tr></table>'
 
 # For each Verify Job (V), get the
 # Job summary text from the log table
@@ -2074,7 +2108,7 @@ for jobrow in alljobrows:
                     msg += html_format_cell(jobrow['jobname'] + '<br>(' + vjobname + ')', col = 'jobname')
             elif jobrow['type'] in ('c', 'g') \
                 and show_copied_migrated_job_name == 'yes' \
-                and copied_migrated_job_name_row in ('name', 'both'):
+                and copied_migrated_job_name_col in ('name', 'both'):
                     cmjobname = get_copied_migrated_job_name(jobrow['jobid'])
                     if cmjobname == None:
                         msg += html_format_cell(jobrow['jobname'], col = 'jobname')
@@ -2132,7 +2166,8 @@ if warn_on_will_not_descend == 'yes' and num_will_not_descend_jobs != 0:
        + 'There ' + ('was ' if num_will_not_descend_jobs == 1 else 'were ') + str(num_will_not_descend_jobs) + ' \'OK\' backup job' \
        + ('s' if num_will_not_descend_jobs > 1 else '') + ' with zero errors' \
        + ' which had \'Will not descend\' warnings. ' + ('Its' if num_will_not_descend_jobs == 1 else 'Their') \
-       + ' Status has been changed to \'OK/Warnings\'</p><br>\n' + msg
+       + ' Status has been changed to \'OK/Warnings\'</p><br>\n' \
+       + msg
 else:
     msg = msg_header + msg
 

@@ -94,21 +94,23 @@ include_pnv_jobs = 'yes'  # Include copied, migrated, verified jobs whose endtim
 checkforvirus = 'no'               # Enable the additional checks for viruses
 virusfoundtext = 'Virus detected'  # Some unique text that your AV software prints to the Bacula job
                                    # log when a virus is detected. ONLY ClamAV is supported at this time!
-show_verified_job_name = 'yes'     # Show the name of the job that a Verify job verified?
-verified_job_name_col = 'both'     # What column should the job name of verified jobs go? (name, type, both)
-show_copied_migrated_job_name = 'yes'  # Show the name of the job that was Copied/Migrated
-copied_migrated_job_name_col = 'name'  # What column should the job name of Copied/Migrated jobs go? (name, type, both)
-warn_on_will_not_descend = 'yes'       # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported?
+warn_on_will_not_descend = 'yes'   # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported?
+verified_job_name_col = 'name'         # What column should the job name of verified jobs be displayed? (name, type, both, none)
+copied_migrated_job_name_col = 'name'  # What column should the job name of Copied/Migrated jobs be displayed? (name, type, both, none)
 
 # Job summary table settings
 # --------------------------
-emailsummary = 'bottom'      # Print a short summary after the job list table? (top, bottom, both, none)
+emailsummary = 'bottom'      # Print a Summary table? (top, bottom, both, none)
 db_version = 'yes'           # Print the database version?
-print_success_rates = 'yes'  # Print the success rates for the intervals in the success_rate_interval_dict dictionary?
 restore_stats = 'yes'        # Print Restore Files/Bytes?
 copied_stats = 'yes'         # Print Copied Files/Bytes?
 migrated_stats = 'yes'       # Print Migrated Files/Bytes?
 verified_stats = 'yes'       # Print Verified Files/Bytes?
+
+# Create a Success Rates table?
+# -----------------------------
+print_success_rates = 'yes'  # Print the success rates for the filtered jobs?
+                             # Intervals to display are in the 'success_rate_interval_dict' dictionary
 
 # Additional Job logs and summaries
 # ---------------------------------
@@ -259,6 +261,8 @@ all_jobtype_lst = ['B', 'C', 'c', 'D', 'g', 'M', 'R', 'V']
 all_jobstatus_lst = ['a', 'A', 'B', 'c', 'C', 'd', 'D', \
                      'e', 'E', 'f', 'F', 'i', 'I', 'j', \
                      'm', 'M', 'p', 'R', 's', 'S', 't', 'T']
+valid_verified_job_name_col_lst = \
+valid_copied_migrated_job_name_col_lst = ['name', 'type', 'both', 'none']
 valid_summary_location_lst = ['top', 'bottom', 'both', 'none']
 valid_col_lst = [
     'jobid', 'jobname', 'client', 'status',
@@ -369,7 +373,7 @@ def cli_vs_env_vs_default_vars(var_name, env_name):
         return args[var_name]
 
 def print_opt_errors(opt):
-    'Print the command line option passed and the reason it is incorrect.'
+    'Print the incorrect variable and the reason it is incorrect.'
     if opt in {'server', 'dbname', 'dbhost', 'dbuser', 'smtpserver'}:
         return '\nThe \'' + opt + '\' variable must not be empty.'
     elif opt in {'time', 'days', 'smtpport', 'dbport'}:
@@ -384,6 +388,12 @@ def print_opt_errors(opt):
         return '\nThe \'' + opt + '\' variable must be one or more of the following characters: ' + ''.join(all_jobstatus_lst)
     elif opt == 'emailsummary':
         return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_summary_location_lst)
+    elif opt == 'copied_migrated_job_name_col':
+        return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_copied_migrated_job_name_col_lst)
+    elif opt == 'verified_job_name_col':
+        return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_verified_job_name_col_lst)
+    elif opt == 'cols2show':
+        return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_col_lst)
 
 def chk_db_exceptions(err, query=None):
     'Given a DB connection exception or SQL query exception, print some useful information and exit.'
@@ -672,18 +682,18 @@ def translate_job_type(jobtype, jobid, priorjobid):
         if jobrow['jobstatus'] in ('C', 'R'):
             return 'Copy Ctrl:' \
                 + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                if copied_migrated_job_name_col in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                if copied_migrated_job_name_col in ('type', 'both') else '')
         if jobrow['jobstatus'] in bad_job_set:
             return 'Copy Ctrl: Failed' \
                 + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                if copied_migrated_job_name_col in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                if copied_migrated_job_name_col in ('type', 'both') else '')
         if pn_jobids_dict[str(jobid)][1] == '0':
             if pn_jobids_dict[str(jobid)][0] != '0':
                 return 'Copy Ctrl: ' \
                     + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
                     + ' (No files to copy)' \
-                    + ('<br>' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                    if copied_migrated_job_name_col in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                    + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                    if copied_migrated_job_name_col in ('type', 'both') else '')
             else:
                 return 'Copy Ctrl: No jobs to copy'
         else:
@@ -692,24 +702,24 @@ def translate_job_type(jobtype, jobid, priorjobid):
                 + '->' \
                 + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1]) \
                 + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                if copied_migrated_job_name_col in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                if copied_migrated_job_name_col in ('type', 'both') else '')
 
     if jobtype == 'g':
         if jobrow['jobstatus'] in ('C', 'R'):
             return 'Migration Ctrl:' \
                 + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                if copied_migrated_job_name_col in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                if copied_migrated_job_name_col in ('type', 'both') else '')
         if jobrow['jobstatus'] in bad_job_set:
             return 'Migration Ctrl: Failed' \
                 + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                if copied_migrated_job_name_col in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                if copied_migrated_job_name_col in ('type', 'both') else '')
         if pn_jobids_dict[str(jobid)][1] == '0':
             if pn_jobids_dict[str(jobid)][0] != '0':
                 return 'Migration Ctrl: ' \
                     + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
                     + ' (No data to migrate)' \
                     + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                    if copied_migrated_job_name_col in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                    if copied_migrated_job_name_col in ('type', 'both') else '')
             else:
                 return 'Migration Ctrl: No jobs to migrate'
         else:
@@ -718,14 +728,14 @@ def translate_job_type(jobtype, jobid, priorjobid):
                 + '->' \
                 + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1]) \
                 + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
-                if copied_migrated_job_name_col in ('type', 'both') and show_copied_migrated_job_name == 'yes' else '')
+                if copied_migrated_job_name_col in ('type', 'both') else '')
 
     if jobtype == 'V':
         # TODO: I want to be able to use this simple 'if' test, but can't until I fix the TODO below
         # if jobrow['jobstatus'] in ('C', 'R') and v_jobids_dict[str(jobid)] == '0':
         # ------------------------------------------------------------------------------------------
         if jobrow['jobstatus'] in ('C', 'R') and jobid not in v_jobids_dict:
-            return 'Verify of n/a' + ('<br>(No Info Yet)' if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
+            return 'Verify of n/a' + ('<br>(No Info Yet)' if verified_job_name_col in ('type', 'both') else '')
         # TODO: See related TODO on or near line 1959 Need to fix this! In
         # this temporary workaround, I am returning the same exact thing
         # for two different if/elif tests. Basically, we cannot include
@@ -734,9 +744,9 @@ def translate_job_type(jobtype, jobid, priorjobid):
         # fail with a keyerror.
         # ----------------------------------------------------------------
         elif jobrow['jobstatus'] in ('C', 'R') and str(jobid) in v_jobids_dict and v_jobids_dict[str(jobid)] == '0':
-            return 'Verify of n/a' + ('<br>(No Info Yet)' if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
+            return 'Verify of n/a' + ('<br>(No Info Yet)' if verified_job_name_col in ('type', 'both') else '')
         elif str(jobid) in v_jobids_dict and v_jobids_dict[str(jobid)] == '0':
-            return 'Verify of n/a' + ('<br>(No Info)' if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
+            return 'Verify of n/a' + ('<br>(No Info)' if verified_job_name_col in ('type', 'both') else '')
         else:
             if str(jobid) in v_jobids_dict.keys():
                 if 'virus_dict' in globals() and jobid in virus_dict:
@@ -747,7 +757,7 @@ def translate_job_type(jobtype, jobid, priorjobid):
                    + (urlify_jobid(v_jobids_dict[str(jobid)]) if gui and urlifyalljobs == 'yes' else v_jobids_dict[str(jobid)]) \
                    + virus_found_str \
                    + ('<br>(' + get_verify_client_info(jobrow['jobid'])[2] + ')' \
-                   if verified_job_name_col in ('type', 'both') and show_verified_job_name == 'yes' else '')
+                   if verified_job_name_col in ('type', 'both') else '')
 
     # Catchall for the last two Job types
     # -----------------------------------
@@ -1004,17 +1014,35 @@ args = docopt(doc_opt_str, version='\n' + progname + ' - v' + version + '\n' + r
 # -------------------------------
 gui = True if webgui in valid_webgui_lst else False
 
+# Verify the emailsummary variable is valid
+# -----------------------------------------
+if emailsummary not in valid_summary_location_lst:
+    print(print_opt_errors('emailsummary'))
+    usage()
+
+# Verify that the copied_migrated_job_name_col
+# and verified_job_name_col variables are valid
+# ---------------------------------------------
+if copied_migrated_job_name_col not in valid_copied_migrated_job_name_col_lst:
+    print(print_opt_errors('copied_migrated_job_name_col'))
+    usage()
+
+if verified_job_name_col not in valid_verified_job_name_col_lst:
+    print(print_opt_errors('verified_job_name_col'))
+    usage()
+
 # Verify that the columns in cols2show are
 # all valid and that the alwaysfailcolumn
 # is also valid before we do anything else
 # ----------------------------------------
 c2sl = cols2show.split()
 if not all(item in valid_col_lst for item in c2sl):
-    print('\nThe \'cols2show\' variable is not valid!\n')
-    print('Current \'cols2show\': ' + cols2show)
-    print('Valid columns are: ' + ' '.join(valid_col_lst))
+    print(print_opt_errors('cols2show'))
     usage()
 
+# Validate the alwaysfailcolumn. This is a special case since it needs to be a
+# valid column name, and it also needs to be in the c2sl list of colums to display
+# --------------------------------------------------------------------------------
 if alwaysfailcolumn not in c2sl and alwaysfailcolumn not in ('row', 'none'):
     print('\nThe \'alwaysfailcolumn\' name \'' + alwaysfailcolumn + '\' not valid or not in cols2show.')
     print('\nValid settings for \'alwaysfailcolumn\' are: ' + ' '.join(valid_col_lst) + ' none row')
@@ -1047,11 +1075,6 @@ else:
     else:
         alwaysfailcolumn_str = alwaysfailcolumn.title() + ' cell'
 
-if verified_job_name_col not in ('name', 'type', 'both'):
-    print('\nThe \'verified_job_name_col\' variable is not valid!\n')
-    print('Valid options are: name, type, both')
-    usage()
-
 # Set the default ports for the different databases if not set on command line
 # ----------------------------------------------------------------------------
 if args['--dbtype'] == 'pgsql' and args['--dbport'] == None:
@@ -1079,12 +1102,6 @@ for ced_tup in [
     ('--smtpport', 'SMTPPORT'), ('--fromemail', 'FROMEMAIL')
     ]:
     args[ced_tup[0]] = cli_vs_env_vs_default_vars(ced_tup[0], ced_tup[1])
-
-# Verify the emailsummary variable is valid
-# -----------------------------------------
-if emailsummary not in valid_summary_location_lst:
-    print(print_opt_errors('emailsummary'))
-    usage()
 
 # Do some basic sanity checking on cli and ENV variables
 # ------------------------------------------------------
@@ -2102,12 +2119,10 @@ for jobrow in alljobrows:
             # not yet running Copy/Migration/Verify jobs
             # ------------------------------------------------------------------------------------------
             if jobrow['type'] == 'V' \
-                and show_verified_job_name == 'yes' \
                 and verified_job_name_col in ('name', 'both'):
                     vjobname = get_verify_client_info(jobrow['jobid'])[2]
                     msg += html_format_cell(jobrow['jobname'] + '<br>(' + vjobname + ')', col = 'jobname')
             elif jobrow['type'] in ('c', 'g') \
-                and show_copied_migrated_job_name == 'yes' \
                 and copied_migrated_job_name_col in ('name', 'both'):
                     cmjobname = get_copied_migrated_job_name(jobrow['jobid'])
                     if cmjobname == None:

@@ -62,28 +62,26 @@
 
 # External GUI link settings
 # --------------------------
-webgui = 'none'        # Which web interface to generate links for? (bweb, baculum, none)
-webguisvc = ''         # Use encrypted connection or not (ie: http or https)
-webguihost = ''        # FQDN or IP address of the web gui host
-webguiport = ''        # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
-urlifyalljobs = 'yes'  # Should jobids in the Status column for Copied/Migrated/Verified jobs
-                       # be made into URL links too? If set to 'no', only the jobids in the
-                       # jobid column will be made into URL links
+webgui = 'none'       # Which web interface to generate links for? (bweb, baculum, none)
+webguisvc = ''        # Use encrypted connection or not (ie: http or https)
+webguihost = ''       # FQDN or IP address of the web gui host
+webguiport = ''       # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
+urlifyalljobs = True  # Should jobids in the Status column for Copied/Migrated/Verified jobs
+                      # be made into URL links too? If set to False, only the jobids in the
+                      # jobid column will be made into URL links
 
 # Toggles and other formatting settings
 # -------------------------------------
-centerjobname = 'yes'     # Center the job name in HTML emails?
-centerclientname = 'yes'  # Center the client name in HTML emails?
-boldjobname = 'yes'       # Bold the job name in HTML emails?
-boldstatus = 'yes'        # Bold the status in HTML emails?
-starbadjobids = 'no'      # Wrap bad jobs jobids with asterisks "*"?
+boldjobname = True        # Bold the job name in HTML emails?
+boldstatus = True         # Bold the status in HTML emails?
+starbadjobids = False     # Wrap bad jobs jobids with asterisks "*"?
 sortorder = 'DESC'        # Which direction to sort jobids by? (ASC or DESC)
-showcopiedto = 'yes'      # Show the jobids that migrated/backup jobs have been copied to
-print_subject = 'yes'     # Print (stdout) the subject of the email being sent
-print_sent = 'yes'        # Print (stdout) when the email is successfully sent
-flagrescheduled = 'yes'   # Should we flag jobs which had failed but succeeded after having been rescheduled?
-show_db_stats = 'yes'     # Include a row at the top of the Jobs table showing database statistics?
-include_pnv_jobs = 'yes'  # Include copied, migrated, verified jobs whose endtime is older than "-t hours"?
+showcopiedto = True       # Show the jobids that migrated/backup jobs have been copied to
+print_subject = True      # Print (stdout) the subject of the email being sent
+print_sent = True         # Print (stdout) when the email is successfully sent
+flagrescheduled = True    # Should we flag jobs which had failed but succeeded after having been rescheduled?
+show_db_stats = True      # Include a row at the top of the Jobs table showing database statistics?
+include_pnv_jobs = True   # Include copied, migrated, verified jobs whose endtime is older than "-t hours"?
                           # NOTE:
                           # - Copied/Migrated jobs inherit the endtime of the original backup job which
                           #   can often be older than the number of hours set. These jobs would not normally
@@ -91,33 +89,33 @@ include_pnv_jobs = 'yes'  # Include copied, migrated, verified jobs whose endtim
                           #   list refer to them but they are not listed.
                           # - Verify jobs can verify any job, even very old ones. This option makes sure
                           #   verified jobs older than the hours set are also included in the listing.
-checkforvirus = 'no'               # Enable the additional checks for viruses
+checkforvirus = False              # Enable the additional checks for viruses
 virusfoundtext = 'Virus detected'  # Some unique text that your AV software prints to the Bacula job
                                    # log when a virus is detected. ONLY ClamAV is supported at this time!
-warn_on_will_not_descend = 'yes'   # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported?
+warn_on_will_not_descend = True    # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported?
 verified_job_name_col = 'name'         # What column should the job name of verified jobs be displayed? (name, type, both, none)
 copied_migrated_job_name_col = 'name'  # What column should the job name of Copied/Migrated jobs be displayed? (name, type, both, none)
 
 # Job summary table settings
 # --------------------------
-emailsummary = 'bottom'      # Print a Summary table? (top, bottom, both, none)
-db_version = 'yes'           # Print the database version?
-restore_stats = 'yes'        # Print Restore Files/Bytes?
-copied_stats = 'yes'         # Print Copied Files/Bytes?
-migrated_stats = 'yes'       # Print Migrated Files/Bytes?
-verified_stats = 'yes'       # Print Verified Files/Bytes?
+emailsummary = 'bottom'  # Print a Summary table? (top, bottom, both, none)
+db_version = True        # Print the database version?
+restore_stats = True     # Print Restore Files/Bytes?
+copied_stats = True      # Print Copied Files/Bytes?
+migrated_stats = True    # Print Migrated Files/Bytes?
+verified_stats = True    # Print Verified Files/Bytes?
 
 # Create a Success Rates table?
 # -----------------------------
-print_success_rates = 'yes'  # Print the success rates for the filtered jobs?
-                             # Intervals to display are in the 'success_rate_interval_dict' dictionary
+print_success_rates = True  # Print the success rates for the filtered jobs?
+                            # Intervals to display are in the 'success_rate_interval_dict' dictionary
 
 # Additional Job logs and summaries
 # ---------------------------------
-emailvirussummary = 'yes'     # Email the viruses summary report as a separate email?
-appendvirussummaries = 'no'   # Append virus summary information?
-appendjobsummaries = 'no'     # Append all job summaries? Be careful with this, it can generate very large emails
-appendbadlogs = 'no'          # Append logs of bad jobs? Be careful with this, it can generate very large emails
+emailvirussummary = True      # Email the viruses summary report as a separate email?
+appendvirussummaries = False  # Append virus summary information?
+appendjobsummaries = False    # Append all job summaries? Be careful with this, it can generate very large emails
+appendbadlogs = False         # Append logs of bad jobs? Be careful with this, it can generate very large emails
 
 # Email subject settings including some example utf-8
 # icons to prepend the subject with. Examples from:
@@ -127,8 +125,8 @@ appendbadlogs = 'no'          # Append logs of bad jobs? Be careful with this, i
 #       UTF-8 characters. The package may be named
 #       differently on other Linux distributions
 # ---------------------------------------------------
-addsubjecticon = 'yes'                          # Prepend the email Subject with UTF-8 icons? See (no|good|warn|bad|alwaysfail)jobsicon variables
-addsubjectrunningorcreated = 'yes'              # Append "(# Jobs still runnning/queued)" to subject if running or queued Jobs > 0?
+addsubjecticon = True                           # Prepend the email Subject with UTF-8 icons? See (no|good|warn|bad|alwaysfail)jobsicon variables
+addsubjectrunningorcreated = True               # Append "(# Jobs still runnning/queued)" to subject if running or queued Jobs > 0?
 nojobsicon = '=?utf-8?Q?=F0=9F=9A=AB?='         # utf-8 'no entry sign' icon when no jobs have been run
 goodjobsicon = '=?utf-8?Q?=F0=9F=9F=A9?='       # utf-8 'green square' icon when all jobs were "OK"
 # goodjobsicon = '=?UTF-8?Q?=E2=9C=85?='        # utf-8 'white checkmark in green box' icon
@@ -172,7 +170,7 @@ alwaysfailcolumn = 'jobname'  # Column to colorize for "always failing jobs" (co
 
 # HTML colors
 # -----------
-colorstatusbg = 'yes'                    # Colorize the Status cell's background?
+colorstatusbg = True                     # Colorize the Status cell's background?
 jobtablerowevencolor = '#ffffff'         # Background color for the even job rows in the HTML table
 jobtableroweventxtcolor = '#000000'      # Text color for the even job rows in the HTML table
 jobtablerowoddcolor = '#f1f1f1'          # Background color for the odd job rows in the HTML table
@@ -246,8 +244,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.67'
-reldate = 'July 14, 2022'
+version = '1.68'
+reldate = 'July 15, 2022'
 prog_info = '<p style="font-size: 8px;">' \
             + progname + ' - v' + version \
             + ' - <a href="https://github.com/waa/"' \
@@ -627,14 +625,14 @@ def copied_ids_str(jobid):
     'For a given jobid, return a comma separated string of jobids, urlified if "webgui" is enabled.'
     copied_ids_lst = []
     for id in copied_ids(jobid):
-        copied_ids_lst.append((urlify_jobid(id) if gui and urlifyalljobs == 'yes' else id))
+        copied_ids_lst.append((urlify_jobid(id) if gui and urlifyalljobs else id))
     return ','.join(copied_ids_lst)
 
 def translate_job_type(jobtype, jobid, priorjobid):
     'Job type is stored in the catalog as a single character. Do some special things for Backup, Copy, and Migration jobs.'
     if jobtype == 'C' and priorjobid != '0':
         return 'Copy of ' \
-               + (urlify_jobid(str(priorjobid)) if gui and urlifyalljobs == 'yes' else str(priorjobid))
+               + (urlify_jobid(str(priorjobid)) if gui and urlifyalljobs else str(priorjobid))
 
     if jobtype == 'B' and priorjobid != 0:
         # This catches the corner case where Copy/Migration
@@ -642,18 +640,18 @@ def translate_job_type(jobtype, jobid, priorjobid):
         # no jobs so pn_jobids_dict will not exist
         # --------------------------------------------------
         if 'pn_jobids_dict' in globals() and len(copied_ids(jobid)) != 0:
-            if 'pn_jobids_dict' in globals() and showcopiedto == 'yes':
+            if 'pn_jobids_dict' in globals() and showcopiedto:
                if copied_ids(jobid) != '0':
                    return 'Migrated from ' \
-                          + (urlify_jobid(str(priorjobid)) if gui and urlifyalljobs == 'yes' else str(priorjobid)) \
+                          + (urlify_jobid(str(priorjobid)) if gui and urlifyalljobs else str(priorjobid)) \
                           + '<br>Copied to ' \
                           + copied_ids_str(jobid) + '\n'
         return 'Migrated from ' \
-               + (urlify_jobid(str(priorjobid)) if gui and urlifyalljobs == 'yes' else str(priorjobid))
+               + (urlify_jobid(str(priorjobid)) if gui and urlifyalljobs else str(priorjobid))
 
     if jobtype == 'B':
         if 'pn_jobids_dict' in globals() and len(copied_ids(jobid)) != 0:
-            if 'pn_jobids_dict' in globals() and showcopiedto == 'yes':
+            if 'pn_jobids_dict' in globals() and showcopiedto:
                 if copied_ids(jobid) != '0':
                     return 'Backup<br>Copied to ' + copied_ids_str(jobid) + '\n'
         return 'Backup'
@@ -668,11 +666,11 @@ def translate_job_type(jobtype, jobid, priorjobid):
         if 'pn_jobids_dict' in globals() and migrated_id(jobid) != '0':
             if copied_ids(jobid) != '0':
                 return 'Migrated to ' \
-                       + (urlify_jobid(str(migrated_id(jobid))) if gui and urlifyalljobs == 'yes' else str(migrated_id(jobid))) \
+                       + (urlify_jobid(str(migrated_id(jobid))) if gui and urlifyalljobs else str(migrated_id(jobid))) \
                        + '<br>Copied to ' + copied_ids_str(jobid) + '\n'
             else:
                 return 'Migrated to ' \
-                       + (urlify_jobid(str(migrated_id(jobid))) if gui and urlifyalljobs == 'yes' else str(migrated_id(jobid)))
+                       + (urlify_jobid(str(migrated_id(jobid))) if gui and urlifyalljobs else str(migrated_id(jobid)))
         elif 'pn_jobids_dict' in globals() and migrated_id(jobid) == '0':
             return 'Migrated (No data to migrate)'
         else:
@@ -690,7 +688,7 @@ def translate_job_type(jobtype, jobid, priorjobid):
         if pn_jobids_dict[str(jobid)][1] == '0':
             if pn_jobids_dict[str(jobid)][0] != '0':
                 return 'Copy Ctrl: ' \
-                    + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
+                    + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][0]) \
                     + ' (No files to copy)' \
                     + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
                     if copied_migrated_job_name_col in ('type', 'both') else '')
@@ -698,9 +696,9 @@ def translate_job_type(jobtype, jobid, priorjobid):
                 return 'Copy Ctrl: No jobs to copy'
         else:
             return 'Copy Ctrl:\n' \
-                + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
+                + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][0]) \
                 + '->' \
-                + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1]) \
+                + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][1]) \
                 + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
                 if copied_migrated_job_name_col in ('type', 'both') else '')
 
@@ -716,7 +714,7 @@ def translate_job_type(jobtype, jobid, priorjobid):
         if pn_jobids_dict[str(jobid)][1] == '0':
             if pn_jobids_dict[str(jobid)][0] != '0':
                 return 'Migration Ctrl: ' \
-                    + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
+                    + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][0]) \
                     + ' (No data to migrate)' \
                     + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
                     if copied_migrated_job_name_col in ('type', 'both') else '')
@@ -724,9 +722,9 @@ def translate_job_type(jobtype, jobid, priorjobid):
                 return 'Migration Ctrl: No jobs to migrate'
         else:
             return 'Migration Ctrl:\n' \
-                + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][0]) \
+                + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][0]) \
                 + '->' \
-                + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs == 'yes' else pn_jobids_dict[str(jobid)][1]) \
+                + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][1]) \
                 + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
                 if copied_migrated_job_name_col in ('type', 'both') else '')
 
@@ -754,7 +752,7 @@ def translate_job_type(jobtype, jobid, priorjobid):
                 else:
                     virus_found_str = ''
             return 'Verify of ' \
-                   + (urlify_jobid(v_jobids_dict[str(jobid)]) if gui and urlifyalljobs == 'yes' else v_jobids_dict[str(jobid)]) \
+                   + (urlify_jobid(v_jobids_dict[str(jobid)]) if gui and urlifyalljobs else v_jobids_dict[str(jobid)]) \
                    + virus_found_str \
                    + ('<br>(' + get_verify_client_info(jobrow['jobid'])[2] + ')' \
                    if verified_job_name_col in ('type', 'both') else '')
@@ -767,8 +765,8 @@ def translate_job_status(jobstatus, joberrors):
     'jobstatus is stored in the catalog as a single character, replace with words.'
     return {'A': 'Canceled', 'C': 'Created', 'D': 'Verify Diffs',
             'E': 'Errors', 'f': 'Failed', 'I': 'Incomplete',
-            'T': ('OK', 'OK/Warnings')[joberrors > 0 or (warn_on_will_not_descend == 'yes' and will_not_descend == True)],
-            'R': ('Running', 'Needs Media')[job_needs_opr == 'yes']}[jobstatus]
+            'T': ('OK', 'OK/Warnings')[joberrors > 0 or (warn_on_will_not_descend and will_not_descend)],
+            'R': ('Running', 'Needs Media')[job_needs_opr]}[jobstatus]
 
 def set_subject_icon():
     'Set the utf-8 subject icon(s).'
@@ -780,7 +778,7 @@ def set_subject_icon():
                subjecticon = alwaysfailjobsicon
            else:
                subjecticon = badjobsicon
-        elif jobswitherrors != 0 or (warn_on_will_not_descend == 'yes' and num_will_not_descend_jobs > 0):
+        elif jobswitherrors != 0 or (warn_on_will_not_descend and num_will_not_descend_jobs > 0):
            subjecticon = warnjobsicon
         else:
             subjecticon = goodjobsicon
@@ -824,15 +822,15 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     # Even if yes, don't override the table
     # row bgcolor if alwaysfailcolumn is 'row'
     # ----------------------------------------
-    if not (alwaysfailjob == 'yes' and alwaysfailcolumn == 'row'):
-        if colorstatusbg == 'yes' and col == 'status':
+    if not (alwaysfailjob and alwaysfailcolumn == 'row'):
+        if colorstatusbg and col == 'status':
             if jobrow['jobstatus'] == 'C':
                 bgcolor = createdjobcolor
             elif jobrow['jobstatus'] == 'E':
                 bgcolor = errorjobcolor
             elif jobrow['jobstatus'] == 'T':
                 if jobrow['joberrors'] == 0:
-                    if warn_on_will_not_descend != 'yes' or (warn_on_will_not_descend == 'yes' and will_not_descend == False):
+                    if not warn_on_will_not_descend or (warn_on_will_not_descend and not will_not_descend):
                         bgcolor = goodjobcolor
                     else:
                         bgcolor = warnjobcolor
@@ -849,7 +847,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
         else:
             tdo = '<td style="' + jobtablecellstyle + '">'
 
-    if alwaysfailjob == 'yes' and col == alwaysfailcolumn:
+    if alwaysfailjob and col == alwaysfailcolumn:
         tdo = '<td style="' + jobtablealwaysfailcellstyle + '">'
 
     if 'virus_dict' in globals() and col == 'type' and jobrow['jobid'] in virus_dict:
@@ -858,25 +856,18 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     if 'virus_connerr_set' in globals() and col == 'type' and jobrow['jobid'] in virus_connerr_set:
         tdo = '<td style="' + jobtablevirusconnerrcellstyle + '">'
 
-    # Center the Client name and Job name?
-    # ------------------------------------
-    if col == 'jobname' and centerjobname != 'yes':
-        tdo = '<td style="text-align: center;">'
-    if col == 'client' and centerclientname != 'yes':
-        tdo = '<td style="text-align: center;">'
-
     # Set the Job name and Status cells bold?
     # ---------------------------------------
-    if col == 'jobname' and boldjobname == 'yes':
+    if col == 'jobname' and boldjobname:
         tdo += '<b>'
         tdc = '</b>' + tdc
-    if col == 'status' and boldstatus == 'yes':
+    if col == 'status' and boldstatus:
         tdo += '<b>'
         tdc = '</b>' + tdc
 
     # Do we flag the Job Status of OK jobs which failed and had been rescheduled?
     # --------------------------------------------------------------------------
-    if col == 'status' and flagrescheduled == 'yes':
+    if col == 'status' and flagrescheduled:
         if rescheduledjobids.count(str(jobrow['jobid'])) >= 1:
             content = content + ' (' + str(rescheduledjobids.count(str(jobrow['jobid']))) + ')'
 
@@ -894,7 +885,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
         # For Baculum, link to the 'Job Details' page which has a Job History link
         # If alwaysfailcolumn is 'row', then the jobname is automatically linked
         # ------------------------------------------------------------------------
-        if alwaysfailjob == 'yes' and (col == alwaysfailcolumn or (alwaysfailcolumn == 'row' and col == 'jobname')):
+        if alwaysfailjob and (col == alwaysfailcolumn or (alwaysfailcolumn == 'row' and col == 'jobname')):
             if webgui == 'bweb':
                 age = int(days) * 86400
                 # Regardless of alwaysfailcolumn, the link needs to be to the jobname
@@ -926,12 +917,13 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     # we set them to a 20% hr. Also Copy/Migration control jobs
     # never use a real Client, so we set them to a 20% hr too.
     # ------------------------------------------------------------
-    if (jobrow['jobstatus'] in ('R', 'C') or jobtype in ('D', 'c', 'g')) and col in ('client', 'jobfiles', 'jobbytes'):
+    if (jobrow['jobstatus'] in ('R', 'C') and col in ('jobfiles', 'jobbytes')) \
+        or (jobtype in ('D', 'c', 'g') and col in ('client', 'jobfiles', 'jobbytes')):
         content = '<hr width="20%">'
 
     # If the copied/migrated/verfied job
     # is outside of the "-t hours" set,
-    # precede its endtime with an asterisk
+    # prepend its endtime with an asterisk
     # ------------------------------------
     if col == 'endtime' and 'pnv_jobids_lst' in globals() and str(jobrow['jobid']) in pnv_jobids_lst:
         content = '* ' + content
@@ -978,7 +970,7 @@ def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtp
             if smtpuser != '' and smtppass != '':
                 server.login(smtpuser, smtppass)
             server.sendmail(fromemail, to, message)
-        if print_sent == 'yes':
+        if print_sent:
             print('Email successfully sent to: ' + to + '\n')
     except (gaierror, ConnectionRefusedError):
         print('Failed to connect to the SMTP server. Bad connection settings?')
@@ -1275,10 +1267,10 @@ if numjobs == 0:
     subject = server + ' - No jobs found for ' + clientstr + ' in the past ' \
             + time + ' ' + hour + ' for ' + jobstr + ', ' + jobtypestr \
             + ', and ' + jobstatusstr
-    if addsubjecticon == 'yes':
+    if addsubjecticon:
         subject = set_subject_icon() + ' ' + subject
     msg = 'These are not the droids you are looking for.'
-    if print_subject == 'yes':
+    if print_subject:
         print(re.sub('=.*=\)? (.*)$', '\\1', subject))
     send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
     sys.exit(1)
@@ -1396,8 +1388,7 @@ if emailsummary != 'none':
     # If we are going to print the Summary and the Success Rates
     # tables, we need to wrap both tables in a new table
     # ----------------------------------------------------------
-    if print_success_rates == 'yes':
-        # summary = '<table style="width: 35%; margin-top: 20px; border-collapse: collapse;">' \
+    if print_success_rates:
         summary = '<table style="width: 35%">' \
                 + '<tr style="vertical-align: top;"><td>'
 
@@ -1420,7 +1411,7 @@ if emailsummary != 'none':
 
     # Do we include the database version in the summary table?
     # --------------------------------------------------------
-    if db_version == 'yes':
+    if db_version:
         if dbtype == 'pgsql':
             query_str = "SHOW server_version;"
             db_type_str = 'PostgreSQL'
@@ -1443,24 +1434,24 @@ if emailsummary != 'none':
     #   and append the corresponding label and data to
     #   the emailsummarydata list to be iterated through
     # --------------------------------------------------
-    if restore_stats == 'yes':
+    if restore_stats:
         total_restore_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'R'])
         total_restore_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'R'])
         emailsummarydata.append({'label': 'Total Restore Files', 'data': '{:,}'.format(total_restore_files)})
         emailsummarydata.append({'label': 'Total Restore Bytes', 'data': humanbytes(total_restore_bytes)})
-    if copied_stats == 'yes':
+    if copied_stats:
         # These cannot be added this way due to issue (**) noted above
         # total_copied_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'c'])
         # total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'c'])
         emailsummarydata.append({'label': 'Total Copied Files', 'data': '{:,}'.format(total_copied_files)})
         emailsummarydata.append({'label': 'Total Copied Bytes', 'data': humanbytes(total_copied_bytes)})
-    if migrated_stats == 'yes':
+    if migrated_stats:
         # These cannot be added this way due to issue (**) noted above
         # total_migrated_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'g'])
         # total_migrated_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'g'])
         emailsummarydata.append({'label': 'Total Migrated Files', 'data': '{:,}'.format(total_migrated_files)})
         emailsummarydata.append({'label': 'Total Migrated Bytes', 'data': humanbytes(total_migrated_bytes)})
-    if verified_stats == 'yes':
+    if verified_stats:
         total_verify_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'V'])
         total_verify_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'V'])
         emailsummarydata.append({'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)})
@@ -1479,7 +1470,7 @@ if emailsummary != 'none':
 
 # Do we include the success rates in the Summary table?
 # -----------------------------------------------------
-if print_success_rates == 'yes':
+if print_success_rates:
     successratesummarydata = []
     if emailsummary != 'none':
         summary += '</td><td><table style="' + summarytablestyle + '">' \
@@ -1604,7 +1595,7 @@ if len(vrfy_jobids) != 0:
 # Migrate, or Verify control jobs referencing jobids which are not in the listing
 # NOTE: Statisitics (Files, bytes, etc) are not counted for these jobs that are pulled in
 # ---------------------------------------------------------------------------------------
-if include_pnv_jobs == 'yes':
+if include_pnv_jobs:
     pnv_jobids_lst = []
     # waa - 20210830 - TODO - There is a minor bug here. If a job is copied, migrated, or
     #                         verified, it's jobid will be pulled into the pvn_jobids_lst
@@ -1679,7 +1670,7 @@ if include_pnv_jobs == 'yes':
 # I am hoping AV plugin support will be released into the
 # Community edition too.
 # --------------------------------------------------------
-if checkforvirus == 'yes' and len(vrfy_data_jobids) != 0:
+if checkforvirus and len(vrfy_data_jobids) != 0:
     if dbtype == 'pgsql':
         query_str = "SELECT Log.JobId, Client.Name, Log.LogText \
             FROM Log \
@@ -1813,7 +1804,7 @@ if len(runningjobids) != 0:
 # If we have jobs that fail, but are rescheduled one or more times, should we print
 # a banner and then flag these jobs in the list so they may be easily identified?
 # ---------------------------------------------------------------------------------
-if flagrescheduled == 'yes':
+if flagrescheduled:
     if dbtype == 'pgsql':
         query_str = "SELECT Job.JobId \
             FROM Job \
@@ -1840,8 +1831,8 @@ if flagrescheduled == 'yes':
 
 # Do we append virus summary report?
 # ----------------------------------
-if 'virus_dict' in globals() and checkforvirus == 'yes' and \
-    (appendvirussummaries == 'yes' or emailvirussummary == 'yes'):
+if 'virus_dict' in globals() and checkforvirus \
+    and (appendvirussummaries or emailvirussummary):
     virus_set = set()
     virussummaries = ''
     for virusjobid in virus_dict:
@@ -1876,7 +1867,7 @@ else:
 
 # Do we email the virus summary report in a separate email?
 # ---------------------------------------------------------
-if 'virus_dict' in globals() and checkforvirus == 'yes' and len(virus_set) != 0:
+if 'virus_dict' in globals() and checkforvirus and len(virus_set) != 0:
     # We build this subject first, as it will also be used in the warning banner
     # --------------------------------------------------------------------------
     virusemailsubject = server + ' - Virus Report: ' + str(len(virus_set)) + ' Unique ' \
@@ -1884,14 +1875,14 @@ if 'virus_dict' in globals() and checkforvirus == 'yes' and len(virus_set) != 0:
     + str(len(virus_dict)) + ' ' + ('Job' if len(virus_dict) == 1 else 'Jobs') + ' on ' \
     + str(num_virus_clients) + ' ' + ('Client' if num_virus_clients == 1 else 'Clients') + ' (' \
     + str(num_virus_files) + ' ' + ('File ' if num_virus_files == 1 else 'Files ') + 'Infected)'
-    if print_subject == 'yes':
+    if print_subject:
         print('Virus Report Subject: ' + re.sub('=.*=\)? (.*)$', '\\1', virusemailsubject))
-    if emailvirussummary == 'yes':
+    if emailvirussummary:
         send_email(avemail, fromemail, virusemailsubject, virussummaries, smtpuser, smtppass, smtpserver, smtpport)
 
 # Do we append all job summaries?
 # -------------------------------
-if appendjobsummaries == 'yes':
+if appendjobsummaries:
     jobsummaries = '<pre>====================================\n' \
     + 'Job Summaries of All Terminated Jobs\n====================================\n'
     for job_id in alljobids:
@@ -1918,7 +1909,7 @@ else:
 
 # Do we append the bad job logs?
 # ------------------------------
-if appendbadlogs == 'yes':
+if appendbadlogs:
     badjoblogs = '<pre>=================\nBad Job Full Logs\n=================\n'
     if len(badjobids) != 0:
         for job_id in badjobids:
@@ -1951,7 +1942,7 @@ msg_header = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Typ
 
 # Are we going to be highlighting Verify Jobs where virus(s) were found?
 # ----------------------------------------------------------------------
-if 'num_virus_jobs' in globals() and checkforvirus == 'yes' and num_virus_jobs != 0:
+if 'num_virus_jobs' in globals() and checkforvirus and num_virus_jobs != 0:
    msg += '<p style="' + virusfoundstyle + '">' \
        + 'There were' + re.sub('^' + server + ' - Virus Report:(.*$)', '\\1', virusemailsubject) + '!</p><br>\n'
 
@@ -1965,7 +1956,7 @@ if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
 
 # Were there any errors connecting to the AV service?
 # ---------------------------------------------------
-if checkforvirus == 'yes' and num_virus_conn_errs != 0:
+if checkforvirus and num_virus_conn_errs != 0:
     msg += '<p style="' + virusconnerrstyle + '">' \
         + 'There ' + ('were ' if num_virus_conn_errs > 1 else 'was ') \
         + str(num_virus_conn_errs) + (' errors' if num_virus_conn_errs > 1 else ' error') \
@@ -1998,7 +1989,7 @@ if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
 
 # Do we have any jobs had been rescheduled?
 # -----------------------------------------
-if 'rescheduledjobids' in globals() and flagrescheduled == 'yes' and len(rescheduledjobids) != 0:
+if 'rescheduledjobids' in globals() and flagrescheduled and len(rescheduledjobids) != 0:
     msg += '<p style="' + rescheduledjobsstyle + '">' \
         + 'The number in parentheses in the Status ' + ('fields' if len(set(rescheduledjobids)) > 1 else 'field') \
         + ' of ' + str(len(set(rescheduledjobids))) + (' jobs' if len(set(rescheduledjobids)) > 1 else ' job') \
@@ -2008,7 +1999,7 @@ if 'rescheduledjobids' in globals() and flagrescheduled == 'yes' and len(resched
 # Do we display the database stats above
 # the main jobs report's table header?
 # --------------------------------------
-if show_db_stats == 'yes':
+if show_db_stats:
     query_str = "SELECT COUNT(*) FROM Client;"
     num_clients_qry = db_query(query_str, 'number of clients', 'one')
 
@@ -2079,20 +2070,20 @@ for jobrow in alljobrows:
     # "Will not descend", but only for good Backup jobs
     # -------------------------------------------------
     will_not_descend = False
-    if warn_on_will_not_descend == 'yes' and jobrow['type'] == 'B' and jobrow['jobstatus'] == 'T' and jobrow['joberrors'] == 0:
+    if warn_on_will_not_descend and jobrow['type'] == 'B' and jobrow['jobstatus'] == 'T' and jobrow['joberrors'] == 0:
         will_not_descend = chk_will_not_descend()
 
     # If this job is always failing, set the alwaysfailjob variable
     # -------------------------------------------------------------
-    alwaysfailjob = 'yes' if len(always_fail_jobs) != 0 and jobrow['jobname'] in always_fail_jobs else 'no'
+    alwaysfailjob = True if len(always_fail_jobs) != 0 and jobrow['jobname'] in always_fail_jobs else False
 
     # If this job is waiting on media, Set the job_needs_opr variable
     # ---------------------------------------------------------------
-    job_needs_opr = 'yes' if 'job_needs_opr_lst' in globals() and str(jobrow['jobid']) in job_needs_opr_lst else 'no'
+    job_needs_opr = True if 'job_needs_opr_lst' in globals() and str(jobrow['jobid']) in job_needs_opr_lst else False
 
     # Set the job row's default bgcolor
     # ---------------------------------
-    if alwaysfailjob == 'yes' and alwaysfailcolumn == 'row':
+    if alwaysfailjob and alwaysfailcolumn == 'row':
         msg += '<tr style="' + jobtablealwaysfailrowstyle +'">'
     else:
         if counter % 2 == 0:
@@ -2101,7 +2092,7 @@ for jobrow in alljobrows:
              msg += '<tr style="' + jobtablerowoddstyle + '">'
     for colname in c2sl:
         if colname == 'jobid':
-            msg += html_format_cell(str(jobrow['jobid']), col = 'jobid', star = '*' if starbadjobids == 'yes' and jobrow['jobstatus'] in bad_job_set else '')
+            msg += html_format_cell(str(jobrow['jobid']), col = 'jobid', star = '*' if starbadjobids and jobrow['jobstatus'] in bad_job_set else '')
         elif colname == 'jobname':
             # TODO: See related TODO on or near line 725
             # There is no Job summary with Prev Backup JobId: and New
@@ -2175,7 +2166,7 @@ if (conn):
 # ----------------------------------------------------
 # Are we going to flag OK jobs that have 'Will not descend' log entries?
 # ----------------------------------------------------------------------
-if warn_on_will_not_descend == 'yes' and num_will_not_descend_jobs != 0:
+if warn_on_will_not_descend and num_will_not_descend_jobs != 0:
    msg = msg_header \
        + '<p style="' + willnotdescendstyle + '">' \
        + 'There ' + ('was ' if num_will_not_descend_jobs == 1 else 'were ') + str(num_will_not_descend_jobs) + ' \'OK\' backup job' \
@@ -2188,7 +2179,7 @@ else:
 
 # Do we append the 'Running or Created' message to the Subject?
 # -------------------------------------------------------------
-if runningorcreated != 0 and addsubjectrunningorcreated == 'yes':
+if runningorcreated != 0 and addsubjectrunningorcreated:
     runningjob = 'job' if runningorcreated == 1 else 'jobs'
     runningorcreatedsubject = ' (' + str(runningorcreated) + ' ' + runningjob + ' queued/running)'
 else:
@@ -2200,9 +2191,9 @@ subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
         + str(time) + ' ' + hour + ': ' + str(numbadjobs) + ' bad, ' \
         + str(jobswitherrors) + ' with errors, for ' + clientstr + ', ' \
         + jobstr + ', ' + jobtypestr + ', and ' + jobstatusstr + runningorcreatedsubject
-if addsubjecticon == 'yes':
+if addsubjecticon:
     subject = set_subject_icon() + ' ' + subject
-if print_subject == 'yes':
+if print_subject:
     print('Job Report Subject: ' + re.sub('=.*=\)? (.*)$', '\\1', subject))
 
 # Build the final message and send the email

@@ -166,7 +166,10 @@ cols2show = 'jobid jobname client status joberrors type level jobfiles jobbytes 
 
 # Set the column to colorize for jobs that are always failing
 # -----------------------------------------------------------
-alwaysfailcolumn = 'jobname'  # Column to colorize for "always failing jobs" (column name, row, none)
+alwaysfailcolumn = 'jobname'    # Column to colorize for "always failing jobs" (column name, row, none)
+always_fail_jobs_threshold = 3  # A job must have failed at least this many times in '-d days' to be considered as 'always failing'
+                                # This prevents a failed job that is run one time from being displayed as always failing for at least a week by default
+                                # Set this to 0 or 1 to disable the threshold feature
 
 # HTML colors
 # -----------
@@ -244,8 +247,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.68'
-reldate = 'July 15, 2022'
+version = '1.69'
+reldate = 'July 18, 2022'
 prog_info = '<p style="font-size: 8px;">' \
             + progname + ' - v' + version \
             + ' - <a href="https://github.com/waa/"' \
@@ -1069,15 +1072,15 @@ else:
 
 # Set the default ports for the different databases if not set on command line
 # ----------------------------------------------------------------------------
-if args['--dbtype'] == 'pgsql' and args['--dbport'] == None:
+if args['--dbtype'] not in valid_db_lst:
+    print(print_opt_errors('dbtype'))
+    usage()
+elif args['--dbtype'] == 'pgsql' and args['--dbport'] == None:
     args['--dbport'] = '5432'
 elif args['--dbtype'] in ('mysql', 'maria') and args['--dbport'] == None:
     args['--dbport'] = '3306'
 elif args['--dbtype'] == 'sqlite':
     args['--dbport'] = '0'
-elif args['--dbtype'] not in valid_db_lst:
-    print(print_opt_errors('dbtype'))
-    usage()
 
 # Need to assign/re-assign args[] vars based on cli vs env vs defaults
 # --------------------------------------------------------------------
@@ -1317,8 +1320,18 @@ alldaysjobrows = db_query(query_str, 'always failing jobs')
 # These are specific to the 'always failing jobs' features
 # --------------------------------------------------------
 good_days_jobs = [r['jobname'] for r in alldaysjobrows if r['jobstatus'] == 'T']
+bad_days_jobs = [r['jobname'] for r in alldaysjobrows if r['jobstatus'] not in ('T', 'R', 'C')]
 unique_bad_days_jobs = {r['jobname'] for r in alldaysjobrows if r['jobstatus'] not in ('T', 'R', 'C')}
 always_fail_jobs = set(unique_bad_days_jobs.difference(good_days_jobs)).intersection(alljobnames)
+
+# Now, check each "always failing" job against the
+# threshold and remove each job from the always_fail_jobs
+# set that has not failed more times than the threshold
+# -------------------------------------------------------
+if always_fail_jobs_threshold > 1:
+    for x in always_fail_jobs.copy():
+        if bad_days_jobs.count(x) >= always_fail_jobs_threshold:
+            always_fail_jobs.remove(x)
 
 # For each Copy/Migration Control Job (c, g), get the Job summary
 # text from the log table.
@@ -1336,6 +1349,7 @@ always_fail_jobs = set(unique_bad_days_jobs.difference(good_days_jobs)).intersec
 # --------------------------------------------------------------------
 # cji = Control Job Information
 # -----------------------------
+# TODO: Test and consolidate these queries if possible
 if len(ctrl_jobids) != 0:
     if dbtype == 'pgsql':
         query_str = "SELECT jobid, logtext FROM log \
@@ -1422,6 +1436,7 @@ if emailsummary != 'none':
             db_type_str = 'SQLite'
             query_str = "SELECT sqlite_version();"
         db_ver_row = db_query(query_str, 'db version', 'one')
+
         if dbtype in ('mysql', 'maria'):
             db_ver = db_ver_row['VERSION()']
         else:
@@ -1566,6 +1581,7 @@ if print_success_rates:
 # -----------------------------------
 # vji = Verify Job Information
 # ----------------------------
+# TODO: Test and consolidate these queries if possible
 if len(vrfy_jobids) != 0:
     if dbtype == 'pgsql':
         query_str = "SELECT jobid, logtext FROM log \
@@ -1670,6 +1686,7 @@ if include_pnv_jobs:
 # I am hoping AV plugin support will be released into the
 # Community edition too.
 # --------------------------------------------------------
+# TODO: Test and consolidate these queries if possible
 if checkforvirus and len(vrfy_data_jobids) != 0:
     if dbtype == 'pgsql':
         query_str = "SELECT Log.JobId, Client.Name, Log.LogText \
@@ -1740,11 +1757,13 @@ if checkforvirus and len(vrfy_data_jobids) != 0:
     num_virus_clients = len(virus_client_set)
     num_virus_conerr_jobs = len(virus_connerr_set)
 
-# Query the database to find Running jobs. These jobs
-# will be checked to see if they are waiting on media
-# ---------------------------------------------------
+
+# If there are any running (R) Jobs, then we query
+# the database for the logtext of each of these
+# Jobs to see if they are waiting on media.
+# ------------------------------------------------
 if len(runningjobids) != 0:
-    # The 'ORDER BY time DESC' is useful here! It is a nice shortcut for
+    # The 'ORDER BY time DESC' is useful here. It is a nice shortcut for
     # later to check that no new volumes have been mounted since the last
     # 'Please mount .* Volume' message was written to the log table
     #
@@ -1778,8 +1797,8 @@ if len(runningjobids) != 0:
             WHERE jobid IN (" + ','.join(runningjobids) + ") ORDER BY jobid, time DESC;"
     running_jobs_log_text = db_query(query_str, 'all running job logs')
 
-    # Create 'job_needs_opr_lst'
-    # --------------------------
+    # Create 'job_needs_opr_lst' list
+    # -------------------------------
     job_needs_opr_lst = []
     for rj in runningjobids:
         log_text = ''
@@ -1788,7 +1807,7 @@ if len(runningjobids) != 0:
         # log. This is the last time it appears in real time. Then check
         # the log_text variable to see if any new media has been mounted
         # which would indicate that this job is actually running and not
-        # stuck waiting on media
+        # stuck waiting on media.
         # --------------------------------------------------------------
         for rjlt in running_jobs_log_text:
             if str(rjlt['jobid']) == rj:
@@ -1804,6 +1823,7 @@ if len(runningjobids) != 0:
 # If we have jobs that fail, but are rescheduled one or more times, should we print
 # a banner and then flag these jobs in the list so they may be easily identified?
 # ---------------------------------------------------------------------------------
+# TODO: Test and consolidate these queries if possible
 if flagrescheduled:
     if dbtype == 'pgsql':
         query_str = "SELECT Job.JobId \
@@ -1882,6 +1902,7 @@ if 'virus_dict' in globals() and checkforvirus and len(virus_set) != 0:
 
 # Do we append all job summaries?
 # -------------------------------
+# TODO: Test and consolidate these queries if possible
 if appendjobsummaries:
     jobsummaries = '<pre>====================================\n' \
     + 'Job Summaries of All Terminated Jobs\n====================================\n'
@@ -1909,6 +1930,7 @@ else:
 
 # Do we append the bad job logs?
 # ------------------------------
+# TODO: Test and consolidate these queries if possible
 if appendbadlogs:
     badjoblogs = '<pre>=================\nBad Job Full Logs\n=================\n'
     if len(badjobids) != 0:
@@ -2179,7 +2201,7 @@ else:
 
 # Do we append the 'Running or Created' message to the Subject?
 # -------------------------------------------------------------
-if runningorcreated != 0 and addsubjectrunningorcreated:
+if addsubjectrunningorcreated and runningorcreated != 0:
     runningjob = 'job' if runningorcreated == 1 else 'jobs'
     runningorcreatedsubject = ' (' + str(runningorcreated) + ' ' + runningjob + ' queued/running)'
 else:

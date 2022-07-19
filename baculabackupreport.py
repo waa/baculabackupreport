@@ -247,7 +247,7 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.69'
+version = '1.70'
 reldate = 'July 18, 2022'
 prog_info = '<p style="font-size: 8px;">' \
             + progname + ' - v' + version \
@@ -1330,7 +1330,7 @@ always_fail_jobs = set(unique_bad_days_jobs.difference(good_days_jobs)).intersec
 # -------------------------------------------------------
 if always_fail_jobs_threshold > 1:
     for x in always_fail_jobs.copy():
-        if bad_days_jobs.count(x) >= always_fail_jobs_threshold:
+        if bad_days_jobs.count(x) < always_fail_jobs_threshold:
             always_fail_jobs.remove(x)
 
 # For each Copy/Migration Control Job (c, g), get the Job summary

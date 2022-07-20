@@ -247,7 +247,7 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.71'
+version = '1.72'
 reldate = 'July 19, 2022'
 prog_info = '<p style="font-size: 8px;">' \
             + progname + ' - v' + version \
@@ -525,7 +525,7 @@ def get_verify_client_info(vrfy_jobid):
         else:
             return '', '', re.sub('.*Verifying against JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row[0][0], flags=re.DOTALL)
     else:
-        if dbtype == 'pgsql':
+        if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
                 FROM Job \
                 INNER JOIN Client on Job.ClientID=Client.ClientID \
@@ -536,13 +536,14 @@ def get_verify_client_info(vrfy_jobid):
                 FROM Job \
                 INNER JOIN Client on Job.clientid=Client.clientid \
                 WHERE jobid='" + v_jobids_dict[str(vrfy_jobid)] + "';"
-        elif dbtype == 'sqlite':
-            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
-                FROM Job \
-                INNER JOIN Client on Job.clientid=Client.clientid \
-                WHERE JobId='" + v_jobids_dict[str(vrfy_jobid)] + "';"
     row = db_query(query_str, 'the JobId, Client Name, and Job Name of a job that was verified')
-    return row[0][str('jobid')], row[0]['client'], row[0]['jobname']
+    if len(row) == 0:
+        # If the verified job is no longer in the
+        # catlog return ['0', '0', 'Job not in catlog']
+        # ---------------------------------------------
+        return '0', '0', 'Job not in catalog'
+    else:
+        return row[0][str('jobid')], row[0]['client'], row[0]['jobname']
 
 def get_copied_migrated_job_name(copy_migrate_jobid):
     'Given a Copy/Migration Control Jobid, return the Job name of the jobid that was copied/migrated.'

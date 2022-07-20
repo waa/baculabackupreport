@@ -92,9 +92,9 @@ include_pnv_jobs = True   # Include copied, migrated, verified jobs whose endtim
 checkforvirus = False              # Enable the additional checks for viruses
 virusfoundtext = 'Virus detected'  # Some unique text that your AV software prints to the Bacula job
                                    # log when a virus is detected. ONLY ClamAV is supported at this time!
-warn_on_will_not_descend = True    # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported?
 verified_job_name_col = 'name'         # What column should the job name of verified jobs be displayed? (name, type, both, none)
 copied_migrated_job_name_col = 'name'  # What column should the job name of Copied/Migrated jobs be displayed? (name, type, both, none)
+warn_on_will_not_descend = True        # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported?
 
 # Job summary table settings
 # --------------------------
@@ -247,8 +247,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.70'
-reldate = 'July 18, 2022'
+version = '1.71'
+reldate = 'July 19, 2022'
 prog_info = '<p style="font-size: 8px;">' \
             + progname + ' - v' + version \
             + ' - <a href="https://github.com/waa/"' \
@@ -847,8 +847,10 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
                 bgcolor = warnjobcolor
         if bgcolor:
             tdo = '<td style="' + jobtablecellstyle + 'background-color: ' + bgcolor + ';">'
-        else:
-            tdo = '<td style="' + jobtablecellstyle + '">'
+        # Default is set just above - remove this
+        # ---------------------------------------
+        # else:
+        #     tdo = '<td style="' + jobtablecellstyle + '">'
 
     if alwaysfailjob and col == alwaysfailcolumn:
         tdo = '<td style="' + jobtablealwaysfailcellstyle + '">'
@@ -990,7 +992,7 @@ def chk_will_not_descend():
     'Return True if "Will not descend" warnings are in job log, else return False - ignore warnings about dirs in "will_not_descend_ignore_lst"'
     global num_will_not_descend_jobs
     query_str = "SELECT logtext FROM Log WHERE jobid=" + str(jobrow['jobid']) + " AND logtext LIKE '%Will not descend%';"
-    will_not_descend_qry = db_query(query_str, 'jobs with \'will not descend\' warnings')
+    will_not_descend_qry = db_query(query_str, 'jobs with \'Will not descend\' warnings')
     if len(will_not_descend_qry) == 0:
         return False
     else:
@@ -1235,7 +1237,7 @@ elif dbtype == 'sqlite':
         PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime \
         FROM Job \
         INNER JOIN Client on Job.ClientId=Client.ClientId \
-        WHERE (strftime('%s', EndTime) >= strftime('%s', 'now', '-" + time + " hours') \
+        WHERE (strftime('%s', EndTime) >= strftime('%s', 'now', '-" + time + " hours', 'localtime') \
         OR JobStatus IN ('R','C')) \
         AND Client.Name LIKE '" + client + "' \
         AND Job.Name LIKE '" + jobname + "' \
@@ -1326,7 +1328,7 @@ always_fail_jobs = set(unique_bad_days_jobs.difference(good_days_jobs)).intersec
 
 # Now, check each "always failing" job against the
 # threshold and remove each job from the always_fail_jobs
-# set that has not failed more times than the threshold
+# set that has failed less times than the threshold
 # -------------------------------------------------------
 if always_fail_jobs_threshold > 1:
     for x in always_fail_jobs.copy():
@@ -1349,19 +1351,14 @@ if always_fail_jobs_threshold > 1:
 # --------------------------------------------------------------------
 # cji = Control Job Information
 # -----------------------------
-# TODO: Test and consolidate these queries if possible
 if len(ctrl_jobids) != 0:
-    if dbtype == 'pgsql':
+    if dbtype in ('pgsql', 'sqlite'):
         query_str = "SELECT jobid, logtext FROM log \
             WHERE jobid IN (" + ','.join(ctrl_jobids) + ") \
             AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
     elif dbtype in ('mysql', 'maria'):
         query_str = "SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
             FROM Log WHERE jobid IN (" + ','.join(ctrl_jobids) + ") \
-            AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
-    elif dbtype == 'sqlite':
-        query_str = "SELECT jobid, logtext FROM log \
-            WHERE jobid IN (" + ','.join(ctrl_jobids) + ") \
             AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
     cji_rows = db_query(query_str, 'control job information')
 
@@ -1581,20 +1578,15 @@ if print_success_rates:
 # -----------------------------------
 # vji = Verify Job Information
 # ----------------------------
-# TODO: Test and consolidate these queries if possible
 if len(vrfy_jobids) != 0:
-    if dbtype == 'pgsql':
-        query_str = "SELECT jobid, logtext FROM log \
-            WHERE jobid IN (" + ','.join(vrfy_jobids) + ") AND logtext LIKE \
-            '%Termination:%' ORDER BY jobid DESC;"
+    if dbtype in ('pgsql', 'sqlite'):
+        query_str = "SELECT jobid, logtext \
+            FROM log WHERE jobid IN (" + ','.join(vrfy_jobids) + ") \
+            AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
     elif dbtype in ('mysql', 'maria'):
         query_str = "SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
             FROM Log WHERE jobid IN (" + ','.join(vrfy_jobids) + ") \
             AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
-    elif dbtype == 'sqlite':
-        query_str = "SELECT jobid, logtext FROM log \
-            WHERE jobid IN (" + ','.join(vrfy_jobids) + ") AND logtext LIKE \
-            '%Termination:%' ORDER BY jobid DESC;"
     vji_rows = db_query(query_str, 'verify job information')
 
     # For each row of the returned vji_rows (Vrfy Jobs), add
@@ -1823,9 +1815,8 @@ if len(runningjobids) != 0:
 # If we have jobs that fail, but are rescheduled one or more times, should we print
 # a banner and then flag these jobs in the list so they may be easily identified?
 # ---------------------------------------------------------------------------------
-# TODO: Test and consolidate these queries if possible
 if flagrescheduled:
-    if dbtype == 'pgsql':
+    if dbtype in ('pgsql', 'sqlite'):
         query_str = "SELECT Job.JobId \
             FROM Job \
             INNER JOIN Log on Job.JobId=Log.JobId \
@@ -1836,13 +1827,6 @@ if flagrescheduled:
         query_str = "SELECT Job.jobid \
             FROM Job \
             INNER JOIN Log on Job.jobid=Log.jobid \
-            WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
-            AND logtext LIKE '%Rescheduled Job%' \
-            ORDER BY Job.jobid " + sortorder + ";"
-    elif dbtype == 'sqlite':
-        query_str = "SELECT Job.JobId \
-            FROM Job \
-            INNER JOIN Log on Job.JobId=Log.JobId \
             WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
             AND logtext LIKE '%Rescheduled Job%' \
             ORDER BY Job.jobid " + sortorder + ";"
@@ -1902,53 +1886,51 @@ if 'virus_dict' in globals() and checkforvirus and len(virus_set) != 0:
 
 # Do we append all job summaries?
 # -------------------------------
-# TODO: Test and consolidate these queries if possible
 if appendjobsummaries:
     jobsummaries = '<pre>====================================\n' \
     + 'Job Summaries of All Terminated Jobs\n====================================\n'
     for job_id in alljobids:
-        if dbtype == 'pgsql':
+        if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT jobid, logtext FROM Log WHERE jobid=" \
                 + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
         elif dbtype in ('mysql', 'maria'):
             query_str = "SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE jobid=" \
                 + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
-        elif dbtype == 'sqlite':
-            query_str = "SELECT jobid, logtext FROM Log WHERE jobid=" \
-                + str(job_id) + " AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
         summaryrow = db_query(query_str, 'all job summaries')
 
         # Migrated (M) Jobs have no joblog
         # --------------------------------
+        # The re.sub is here to strip an ugly trailing '\'
+        # in the SQLite output of the Job Summary block
+        # ------------------------------------------------
         if len(summaryrow) != 0:
             jobsummaries += '==============\nJobID:' \
             + '{:8}'.format(summaryrow[0]['jobid']) \
-            + '\n==============\n' + summaryrow[0]['logtext']
+            + '\n==============\n' + re.sub('(\n)\\\\', '\\1', summaryrow[0]['logtext'])
     jobsummaries += '</pre>'
 else:
     jobsummaries = ''
 
 # Do we append the bad job logs?
 # ------------------------------
-# TODO: Test and consolidate these queries if possible
 if appendbadlogs:
     badjoblogs = '<pre>=================\nBad Job Full Logs\n=================\n'
     if len(badjobids) != 0:
         for job_id in badjobids:
-            if dbtype == 'pgsql':
+            if dbtype in ('pgsql', 'sqlite'):
                 query_str = "SELECT jobid, time, logtext FROM log WHERE jobid=" \
                           + str(job_id) + " ORDER BY jobid, time ASC;"
             elif dbtype in ('mysql', 'maria'):
                 query_str = "SELECT jobid, time, CAST(logtext as CHAR(2000)) AS logtext \
                     FROM Log WHERE jobid=" + str(job_id) + " ORDER BY jobid, time ASC;"
-            elif dbtype == 'sqlite':
-                query_str = "SELECT jobid, time, logtext FROM log WHERE jobid=" \
-                          + str(job_id) + " ORDER BY jobid, time ASC;"
             badjobrow = db_query(query_str, 'all bad job logs')
             badjoblogs += '==============\nJobID:' \
             + '{:8}'.format(job_id) + '\n==============\n'
             for r in badjobrow:
-                badjoblogs += str(r['time']) + ' ' + r['logtext']
+                # The re.sub is here to strip an ugly trailing '\'
+                # in the SQLite output of the Job Summary block
+                # ------------------------------------------------
+                badjoblogs += str(r['time']) + ' ' + re.sub('(\n)\\\\', '\\1', r['logtext'])
         badjoblogs += '</pre>'
     else:
         badjoblogs += '\n===================\nNo Bad Jobs to List\n===================\n'
@@ -2009,8 +1991,8 @@ if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
         + (' their' if len(pnv_jobids_lst) > 1 else ' its') + ' End Time' + ('s' if len(pnv_jobids_lst) > 1 else '') \
         + ' preceded by an asterisk (*).</p><br>\n'
 
-# Do we have any jobs had been rescheduled?
-# -----------------------------------------
+# Do we have any jobs that had been rescheduled?
+# ----------------------------------------------
 if 'rescheduledjobids' in globals() and flagrescheduled and len(rescheduledjobids) != 0:
     msg += '<p style="' + rescheduledjobsstyle + '">' \
         + 'The number in parentheses in the Status ' + ('fields' if len(set(rescheduledjobids)) > 1 else 'field') \
@@ -2145,7 +2127,8 @@ for jobrow in alljobrows:
             else:
                 msg += html_format_cell(jobrow['jobname'], col = 'jobname')
         elif colname == 'client':
-            msg += html_format_cell(jobrow['client'], col = 'client', jobtype = jobrow['type'])
+            # msg += html_format_cell(jobrow['client'], col = 'client', jobtype = jobrow['type'])
+            msg += html_format_cell(jobrow['client'], jobtype = jobrow['type'], col = 'client')
         elif colname == 'status':
             msg += html_format_cell(translate_job_status(jobrow['jobstatus'], jobrow['joberrors']), col = 'status')
         elif colname == 'joberrors':

@@ -247,7 +247,7 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.74'
+version = '1.75'
 reldate = 'July 21, 2022'
 prog_info = '<p style="font-size: 8px;">' \
             + progname + ' - v' + version \
@@ -320,7 +320,7 @@ Options:
     --dbtype <dbtype>            Database type [default: pgsql] (pgsql | mysql | maria | sqlite)
     --dbport <dbport>            Database port (defaults pgsql 5432, mysql & maria 3306)
     --dbhost <dbhost>            Database host [default: localhost]
-    --dbname <dbname>            Database name [default: bacula]
+    --dbname <dbname>            Database name [default: bacula] (sqlite default: /opt/bacula/working/bacula.db)
     --dbuser <dbuser>            Database user [default: bacula]
     --dbpass <dbpass>            Database password
     --smtpserver <smtpserver>    SMTP server [default: localhost]
@@ -452,7 +452,7 @@ def db_connect():
         cur = conn.cursor(dictionary=True)
     elif dbtype == 'sqlite':
         try:
-            conn = sqlite3.connect('/opt/bacula/working/bacula.db')
+            conn = sqlite3.connect(dbname)
         except sqlite3.OperationalError as err:
             chk_db_exceptions(err)
         conn.row_factory = sqlite3.Row
@@ -1076,6 +1076,7 @@ else:
         alwaysfailcolumn_str = alwaysfailcolumn.title() + ' cell'
 
 # Set the default ports for the different databases if not set on command line
+# Set the default database file if sqlite is used, and not set on command line
 # ----------------------------------------------------------------------------
 if args['--dbtype'] not in valid_db_lst:
     print(print_opt_errors('dbtype'))
@@ -1086,6 +1087,8 @@ elif args['--dbtype'] in ('mysql', 'maria') and args['--dbport'] == None:
     args['--dbport'] = '3306'
 elif args['--dbtype'] == 'sqlite':
     args['--dbport'] = '0'
+    if args['--dbname'] == 'bacula':
+        args['--dbname'] = '/opt/bacula/working/bacula.db'
 
 # Need to assign/re-assign args[] vars based on cli vs env vs defaults
 # --------------------------------------------------------------------

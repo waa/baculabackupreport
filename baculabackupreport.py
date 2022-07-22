@@ -89,7 +89,7 @@ include_pnv_jobs = True   # Include copied, migrated, verified jobs whose endtim
                           #   list refer to them but they are not listed.
                           # - Verify jobs can verify any job, even very old ones. This option makes sure
                           #   verified jobs older than the hours set are also included in the listing.
-checkforvirus = False              # Enable the additional checks for viruses
+checkforvirus = False     # Enable the additional checks for viruses
 virusfoundtext = 'Virus detected'  # Some unique text that your AV software prints to the Bacula job
                                    # log when a virus is detected. ONLY ClamAV is supported at this time!
 verified_job_name_col = 'name'         # What column should the job name of verified jobs be displayed? (name, type, both, none)
@@ -247,8 +247,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.72'
-reldate = 'July 19, 2022'
+version = '1.73'
+reldate = 'July 21, 2022'
 prog_info = '<p style="font-size: 8px;">' \
             + progname + ' - v' + version \
             + ' - <a href="https://github.com/waa/"' \
@@ -538,10 +538,10 @@ def get_verify_client_info(vrfy_jobid):
                 WHERE jobid='" + v_jobids_dict[str(vrfy_jobid)] + "';"
     row = db_query(query_str, 'the JobId, Client Name, and Job Name of a job that was verified')
     if len(row) == 0:
-        # If the verified job is no longer in the
-        # catlog return ['0', '0', 'Job not in catlog']
-        # ---------------------------------------------
-        return '0', '0', 'Job not in catalog'
+        # If the verified job is no longer in
+        # the catlog return ('0', '0', '0')
+        # -----------------------------------
+        return '0', '0', '0'
     else:
         return row[0][str('jobid')], row[0]['client'], row[0]['jobname']
 
@@ -758,7 +758,9 @@ def translate_job_type(jobtype, jobid, priorjobid):
             return 'Verify of ' \
                    + (urlify_jobid(v_jobids_dict[str(jobid)]) if gui and urlifyalljobs else v_jobids_dict[str(jobid)]) \
                    + virus_found_str \
-                   + ('<br>(' + get_verify_client_info(jobrow['jobid'])[2] + ')' \
+                   + ('<br>(' + (get_verify_client_info(jobrow['jobid'])[2] \
+                      if get_verify_client_info(jobrow['jobid'])[2] != '0' \
+                      else 'Job not in catalog') + ')' \
                    if verified_job_name_col in ('type', 'both') else '')
 
     # Catchall for the last two Job types
@@ -1635,9 +1637,8 @@ if include_pnv_jobs:
     # rows from the db and append them to alljobrows and sort
     # ---------------------------------------------------------
     if len(pnv_jobids_lst) != 0:
-        # Connect to database again and query for the
-        # Previous/New/Verified jobs in the pnv_jobids_lst
-        # ------------------------------------------------
+        # Query for the Previous/New/Verified jobs in the pnv_jobids_lst
+        # --------------------------------------------------------------
         if dbtype == 'pgsql':
             query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
                 JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
@@ -1667,22 +1668,37 @@ if include_pnv_jobs:
         # the alljobrows list of jobs
         # ---------------------------
         for row in pnv_jobrows:
+            # TODO: Here we can get the job info of the job a Copy/Migrate/Verify
+            # job worked on and add the row to the v_jobids_dict and pn_jobids_dict dictionaries
+            # to prevent crashes when this information of the copied/migrated/verified job is
+            # requested from these dictionaries later... uffff
+            # if row['Type'] == 'V':
+            #     print(tuple(row))
+            #     print(v_jobids_dict)
+            #     v_jobids_dict[str(row['JobId'])] = v_job_id(row['JobId'])
+            # elif row['Type'] in ('c', 'g'):
+            #     print(tuple(row))
+            #     pn_jobids_dict[str(row['jobid'])] = pn_job_id(row['jobid'])
             alljobrows.append(row)
+
 
         # Sort the full list of all jobs by
         # jobid based on sortorder variable
         # ---------------------------------
         alljobrows = sorted(alljobrows, key=lambda k: k['jobid'], reverse=True if sortorder == 'DESC' else False)
+        # for r in alljobrows:
+        #     print(tuple(r))
+        # print(v_jobids_dict)
+        # print(pn_jobids_dict)
 
 # Currently (20220106), virus detection is only possible
 # in Verify, Level=Data jobs and only in Bacula Enterprise
 # I am hoping AV plugin support will be released into the
 # Community edition too.
 # --------------------------------------------------------
-# TODO: Test and consolidate these queries if possible
 if checkforvirus and len(vrfy_data_jobids) != 0:
-    if dbtype == 'pgsql':
-        query_str = "SELECT Log.JobId, Client.Name, Log.LogText \
+    if dbtype in ('pgsql', 'sqlite'):
+        query_str = "SELECT Job.Name as JobName, Log.JobId, Client.Name, Log.LogText \
             FROM Log \
             INNER JOIN Job ON Log.JobId=Job.JobId \
             INNER JOIN Client ON Job.ClientId=Client.ClientId \
@@ -1690,7 +1706,7 @@ if checkforvirus and len(vrfy_data_jobids) != 0:
             AND (Log.LogText LIKE '%" + virusfoundtext + "%' OR Log.LogText LIKE '%" + avconnfailtext + "%') \
             ORDER BY Log.JobId DESC, Time ASC;"
     elif dbtype in ('mysql', 'maria'):
-        query_str = "SELECT Log.jobid, CAST(Client.name as CHAR(50)) AS name, \
+        query_str = "SELECT Job.name as jobname, Log.jobid, CAST(Client.name as CHAR(50)) AS name, \
             CAST(Log.logtext as CHAR(1000)) AS logtext \
             FROM Log \
             INNER JOIN Job ON Log.jobid=Job.jobid \
@@ -1698,14 +1714,6 @@ if checkforvirus and len(vrfy_data_jobids) != 0:
             WHERE Log.jobid IN (" + ','.join(vrfy_data_jobids) + ") \
             AND (Log.logtext LIKE '%" + virusfoundtext + "%' OR Log.logText LIKE '%" + avconnfailtext + "%') \
             ORDER BY jobid DESC, time ASC;"
-    elif dbtype == 'sqlite':
-        query_str = "SELECT log.jobid, client.name, log.logtext \
-            FROM log \
-            INNER JOIN job ON log.jobid=job.jobid \
-            INNER JOIN client ON Job.clientid=client.clientid \
-            WHERE log.jobid IN (" + ','.join(vrfy_data_jobids) + ") \
-            AND (log.logtext LIKE '%" + virusfoundtext + "%' OR log.logtext LIKE '%" + avconnfailtext + "%') \
-            ORDER BY log.jobid DESC, time ASC;"
     virus_info_rows = db_query(query_str, 'verify job inforomation for AV tests')
 
     # Now we need the number of jobs with viruses and number
@@ -1749,7 +1757,6 @@ if checkforvirus and len(vrfy_data_jobids) != 0:
     num_virus_jobs = len(virus_dict)
     num_virus_clients = len(virus_client_set)
     num_virus_conerr_jobs = len(virus_connerr_set)
-
 
 # If there are any running (R) Jobs, then we query
 # the database for the logtext of each of these
@@ -2115,9 +2122,11 @@ for jobrow in alljobrows:
             # not yet running Copy/Migration/Verify jobs
             # ------------------------------------------------------------------------------------------
             if jobrow['type'] == 'V' \
-                and verified_job_name_col in ('name', 'both'):
-                    vjobname = get_verify_client_info(jobrow['jobid'])[2]
-                    msg += html_format_cell(jobrow['jobname'] + '<br>(' + vjobname + ')', col = 'jobname')
+            and verified_job_name_col in ('name', 'both'):
+                vjobname = get_verify_client_info(jobrow['jobid'])[2]
+                if vjobname == '0':
+                    vjobname = 'Job not in catalog'
+                msg += html_format_cell(jobrow['jobname'] + '<br>(' + vjobname + ')', col = 'jobname')
             elif jobrow['type'] in ('c', 'g') \
                 and copied_migrated_job_name_col in ('name', 'both'):
                     cmjobname = get_copied_migrated_job_name(jobrow['jobid'])
@@ -2128,7 +2137,6 @@ for jobrow in alljobrows:
             else:
                 msg += html_format_cell(jobrow['jobname'], col = 'jobname')
         elif colname == 'client':
-            # msg += html_format_cell(jobrow['client'], col = 'client', jobtype = jobrow['type'])
             msg += html_format_cell(jobrow['client'], jobtype = jobrow['type'], col = 'client')
         elif colname == 'status':
             msg += html_format_cell(translate_job_status(jobrow['jobstatus'], jobrow['joberrors']), col = 'status')

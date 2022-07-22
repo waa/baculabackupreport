@@ -168,8 +168,8 @@ cols2show = 'jobid jobname client status joberrors type level jobfiles jobbytes 
 # -----------------------------------------------------------
 alwaysfailcolumn = 'jobname'    # Column to colorize for "always failing jobs" (column name, row, none)
 always_fail_jobs_threshold = 3  # A job must have failed at least this many times in '-d days' to be considered as 'always failing'
-                                # This prevents a failed job that is run one time from being displayed as always failing for at least a week by default
-                                # Set this to 0 or 1 to disable the threshold feature
+                                # This prevents a failed job that is run one or two times from being displayed as always failing
+                                # for at least a week by default. Set this to 0 or 1 to disable the threshold feature.
 
 # HTML colors
 # -----------
@@ -247,7 +247,7 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.73'
+version = '1.74'
 reldate = 'July 21, 2022'
 prog_info = '<p style="font-size: 8px;">' \
             + progname + ' - v' + version \
@@ -2218,7 +2218,7 @@ elif emailsummary == 'bottom':
     msg = msg + summary
 elif emailsummary == 'both':
     msg = summary + '</br>' + msg + summary
-msg += virussummaries + jobsummaries + badjoblogs + prog_info
+msg += (virussummaries if appendvirussummaries else '') + jobsummaries + badjoblogs + prog_info
 send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
 
 # vim: expandtab tabstop=4 softtabstop=4 shiftwidth=4

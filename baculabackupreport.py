@@ -94,7 +94,9 @@ virusfoundtext = 'Virus detected'  # Some unique text that your AV software prin
                                    # log when a virus is detected. ONLY ClamAV is supported at this time!
 verified_job_name_col = 'name'         # What column should the job name of verified jobs be displayed? (name, type, both, none)
 copied_migrated_job_name_col = 'name'  # What column should the job name of Copied/Migrated jobs be displayed? (name, type, both, none)
-warn_on_will_not_descend = True        # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported?
+warn_on_will_not_descend = True        # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported in logs?
+warn_on_zero_inc = False               # Should 'OK' Inc/Diff jobs be set to 'OK/Warnings' when they backup zero files and bytes?
+ignore_warn_on_zero_inc_jobs = 'Job_1 Job_2'  # Case-sensitive, space-separated listing of job names to ignore for 'warn_on_zero_inc' test
 
 # Job summary table settings
 # --------------------------
@@ -107,7 +109,7 @@ verified_stats = True    # Print Verified Files/Bytes?
 
 # Create a Success Rates table?
 # -----------------------------
-print_success_rates = True  # Print the success rates for the filtered jobs?
+print_success_rates = True  # Print the success rates for the selected jobs?
                             # Intervals to display are in the 'success_rate_interval_dict' dictionary
 
 # Additional Job logs and summaries
@@ -212,6 +214,7 @@ jobsneedingoprstyle = 'display: inline-block; font-size: 13px; font-weight: bold
 jobsolderthantimestyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
 rescheduledjobsstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
 willnotdescendstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
+warnonzeroincstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
 jobtablestyle = 'width: 100%; border-collapse: collapse;'
 dbstatstableheaderstyle = 'width: 35%; border-collapse: collapse;'
 jobtableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (jobtableheadercolor, jobtableheadertxtcolor)
@@ -247,8 +250,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.75'
-reldate = 'July 21, 2022'
+version = '1.76'
+reldate = 'July 23, 2022'
 prog_info = '<p style="font-size: 8px;">' \
             + progname + ' - v' + version \
             + ' - <a href="https://github.com/waa/"' \
@@ -279,10 +282,13 @@ will_not_descend_ignore_lst = [ '/dev', '/misc', '/net', '/proc', '/run', '/srv'
 # -----------------------------------------
 success_rate_interval_dict = {'Day': 1, 'Week': 7, 'Month': 30, 'Three Months': 90, 'Six Months': 180, 'Year': 365}
 
+# Initialize the num_virus_conn_errs variable
+# -------------------------------------------
+num_virus_conn_errs = 0
+
 # The text that is printed in the log
 # when the AV daemon cannot be reached
 # ------------------------------------
-num_virus_conn_errs = 0
 avconnfailtext = 'Unable to connect to antivirus-plugin-service'
 
 # Set some variables for the Summary stats for the special cases of Copy/Migration Control jobs
@@ -292,6 +298,10 @@ total_copied_files = total_copied_bytes = total_migrated_files = total_migrated_
 # Initialize the num_will_not_descend_jobs variable
 # -------------------------------------------------
 num_will_not_descend_jobs = 0
+
+# Initialize the num_zero_inc_jobs variable
+# -----------------------------------------
+num_zero_inc_jobs = 0
 
 # Set the string for docopt
 # -------------------------
@@ -771,7 +781,7 @@ def translate_job_status(jobstatus, joberrors):
     'jobstatus is stored in the catalog as a single character, replace with words.'
     return {'A': 'Canceled', 'C': 'Created', 'D': 'Verify Diffs',
             'E': 'Errors', 'f': 'Failed', 'I': 'Incomplete',
-            'T': ('OK', 'OK/Warnings')[joberrors > 0 or (warn_on_will_not_descend and will_not_descend)],
+            'T': ('OK', 'OK/Warnings')[joberrors > 0 or (warn_on_will_not_descend and will_not_descend) or (warn_on_zero_inc and zero_inc)],
             'R': ('Running', 'Needs Media')[job_needs_opr]}[jobstatus]
 
 def set_subject_icon():
@@ -836,7 +846,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
                 bgcolor = errorjobcolor
             elif jobrow['jobstatus'] == 'T':
                 if jobrow['joberrors'] == 0:
-                    if not warn_on_will_not_descend or (warn_on_will_not_descend and not will_not_descend):
+                    if not warn_on_will_not_descend or ((warn_on_will_not_descend and not will_not_descend) and (warn_on_zero_inc and not zero_inc)):
                         bgcolor = goodjobcolor
                     else:
                         bgcolor = warnjobcolor
@@ -1951,65 +1961,10 @@ else:
 # Create the HTML header for the HTML msg variable
 # ------------------------------------------------
 msg = ''
-msg_header = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' \
-    + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
-    + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n'
-
-# Are we going to be highlighting Verify Jobs where virus(s) were found?
-# ----------------------------------------------------------------------
-if 'num_virus_jobs' in globals() and checkforvirus and num_virus_jobs != 0:
-   msg += '<p style="' + virusfoundstyle + '">' \
-       + 'There were' + re.sub('^' + server + ' - Virus Report:(.*$)', '\\1', virusemailsubject) + '!</p><br>\n'
-
-# Are we going to be highlighting Jobs that are always failing?
-# -------------------------------------------------------------
-if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
-    msg += '<p style="' + alwaysfailstyle + '">' \
-        + 'The ' + str(len(always_fail_jobs)) + ' ' + ('jobs' if len(always_fail_jobs) > 1 else 'job') + ' whose ' \
-        + alwaysfailcolumn_str + ' has this background color ' + ('have' if len(always_fail_jobs) > 1 else 'has') \
-        + ' always failed in the past ' + days + ' ' + ('days' if int(days) > 1 else 'day') + '.</p><br>\n'
-
-# Were there any errors connecting to the AV service?
-# ---------------------------------------------------
-if checkforvirus and num_virus_conn_errs != 0:
-    msg += '<p style="' + virusconnerrstyle + '">' \
-        + 'There ' + ('were ' if num_virus_conn_errs > 1 else 'was ') \
-        + str(num_virus_conn_errs) + (' errors' if num_virus_conn_errs > 1 else ' error') \
-        + ' reported when connecting to the AntiVirus service in ' + str(len(virus_connerr_set)) \
-        + ' Verify/AV Scan ' + ('jobs' if len(virus_connerr_set) > 1 else 'job') + '!</p><br>\n'
-
-# Do we have any Running jobs that are really just
-# sitting there waiting on media, possibly holding
-# up other jobs from making any progress?
-# ------------------------------------------------
-if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
-    msg += '<p style="' + jobsneedingoprstyle + '">' \
-        + 'The ' + str(len(job_needs_opr_lst)) + ' running ' \
-        + ('jobs' if len(job_needs_opr_lst) > 1 else 'job') \
-        + ' in this list with a status of "Needs Media" ' \
-        + ('require' if len(job_needs_opr_lst) > 1 else 'requires') \
-        + ' operator attention.</p><br>\n'
-
-# Do we have any copied or migrated jobs that have an
-# endtime outside of the "-t hours" setting? If yes,
-# then add a notice explaining that their endtime will
-# be preceded by an asterisk so they may be identified.
-# -----------------------------------------------------
-if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
-    msg += '<p style="' + jobsolderthantimestyle + '">The ' + str(len(pnv_jobids_lst)) \
-        + ' Copied/Migrated/Verified ' + ('jobs' if len(pnv_jobids_lst) > 1 else 'job') + ' older than ' \
-        + time + ' ' + hour + ' pulled into this list ' + ('have' if len(pnv_jobids_lst) > 1 else 'has') \
-        + (' their' if len(pnv_jobids_lst) > 1 else ' its') + ' End Time' + ('s' if len(pnv_jobids_lst) > 1 else '') \
-        + ' preceded by an asterisk (*).</p><br>\n'
-
-# Do we have any jobs that had been rescheduled?
-# ----------------------------------------------
-if 'rescheduledjobids' in globals() and flagrescheduled and len(rescheduledjobids) != 0:
-    msg += '<p style="' + rescheduledjobsstyle + '">' \
-        + 'The number in parentheses in the Status ' + ('fields' if len(set(rescheduledjobids)) > 1 else 'field') \
-        + ' of ' + str(len(set(rescheduledjobids))) + (' jobs' if len(set(rescheduledjobids)) > 1 else ' job') \
-        + ' represents the number of times ' + ('they' if len(set(rescheduledjobids)) > 1 else 'it') \
-        + (' were' if len(set(rescheduledjobids)) > 1 else ' was') + ' rescheduled.</p><br>\n'
+warning_banners = ''
+html_header = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' \
+            + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
+            + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n'
 
 # Do we display the database stats above
 # the main jobs report's table header?
@@ -2087,6 +2042,19 @@ for jobrow in alljobrows:
     will_not_descend = False
     if warn_on_will_not_descend and jobrow['type'] == 'B' and jobrow['jobstatus'] == 'T' and jobrow['joberrors'] == 0:
         will_not_descend = chk_will_not_descend()
+
+    # Set the zero_inc variable True if an 'OK' Differential
+    # or Incremental backup job backed up zero files/bytes
+    # ------------------------------------------------------
+    zero_inc = False
+    if warn_on_zero_inc \
+    and jobrow['type'] == 'B' \
+    and jobrow['jobstatus'] == 'T' \
+    and jobrow['level'] in ('D', 'I') \
+    and (jobrow['jobfiles'] == 0 or jobrow['jobbytes'] == 0) \
+    and jobrow['jobname'] not in ignore_warn_on_zero_inc_jobs:
+        num_zero_inc_jobs += 1
+        zero_inc = True
 
     # If this job is always failing, set the alwaysfailjob variable
     # -------------------------------------------------------------
@@ -2176,23 +2144,93 @@ if (conn):
     cur.close()
     conn.close()
 
-# The 'num_will_not_descend_jobs' variable is created
-# and updated as we process the job list from the rows
-# of jobs so it is not available when the rest of the
-# banner warnings are created above
-# ----------------------------------------------------
-# Are we going to flag OK jobs that have 'Will not descend' log entries?
-# ----------------------------------------------------------------------
+# Create the warning_banners
+# --------------------------
+# The 'num_will_not_descend_jobs' and the
+# 'num_zero_inc_jobs variables' are created and
+# updated as we process the job list from the rows
+# of jobs so they are not available until the main
+# jobs table is complete. So the warning banners
+# get created after (here), and then the whole
+# HTML msg gets concatenated.
+# ------------------------------------------------
+# Highlight 'OK' jobs that have 'Will not descend' log entries?
+# -------------------------------------------------------------
 if warn_on_will_not_descend and num_will_not_descend_jobs != 0:
-   msg = msg_header \
-       + '<p style="' + willnotdescendstyle + '">' \
-       + 'There ' + ('was ' if num_will_not_descend_jobs == 1 else 'were ') + str(num_will_not_descend_jobs) + ' \'OK\' backup job' \
-       + ('s' if num_will_not_descend_jobs > 1 else '') + ' with zero errors' \
-       + ' which had \'Will not descend\' warnings. ' + ('Its' if num_will_not_descend_jobs == 1 else 'Their') \
-       + ' Status has been changed to \'OK/Warnings\'</p><br>\n' \
-       + msg
-else:
-    msg = msg_header + msg
+    warning_banners += '<p style="' + willnotdescendstyle + '">' \
+                    + 'There ' + ('was ' if num_will_not_descend_jobs == 1 else 'were ') + str(num_will_not_descend_jobs) + ' \'OK\' backup job' \
+                    + ('s' if num_will_not_descend_jobs > 1 else '') + ' with zero errors' \
+                    + ' which had \'Will not descend\' warnings. ' + ('Its' if num_will_not_descend_jobs == 1 else 'Their') \
+                    + ' Status has been changed to \'OK/Warnings\'</p><br>\n'
+
+# Highlight 'OK' Differential and Incremental jobs that backed up zero files/bytes?
+# ---------------------------------------------------------------------------------
+if warn_on_zero_inc and num_zero_inc_jobs != 0:
+    warning_banners += '<p style="' + warnonzeroincstyle + '">' \
+                    + 'There ' + ('was ' if num_zero_inc_jobs == 1 else 'were ') + str(num_zero_inc_jobs) + ' \'OK\' Diff/Inc backup job' \
+                    + ('s' if num_zero_inc_jobs > 1 else '') + ' which backed up zero files and/or zero bytes. ' \
+                    + ('Its' if num_zero_inc_jobs == 1 else 'Their') + ' Status has been changed to \'OK/Warnings\'</p><br>\n'
+
+# Highlight Verify Jobs where virus(s) were found?
+# ------------------------------------------------
+if 'num_virus_jobs' in globals() and checkforvirus and num_virus_jobs != 0:
+    warning_banners += '<p style="' + virusfoundstyle + '">' \
+                    + 'There were' + re.sub('^' + server + ' - Virus Report:(.*$)', '\\1', virusemailsubject) + '!</p><br>\n'
+
+# Highlight Jobs that are always failing?
+# ---------------------------------------
+if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
+    warning_banners += '<p style="' + alwaysfailstyle + '">' \
+                    + 'The ' + str(len(always_fail_jobs)) + ' ' + ('jobs' if len(always_fail_jobs) > 1 else 'job') + ' whose ' \
+                    + alwaysfailcolumn_str + ' has this background color ' + ('have' if len(always_fail_jobs) > 1 else 'has') \
+                    + ' always failed in the past ' + days + ' ' + ('days' if int(days) > 1 else 'day') + '.</p><br>\n'
+
+# Were there any errors connecting to the AV service?
+# ---------------------------------------------------
+if checkforvirus and num_virus_conn_errs != 0:
+    warning_banners += '<p style="' + virusconnerrstyle + '">' \
+                    + 'There ' + ('were ' if num_virus_conn_errs > 1 else 'was ') \
+                    + str(num_virus_conn_errs) + (' errors' if num_virus_conn_errs > 1 else ' error') \
+                    + ' reported when connecting to the AntiVirus service in ' + str(len(virus_connerr_set)) \
+                    + ' Verify/AV Scan ' + ('jobs' if len(virus_connerr_set) > 1 else 'job') + '!</p><br>\n'
+
+# Do we have any Running jobs that are really just
+# sitting there waiting on media, possibly holding
+# up other jobs from making any progress?
+# ------------------------------------------------
+if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
+    warning_banners += '<p style="' + jobsneedingoprstyle + '">' \
+                    + 'The ' + str(len(job_needs_opr_lst)) + ' running ' \
+                    + ('jobs' if len(job_needs_opr_lst) > 1 else 'job') \
+                    + ' in this list with a status of "Needs Media" ' \
+                    + ('require' if len(job_needs_opr_lst) > 1 else 'requires') \
+                    + ' operator attention.</p><br>\n'
+
+# Do we have any copied or migrated jobs that have an
+# endtime outside of the "-t hours" setting? If yes,
+# then add a notice explaining that their endtime will
+# be preceded by an asterisk so they may be identified.
+# -----------------------------------------------------
+if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
+    warning_banners += '<p style="' + jobsolderthantimestyle + '">The ' + str(len(pnv_jobids_lst)) \
+                    + ' Copied/Migrated/Verified ' + ('jobs' if len(pnv_jobids_lst) > 1 else 'job') + ' older than ' \
+                    + time + ' ' + hour + ' pulled into this list ' + ('have' if len(pnv_jobids_lst) > 1 else 'has') \
+                    + (' their' if len(pnv_jobids_lst) > 1 else ' its') + ' End Time' + ('s' if len(pnv_jobids_lst) > 1 else '') \
+                    + ' preceded by an asterisk (*).</p><br>\n'
+
+# Do we have any jobs that had been rescheduled?
+# ----------------------------------------------
+if 'rescheduledjobids' in globals() and flagrescheduled and len(rescheduledjobids) != 0:
+    warning_banners += '<p style="' + rescheduledjobsstyle + '">' \
+                    + 'The number in parentheses in the Status ' + ('fields' if len(set(rescheduledjobids)) > 1 else 'field') \
+                    + ' of ' + str(len(set(rescheduledjobids))) + (' jobs' if len(set(rescheduledjobids)) > 1 else ' job') \
+                    + ' represents the number of times ' + ('they' if len(set(rescheduledjobids)) > 1 else 'it') \
+                    + (' were' if len(set(rescheduledjobids)) > 1 else ' was') + ' rescheduled.</p><br>\n'
+
+# Assemble the whole msg variable from
+# html_header, warning_banners, and msg
+# -------------------------------------
+msg = html_header + warning_banners + msg
 
 # Do we append the 'Running or Created' message to the Subject?
 # -------------------------------------------------------------

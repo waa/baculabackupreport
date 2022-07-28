@@ -92,30 +92,35 @@ include_pnv_jobs = True   # Include copied, migrated, verified jobs whose endtim
 checkforvirus = False     # Enable the additional checks for viruses
 virusfoundtext = 'Virus detected'  # Some unique text that your AV software prints to the Bacula job
                                    # log when a virus is detected. ONLY ClamAV is supported at this time!
-verified_job_name_col = 'name'         # What column should the job name of verified jobs be displayed? (name, type, both, none)
-copied_migrated_job_name_col = 'name'  # What column should the job name of Copied/Migrated jobs be displayed? (name, type, both, none)
+verified_job_name_col = 'both'         # What column should the job name of verified jobs be displayed? (name, type, both, none)
+copied_migrated_job_name_col = 'both'  # What column should the job name of Copied/Migrated jobs be displayed? (name, type, both, none)
 warn_on_will_not_descend = True        # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported in logs?
-warn_on_zero_inc = False               # Should 'OK' Inc/Diff jobs be set to 'OK/Warnings' when they backup zero files and bytes?
+warn_on_zero_inc = False               # Should 'OK' Inc/Diff jobs be set to 'OK/Warnings' when they backup zero files and/or bytes?
 ignore_warn_on_zero_inc_jobs = 'Job_1 Job_2'  # Case-sensitive, space-separated listing of job names to ignore for 'warn_on_zero_inc' test
+# ignore_warn_on_zero_inc_jobs = 'Job_1 Job_2 SpeedyVMs Speedy-Etc'
 
-# Job summary table settings
-# --------------------------
-emailsummary = 'bottom'  # Print a Summary table? (top, bottom, both, none)
-db_version = True        # Print the database version?
-restore_stats = True     # Print Restore Files/Bytes?
-copied_stats = True      # Print Copied Files/Bytes?
-migrated_stats = True    # Print Migrated Files/Bytes?
-verified_stats = True    # Print Verified Files/Bytes?
+# Summary and Success Rates block
+# -------------------------------
+summary_and_rates = 'bottom'  # Print a Summary and Success Rates block? (top, bottom, both, none)
+
+# Create the Job Summary table?
+# -----------------------------
+create_job_summary_table = True  # Create a Job Summary table in the Summary and Success Rates block?
+db_version = True                # Print the database version?
+restore_stats = True             # Print Restore Files/Bytes?
+copied_stats = True              # Print Copied Files/Bytes?
+migrated_stats = True            # Print Migrated Files/Bytes?
+verified_stats = True            # Print Verified Files/Bytes?
 
 # Create a Success Rates table?
 # -----------------------------
-print_success_rates = True  # Print the success rates for the selected jobs?
-                            # Intervals to display are in the 'success_rate_interval_dict' dictionary
+create_success_rates_table = True  # Create a Success Rates table in the Summary and Success Rates block?
+                                   # Intervals to display are in the 'success_rates_interval_dict' dictionary
 
 # Additional Job logs and summaries
 # ---------------------------------
 emailvirussummary = True      # Email the viruses summary report as a separate email?
-appendvirussummaries = False  # Append virus summary information?
+appendvirussummaries = False  # Append virus summary information to the job report email?
 appendjobsummaries = False    # Append all job summaries? Be careful with this, it can generate very large emails
 appendbadlogs = False         # Append logs of bad jobs? Be careful with this, it can generate very large emails
 
@@ -226,8 +231,7 @@ jobtablealwaysfailrowstyle = 'background-color: %s;' % alwaysfailcolor
 jobtablealwaysfailcellstyle = 'text-align: center; background-color: %s;' % alwaysfailcolor
 jobtablevirusfoundcellstyle = 'text-align: center; background-color: %s;' % virusfoundcolor
 jobtablevirusconnerrcellstyle = 'text-align: center; background-color: %s;' % virusconnerrcolor
-# summarytablestyle = 'width: 25%; margin-top: 20px; border-collapse: collapse;'
-summarytablestyle = 'width: 100%; margin-top: 20px; border-collapse: collapse;'
+summarytablestyle = 'margin-top: 20px; border-collapse: collapse;'
 summarytableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (summarytableheadercolor, summarytableheadertxtcolor)
 summarytableheadercellstyle = 'padding: 6px;'
 summarytablerowevenstyle = 'font-weight: bold; background-color: %s; color: %s;' % (summarytablerowevencolor, summarytableroweventxtcolor)
@@ -250,8 +254,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.76'
-reldate = 'July 23, 2022'
+version = '1.77'
+reldate = 'July 27, 2022'
 prog_info = '<p style="font-size: 8px;">' \
             + progname + ' - v' + version \
             + ' - <a href="https://github.com/waa/"' \
@@ -280,7 +284,7 @@ will_not_descend_ignore_lst = [ '/dev', '/misc', '/net', '/proc', '/run', '/srv'
 
 # Dictionary for the success rate intervals
 # -----------------------------------------
-success_rate_interval_dict = {'Day': 1, 'Week': 7, 'Month': 30, 'Three Months': 90, 'Six Months': 180, 'Year': 365}
+success_rates_interval_dict = {'Day': 1, 'Week': 7, 'Month': 30, 'Three Months': 90, 'Six Months': 180, 'Year': 365}
 
 # Initialize the num_virus_conn_errs variable
 # -------------------------------------------
@@ -397,7 +401,7 @@ def print_opt_errors(opt):
         return '\nThe \'' + opt + '\' variable must be one or more of the following characters: ' + ''.join(all_jobtype_lst)
     elif opt == 'jobstatus':
         return '\nThe \'' + opt + '\' variable must be one or more of the following characters: ' + ''.join(all_jobstatus_lst)
-    elif opt == 'emailsummary':
+    elif opt == 'summary_and_rates':
         return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_summary_location_lst)
     elif opt == 'copied_migrated_job_name_col':
         return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_copied_migrated_job_name_col_lst)
@@ -794,7 +798,7 @@ def set_subject_icon():
                subjecticon = alwaysfailjobsicon
            else:
                subjecticon = badjobsicon
-        elif jobswitherrors != 0 or (warn_on_will_not_descend and num_will_not_descend_jobs > 0):
+        elif jobswitherrors != 0 or (warn_on_will_not_descend and num_will_not_descend_jobs > 0) or (warn_on_zero_inc and num_zero_inc_jobs > 0):
            subjecticon = warnjobsicon
         else:
             subjecticon = goodjobsicon
@@ -846,10 +850,14 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
                 bgcolor = errorjobcolor
             elif jobrow['jobstatus'] == 'T':
                 if jobrow['joberrors'] == 0:
-                    if not warn_on_will_not_descend or ((warn_on_will_not_descend and not will_not_descend) and (warn_on_zero_inc and not zero_inc)):
+                    if not warn_on_will_not_descend and not warn_on_zero_inc:
                         bgcolor = goodjobcolor
-                    else:
+                    elif warn_on_will_not_descend and will_not_descend:
                         bgcolor = warnjobcolor
+                    elif warn_on_zero_inc and zero_inc:
+                        bgcolor = warnjobcolor
+                    else:
+                       bgcolor = goodjobcolor
                 else:
                     bgcolor = warnjobcolor
             elif jobrow['jobstatus'] in bad_job_set:
@@ -1024,10 +1032,10 @@ args = docopt(doc_opt_str, version='\n' + progname + ' - v' + version + '\n' + r
 # -------------------------------
 gui = True if webgui in valid_webgui_lst else False
 
-# Verify the emailsummary variable is valid
-# -----------------------------------------
-if emailsummary not in valid_summary_location_lst:
-    print(print_opt_errors('emailsummary'))
+# Verify the summary_and_rates variable is valid
+# ----------------------------------------------
+if summary_and_rates not in valid_summary_location_lst:
+    print(print_opt_errors('summary_and_rates'))
     usage()
 
 # Verify that the copied_migrated_job_name_col
@@ -1404,190 +1412,187 @@ if len(ctrl_jobids) != 0:
             total_migrated_files += int(files)
             total_migrated_bytes += int(bytes)
 
-# Include the summary table in the main job report?
-# We need to build this table now to prevent any Copy/Migrate/Verify
-# jobs that are older than "-t hours" which might get pulled into
-# the alljobrows list from having their files/bytes included in the
-# optional stats: restored, copied, verified, migrated files/bytes
-# ------------------------------------------------------------------
-if emailsummary != 'none':
-    summary = ''
-    # If we are going to print the Summary and the Success Rates
-    # tables, we need to wrap both tables in a new table
-    # ----------------------------------------------------------
-    if print_success_rates:
-        summary = '<table style="width: 35%">' \
-                + '<tr style="vertical-align: top;"><td>'
+# Include the Summary and Success Rates block in the job report?
+# We need to build the Job Summary table now to prevent any
+# Copy/Migrate/Verify jobs that are older than "-t hours" which
+# might get pulled into the alljobrows list from having their
+# files/bytes included in the optional stats: restored, copied,
+# verified, migrated files/bytes
+# --------------------------------------------------------------
+if summary_and_rates != 'none' and (create_job_summary_table or create_success_rates_table):
+    job_summary_table = success_rates_table = ''
+    summary_and_rates_table = '<table style="border-collapse: collapse; width: 40%;">' \
+                            + '<tr style="vertical-align: top; horizontal-align: left;">' \
+                            + '<td>'
 
-    # Begin the Summary table
-    # -----------------------
-    summary += '<table style="' + summarytablestyle + '">' \
-            + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
-            + summarytableheadercellstyle + '">Summary</th></tr>'
+    # Begin the Job Summary table
+    # ---------------------------
+    if create_job_summary_table:
+        job_summary_table = '<table style="border-collapse: collapse; display: inline-block; float: left; padding-right: 20px; ' + summarytablestyle + '">' \
+                          + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
+                          + summarytableheadercellstyle + '">Summary</th></tr>'
 
-    # Create the list of basic (non optional) information
-    # ---------------------------------------------------
-    emailsummarydata = [
-        {'label': 'Total Jobs', 'data': '{:,}'.format(numjobs)},
-        {'label': 'Bad Jobs', 'data': '{:,}'.format(numbadjobs)},
-        {'label': 'Jobs with Errors', 'data': '{:,}'.format(jobswitherrors)},
-        {'label': 'Total Job Errors', 'data': '{:,}'.format(totaljoberrors)},
-        {'label': 'Total Backup Files', 'data': '{:,}'.format(total_backup_files)},
-        {'label': 'Total Backup Bytes', 'data': humanbytes(total_backup_bytes)}
-    ]
+        # Create the list of basic (non optional) information
+        # ---------------------------------------------------
+        job_summary_table_data = [
+            {'label': 'Total Jobs', 'data': '{:,}'.format(numjobs)},
+            {'label': 'Bad Jobs', 'data': '{:,}'.format(numbadjobs)},
+            {'label': 'Jobs with Errors', 'data': '{:,}'.format(jobswitherrors)},
+            {'label': 'Total Job Errors', 'data': '{:,}'.format(totaljoberrors)},
+            {'label': 'Total Backup Files', 'data': '{:,}'.format(total_backup_files)},
+            {'label': 'Total Backup Bytes', 'data': humanbytes(total_backup_bytes)}
+        ]
 
-    # Do we include the database version in the summary table?
-    # --------------------------------------------------------
-    if db_version:
-        if dbtype == 'pgsql':
-            query_str = "SHOW server_version;"
-            db_type_str = 'PostgreSQL'
-        elif dbtype in ('mysql', 'maria'):
-            db_type_str = 'MySQL/MariaDB'
-            query_str = "SELECT VERSION();"
-        elif dbtype == 'sqlite':
-            db_type_str = 'SQLite'
-            query_str = "SELECT sqlite_version();"
-        db_ver_row = db_query(query_str, 'db version', 'one')
+        # Do we include the database version in the Job Summary table?
+        # ------------------------------------------------------------
+        if db_version:
+            if dbtype == 'pgsql':
+                query_str = "SHOW server_version;"
+                db_type_str = 'PostgreSQL'
+            elif dbtype in ('mysql', 'maria'):
+                db_type_str = 'MySQL/MariaDB'
+                query_str = "SELECT VERSION();"
+            elif dbtype == 'sqlite':
+                db_type_str = 'SQLite'
+                query_str = "SELECT sqlite_version();"
+            db_ver_row = db_query(query_str, 'db version', 'one')
 
-        if dbtype in ('mysql', 'maria'):
-            db_ver = db_ver_row['VERSION()']
-        else:
-            db_ver = db_ver_row[0]
-        emailsummarydata.insert(0, {'label': db_type_str + ' Version', 'data': str(db_ver)})
+            if dbtype in ('mysql', 'maria'):
+                db_ver = db_ver_row['VERSION()']
+            else:
+                db_ver = db_ver_row[0]
+            job_summary_table_data.insert(0, {'label': db_type_str + ' Version', 'data': str(db_ver)})
 
-    # - Not everyone runs Copy, Migration, Verify jobs
-    # - Restores are (or should be) infrequent
-    # - Create variables for some optional statistics
-    #   and append the corresponding label and data to
-    #   the emailsummarydata list to be iterated through
-    # --------------------------------------------------
-    if restore_stats:
-        total_restore_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'R'])
-        total_restore_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'R'])
-        emailsummarydata.append({'label': 'Total Restore Files', 'data': '{:,}'.format(total_restore_files)})
-        emailsummarydata.append({'label': 'Total Restore Bytes', 'data': humanbytes(total_restore_bytes)})
-    if copied_stats:
-        # These cannot be added this way due to issue (**) noted above
-        # total_copied_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'c'])
-        # total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'c'])
-        emailsummarydata.append({'label': 'Total Copied Files', 'data': '{:,}'.format(total_copied_files)})
-        emailsummarydata.append({'label': 'Total Copied Bytes', 'data': humanbytes(total_copied_bytes)})
-    if migrated_stats:
-        # These cannot be added this way due to issue (**) noted above
-        # total_migrated_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'g'])
-        # total_migrated_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'g'])
-        emailsummarydata.append({'label': 'Total Migrated Files', 'data': '{:,}'.format(total_migrated_files)})
-        emailsummarydata.append({'label': 'Total Migrated Bytes', 'data': humanbytes(total_migrated_bytes)})
-    if verified_stats:
-        total_verify_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'V'])
-        total_verify_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'V'])
-        emailsummarydata.append({'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)})
-        emailsummarydata.append({'label': 'Total Verify Bytes', 'data': humanbytes(total_verify_bytes)})
+        # - Not everyone runs Copy, Migration, Verify jobs
+        # - Restores are (or should be) infrequent
+        # - Create variables for some optional statistics
+        #   and append the corresponding label and data to
+        #   the job_summary_table_data list to be iterated through
+        # --------------------------------------------------
+        if restore_stats:
+            total_restore_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'R'])
+            total_restore_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'R'])
+            job_summary_table_data.append({'label': 'Total Restore Files', 'data': '{:,}'.format(total_restore_files)})
+            job_summary_table_data.append({'label': 'Total Restore Bytes', 'data': humanbytes(total_restore_bytes)})
+        if copied_stats:
+            # These cannot be added this way due to issue (**) noted above
+            # total_copied_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'c'])
+            # total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'c'])
+            job_summary_table_data.append({'label': 'Total Copied Files', 'data': '{:,}'.format(total_copied_files)})
+            job_summary_table_data.append({'label': 'Total Copied Bytes', 'data': humanbytes(total_copied_bytes)})
+        if migrated_stats:
+            # These cannot be added this way due to issue (**) noted above
+            # total_migrated_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'g'])
+            # total_migrated_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'g'])
+            job_summary_table_data.append({'label': 'Total Migrated Files', 'data': '{:,}'.format(total_migrated_files)})
+            job_summary_table_data.append({'label': 'Total Migrated Bytes', 'data': humanbytes(total_migrated_bytes)})
+        if verified_stats:
+            total_verify_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'V'])
+            total_verify_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'V'])
+            job_summary_table_data.append({'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)})
+            job_summary_table_data.append({'label': 'Total Verify Bytes', 'data': humanbytes(total_verify_bytes)})
 
-    # Fill the Summary table with the label/data pairs and end the HTML table
-    # -----------------------------------------------------------------------
-    counter = 0
-    for value in emailsummarydata:
-        summary += '<tr style="' + (summarytablerowevenstyle if counter % 2 == 0 else summarytablerowoddstyle) + '">' \
-                + '<td style="' + summarytablecellstyle + 'text-align: left;">' + value['label'] + '</td>' \
-                + '<td style="' + summarytablecellstyle + 'text-align: right;">' + value['data'] + '</td>' \
-                + '</tr>\n'
-        counter += 1
-    summary += '</table>'
+        # Fill the Job Summary table with the label/data pairs and end the HTML table
+        # ---------------------------------------------------------------------------
+        counter = 0
+        for value in job_summary_table_data:
+            job_summary_table += '<tr style="' + (summarytablerowevenstyle if counter % 2 == 0 else summarytablerowoddstyle) + '">' \
+                              + '<td style="' + summarytablecellstyle + 'text-align: left; padding-right: 40px;">' + value['label'] + '</td>' \
+                              + '<td style="' + summarytablecellstyle + 'text-align: right; padding-left: 40px;">' + value['data'] + '</td>' \
+                              + '</tr>\n'
+            counter += 1
+        job_summary_table += '</table>'
 
-# Do we include the success rates in the Summary table?
-# -----------------------------------------------------
-if print_success_rates:
-    successratesummarydata = []
-    if emailsummary != 'none':
-        summary += '</td><td><table style="' + summarytablestyle + '">' \
-                + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
-                + summarytableheadercellstyle + '">Success Rates</th></tr>'
+    # Begin the Success Rates table
+    # -----------------------------
+    if create_success_rates_table:
+        success_rates_table_data = []
+        success_rates_table += '<table style="display: inline-block; ' + summarytablestyle + '">' \
+                            + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
+                            + summarytableheadercellstyle + '">Success Rates</th></tr>'
 
-    for interval_key, interval_days in success_rate_interval_dict.items():
-        if dbtype == 'pgsql':
-            all_query_str = "SELECT COUNT(JobId) \
-                FROM Job \
-                INNER JOIN Client on Job.ClientID=Client.ClientID \
-                WHERE endtime >= (NOW()) - (INTERVAL '" + str(interval_days) + " DAY') \
-                AND Client.Name LIKE '" + client + "' \
-                AND Job.Name LIKE '" + jobname + "' \
-                AND Type IN ('" + "','".join(jobtypeset) + "') \
-                AND JobStatus IN ('" + "','".join(jobstatusset) + "');"
-            bad_query_str = "SELECT COUNT(JobId) \
-                FROM Job \
-                INNER JOIN Client on Job.clientid=Client.clientid \
-                WHERE endtime >= (NOW()) - (INTERVAL '" + str(interval_days) + " DAY') \
-                AND Client.Name LIKE '" + client + "' \
-                AND Job.Name LIKE '" + jobname + "' \
-                AND Type IN ('" + "','".join(jobtypeset) + "') \
-                AND JobStatus IN ('" + "','".join(bad_job_set) + "');"
-        elif dbtype in ('mysql', 'maria'):
-            all_query_str = "SELECT COUNT(jobid) \
-                FROM Job \
-                INNER JOIN Client on Job.clientid=Client.clientid \
-                WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + str(interval_days) + " DAY) \
-                AND Client.Name LIKE '" + client + "' \
-                AND Job.Name LIKE '" + jobname + "' \
-                AND type IN ('" + "','".join(jobtypeset) + "') \
-                AND jobstatus IN ('" + "','".join(jobstatusset) + "');"
-            bad_query_str = "SELECT COUNT(jobid) \
-                FROM Job \
-                INNER JOIN Client on Job.clientid=Client.clientid \
-                WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + str(interval_days) + " DAY) \
-                AND Client.Name LIKE '" + client + "' \
-                AND Job.Name LIKE '" + jobname + "' \
-                AND type IN ('" + "','".join(jobtypeset) + "') \
-                AND jobstatus IN ('" + "','".join(bad_job_set) + "');"
-        elif dbtype == 'sqlite':
-           all_query_str = "SELECT COUNT(JobId) \
-                FROM Job \
-                INNER JOIN Client on Job.ClientId=Client.ClientId \
-                WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(interval_days) + " days') \
-                AND Client.Name LIKE '" + client + "' \
-                AND Job.Name LIKE '" + jobname + "' \
-                AND Type IN ('" + "','".join(jobtypeset) + "') \
-                AND JobStatus IN ('" + "','".join(jobstatusset) + "');"
-           bad_query_str = "SELECT COUNT(JobId) \
-                FROM Job \
-                INNER JOIN Client on Job.ClientId=Client.ClientId \
-                WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(interval_days) + " days') \
-                AND Client.Name LIKE '" + client + "' \
-                AND Job.Name LIKE '" + jobname + "' \
-                AND Type IN ('" + "','".join(jobtypeset) + "') \
-                AND JobStatus IN ('" + "','".join(bad_job_set) + "');"
-        allintervaljobs = db_query(all_query_str, 'all jobs in the past ' + str(interval_days) + ' days for success rate caclulations', 'one')
-        badintervaljobs = db_query(bad_query_str, 'bad jobs in the past ' + str(interval_days) + ' days for success rate caclulations', 'one')
+        for interval_key, interval_days in success_rates_interval_dict.items():
+            if dbtype == 'pgsql':
+                all_query_str = "SELECT COUNT(JobId) \
+                    FROM Job \
+                    INNER JOIN Client on Job.ClientID=Client.ClientID \
+                    WHERE endtime >= (NOW()) - (INTERVAL '" + str(interval_days) + " DAY') \
+                    AND Client.Name LIKE '" + client + "' \
+                    AND Job.Name LIKE '" + jobname + "' \
+                    AND Type IN ('" + "','".join(jobtypeset) + "') \
+                    AND JobStatus IN ('" + "','".join(jobstatusset) + "');"
+                bad_query_str = "SELECT COUNT(JobId) \
+                    FROM Job \
+                    INNER JOIN Client on Job.clientid=Client.clientid \
+                    WHERE endtime >= (NOW()) - (INTERVAL '" + str(interval_days) + " DAY') \
+                    AND Client.Name LIKE '" + client + "' \
+                    AND Job.Name LIKE '" + jobname + "' \
+                    AND Type IN ('" + "','".join(jobtypeset) + "') \
+                    AND JobStatus IN ('" + "','".join(bad_job_set) + "');"
+            elif dbtype in ('mysql', 'maria'):
+                all_query_str = "SELECT COUNT(jobid) \
+                    FROM Job \
+                    INNER JOIN Client on Job.clientid=Client.clientid \
+                    WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + str(interval_days) + " DAY) \
+                    AND Client.Name LIKE '" + client + "' \
+                    AND Job.Name LIKE '" + jobname + "' \
+                    AND type IN ('" + "','".join(jobtypeset) + "') \
+                    AND jobstatus IN ('" + "','".join(jobstatusset) + "');"
+                bad_query_str = "SELECT COUNT(jobid) \
+                    FROM Job \
+                    INNER JOIN Client on Job.clientid=Client.clientid \
+                    WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + str(interval_days) + " DAY) \
+                    AND Client.Name LIKE '" + client + "' \
+                    AND Job.Name LIKE '" + jobname + "' \
+                    AND type IN ('" + "','".join(jobtypeset) + "') \
+                    AND jobstatus IN ('" + "','".join(bad_job_set) + "');"
+            elif dbtype == 'sqlite':
+               all_query_str = "SELECT COUNT(JobId) \
+                    FROM Job \
+                    INNER JOIN Client on Job.ClientId=Client.ClientId \
+                    WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(interval_days) + " days') \
+                    AND Client.Name LIKE '" + client + "' \
+                    AND Job.Name LIKE '" + jobname + "' \
+                    AND Type IN ('" + "','".join(jobtypeset) + "') \
+                    AND JobStatus IN ('" + "','".join(jobstatusset) + "');"
+               bad_query_str = "SELECT COUNT(JobId) \
+                    FROM Job \
+                    INNER JOIN Client on Job.ClientId=Client.ClientId \
+                    WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(interval_days) + " days') \
+                    AND Client.Name LIKE '" + client + "' \
+                    AND Job.Name LIKE '" + jobname + "' \
+                    AND Type IN ('" + "','".join(jobtypeset) + "') \
+                    AND JobStatus IN ('" + "','".join(bad_job_set) + "');"
+            allintervaljobs = db_query(all_query_str, 'all jobs in the past ' + str(interval_days) + ' days for success rate caclulations', 'one')
+            badintervaljobs = db_query(bad_query_str, 'bad jobs in the past ' + str(interval_days) + ' days for success rate caclulations', 'one')
 
-        if dbtype in ('pgsql', 'sqlite'):
-            allintervaljobs = allintervaljobs[0]
-            badintervaljobs = badintervaljobs[0]
-        elif dbtype in ('mysql', 'maria'):
-            allintervaljobs = allintervaljobs['COUNT(jobid)']
-            badintervaljobs = badintervaljobs['COUNT(jobid)']
+            if dbtype in ('pgsql', 'sqlite'):
+                allintervaljobs = allintervaljobs[0]
+                badintervaljobs = badintervaljobs[0]
+            elif dbtype in ('mysql', 'maria'):
+                allintervaljobs = allintervaljobs['COUNT(jobid)']
+                badintervaljobs = badintervaljobs['COUNT(jobid)']
 
-        if badintervaljobs == 0:
-            success_rate = 100
-        else:
-            success_rate = '{:.0f}'.format(100 - ((badintervaljobs / allintervaljobs) * 100))
-        successratesummarydata.append({'label': interval_key, 'data': str(success_rate) + ' %'})
+            if badintervaljobs == 0:
+                success_rate = 100
+            else:
+                success_rate = '{:.0f}'.format(100 - ((badintervaljobs / allintervaljobs) * 100))
+            success_rates_table_data.append({'label': interval_key, 'data': str(success_rate) + ' %'})
 
-    # Fill the Success Rate table with the label/data pairs and end the HTML table(s)
-    # -------------------------------------------------------------------------------
-    counter = 1
-    for value in successratesummarydata:
-        summary += '<tr style="' + (summarytablerowevenstyle if counter % 2 == 0 else summarytablerowoddstyle) + '">' \
-                + '<td style="' + summarytablecellstyle + 'text-align: left;">' + value['label'] + '</td>' \
-                + '<td style="' + summarytablecellstyle + 'text-align: right;">' + value['data'] + '</td>' \
-                + '</tr>\n'
-        counter += 1
-    summary += '</table>'
-    # If we also print the Summary table,
-    # now we need to close the outer table
-    # ------------------------------------
-    if emailsummary != 'none':
-        summary += '</td></tr></table>'
+        # Fill the Success Rate table with the label/data pairs and end the HTML table(s)
+        # -------------------------------------------------------------------------------
+        counter = 1
+        for value in success_rates_table_data:
+            success_rates_table += '<tr style="' + (summarytablerowevenstyle if counter % 2 == 0 else summarytablerowoddstyle) + '">' \
+                               + '<td style="' + summarytablecellstyle + 'text-align: left; padding-right: 40px;">' + value['label'] + '</td>' \
+                               + '<td style="' + summarytablecellstyle + 'text-align: right; padding-left: 40px;">' + value['data'] + '</td>' \
+                               + '</tr>\n'
+            counter += 1
+        success_rates_table += '</table>'
+
+    # Close the outer table
+    # ---------------------
+    summary_and_rates_table += job_summary_table + success_rates_table + '</td></tr></table>'
 
 # For each Verify Job (V), get the
 # Job summary text from the log table
@@ -2253,12 +2258,12 @@ if print_subject:
 
 # Build the final message and send the email
 # ------------------------------------------
-if emailsummary == 'top':
-    msg = summary + '</br>' + msg
-elif emailsummary == 'bottom':
-    msg = msg + summary
-elif emailsummary == 'both':
-    msg = summary + '</br>' + msg + summary
+if summary_and_rates == 'top':
+    msg = summary_and_rates_table + '</br>' + msg
+elif summary_and_rates == 'bottom':
+    msg = msg + summary_and_rates_table
+elif summary_and_rates == 'both':
+    msg = summary_and_rates_table + '</br>' + msg + summary_and_rates_table
 msg += (virussummaries if appendvirussummaries else '') + jobsummaries + badjoblogs + prog_info
 send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
 

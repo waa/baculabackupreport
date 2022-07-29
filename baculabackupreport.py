@@ -72,24 +72,24 @@ urlifyalljobs = True  # Should jobids in the Status column for Copied/Migrated/V
 
 # Toggles and other formatting settings
 # -------------------------------------
-boldjobname = True        # Bold the job name in HTML emails?
-boldstatus = True         # Bold the status in HTML emails?
-starbadjobids = False     # Wrap bad jobs jobids with asterisks "*"?
-sortorder = 'DESC'        # Which direction to sort jobids by? (ASC or DESC)
-showcopiedto = True       # Show the jobids that migrated/backup jobs have been copied to
-print_subject = True      # Print (stdout) the subject of the email being sent
-print_sent = True         # Print (stdout) when the email is successfully sent
-flagrescheduled = True    # Should we flag jobs which had failed but succeeded after having been rescheduled?
-show_db_stats = True      # Include a row at the top of the Jobs table showing database statistics?
-include_pnv_jobs = True   # Include copied, migrated, verified jobs whose endtime is older than "-t hours"?
-                          # NOTE:
-                          # - Copied/Migrated jobs inherit the endtime of the original backup job which
-                          #   can often be older than the number of hours set. These jobs would not normally
-                          #   be included in the list which can be confusing when Copy/Migration jobs in the
-                          #   list refer to them but they are not listed.
-                          # - Verify jobs can verify any job, even very old ones. This option makes sure
-                          #   verified jobs older than the hours set are also included in the listing.
-checkforvirus = False     # Enable the additional checks for viruses
+boldjobname = True       # Bold the job name in HTML emails?
+boldstatus = True        # Bold the status in HTML emails?
+starbadjobids = False    # Wrap bad jobs jobids with asterisks "*"?
+sortorder = 'DESC'       # Which direction to sort jobids by? (ASC or DESC)
+showcopiedto = True      # Show the jobids that migrated/backup jobs have been copied to
+print_subject = True     # Print (stdout) the subject of the email being sent
+print_sent = True        # Print (stdout) when the email is successfully sent
+flagrescheduled = True   # Should we flag jobs which had failed but succeeded after having been rescheduled?
+show_db_stats = True     # Include a row at the top of the Jobs table showing database statistics?
+include_pnv_jobs = True  # Include copied, migrated, verified jobs whose endtime is older than "-t hours"?
+                         # NOTE:
+                         # - Copied/Migrated jobs inherit the endtime of the original backup job which
+                         #   can often be older than the number of hours set. These jobs would not normally
+                         #   be included in the list which can be confusing when Copy/Migration jobs in the
+                         #   list refer to them but they are not listed.
+                         # - Verify jobs can verify any job, even very old ones. This option makes sure
+                         #   verified jobs older than the hours set are also included in the listing.
+checkforvirus = False    # Enable the additional checks for viruses
 virusfoundtext = 'Virus detected'  # Some unique text that your AV software prints to the Bacula job
                                    # log when a virus is detected. ONLY ClamAV is supported at this time!
 verified_job_name_col = 'both'         # What column should the job name of verified jobs be displayed? (name, type, both, none)
@@ -97,7 +97,7 @@ copied_migrated_job_name_col = 'both'  # What column should the job name of Copi
 warn_on_will_not_descend = True        # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported in logs?
 warn_on_zero_inc = False               # Should 'OK' Inc/Diff jobs be set to 'OK/Warnings' when they backup zero files and/or bytes?
 ignore_warn_on_zero_inc_jobs = 'Job_1 Job_2'  # Case-sensitive, space-separated listing of job names to ignore for 'warn_on_zero_inc' test
-# ignore_warn_on_zero_inc_jobs = 'Job_1 Job_2 SpeedyVMs Speedy-Etc'
+chk_pool_use = True                           # Warn about Pool 'numvols' approaching or surpassing 'maxvols'?
 
 # Summary and Success Rates block
 # -------------------------------
@@ -202,6 +202,9 @@ errorjobcolor = '#cc3300'                # Background color of the Status cell f
 alwaysfailcolor = '#ebd32a'              # Background color of the 'alwaysfailcolumn', or entire row for jobs "always failing in the past 'days'"
 virusfoundcolor = '#88eebb'              # Background color of the Banner and 'Type' Cell when a virus is found in a Verify, Level=Data job
 virusconnerrcolor = '#ffb3b3'            # Background color of the Banner and 'Type' Cell when there are errors connecting to AV service
+poolredcolor = 'red'                     # Background color of the Pool Use table row for pools with use % >= 96%
+poolorangecolor = 'orange'               # Background color of the Pool Use table row for pools with use % 90-95%
+poolyellowcolor = 'yellow'               # Background color of the Pool Use table row for pools with use % 80-89%
 
 # HTML fonts
 # ----------
@@ -220,6 +223,7 @@ jobsolderthantimestyle = 'display: inline-block; font-size: 13px; font-weight: b
 rescheduledjobsstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
 willnotdescendstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
 warnonzeroincstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
+poolwarningstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
 jobtablestyle = 'width: 100%; border-collapse: collapse;'
 dbstatstableheaderstyle = 'width: 35%; border-collapse: collapse;'
 jobtableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (jobtableheadercolor, jobtableheadertxtcolor)
@@ -254,8 +258,8 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.77'
-reldate = 'July 27, 2022'
+version = '1.78'
+reldate = 'July 28, 2022'
 prog_info = '<p style="font-size: 8px;">' \
             + progname + ' - v' + version \
             + ' - <a href="https://github.com/waa/"' \
@@ -1023,6 +1027,16 @@ def chk_will_not_descend():
                 return True
         return False
 
+def calc_pool_use(name, num, max):
+    'Add {poolName: (numvols, maxvols, % used)} to warn_pool_dict if >= 80%'
+    if num == 0 or max == 0:
+        return
+    else:
+        pct = '{:.0f}'.format((num / max) * 100)
+        if int(pct) >= 80:
+            warn_pool_dict[name] = (num, max, int(pct))
+        return
+
 # Assign docopt doc string variable
 # ---------------------------------
 args = docopt(doc_opt_str, version='\n' + progname + ' - v' + version + '\n' + reldate + '\n')
@@ -1340,7 +1354,7 @@ elif dbtype in ('mysql', 'maria'):
         WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + days + " DAY) ORDER BY jobid DESC;"
 elif dbtype == 'sqlite':
     query_str = "SELECT JobId, Job.Name AS JobName, JobStatus FROM Job \
-        WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + days + " days') ORDER BY JobId DESC;"
+        WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + days + " days', 'localtime') ORDER BY JobId DESC;"
 alldaysjobrows = db_query(query_str, 'always failing jobs')
 
 # These are specific to the 'always failing jobs' features
@@ -1419,9 +1433,9 @@ if len(ctrl_jobids) != 0:
 # files/bytes included in the optional stats: restored, copied,
 # verified, migrated files/bytes
 # --------------------------------------------------------------
-if summary_and_rates != 'none' and (create_job_summary_table or create_success_rates_table):
-    job_summary_table = success_rates_table = ''
-    summary_and_rates_table = '<table style="border-collapse: collapse; width: 40%;">' \
+if summary_and_rates != 'none' and (create_job_summary_table or create_success_rates_table or chk_pool_use):
+    job_summary_table = success_rates_table = pool_table = ''
+    summary_and_rates_table = '<table style="border-collapse: collapse;">' \
                             + '<tr style="vertical-align: top; horizontal-align: left;">' \
                             + '<td>'
 
@@ -1507,7 +1521,7 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
     # -----------------------------
     if create_success_rates_table:
         success_rates_table_data = []
-        success_rates_table += '<table style="display: inline-block; ' + summarytablestyle + '">' \
+        success_rates_table += '<table style="display: inline-block; float: left; padding-right: 20px; ' + summarytablestyle + '">' \
                             + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
                             + summarytableheadercellstyle + '">Success Rates</th></tr>'
 
@@ -1550,7 +1564,7 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
                all_query_str = "SELECT COUNT(JobId) \
                     FROM Job \
                     INNER JOIN Client on Job.ClientId=Client.ClientId \
-                    WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(interval_days) + " days') \
+                    WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(interval_days) + " days', 'localtime') \
                     AND Client.Name LIKE '" + client + "' \
                     AND Job.Name LIKE '" + jobname + "' \
                     AND Type IN ('" + "','".join(jobtypeset) + "') \
@@ -1558,7 +1572,7 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
                bad_query_str = "SELECT COUNT(JobId) \
                     FROM Job \
                     INNER JOIN Client on Job.ClientId=Client.ClientId \
-                    WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(interval_days) + " days') \
+                    WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(interval_days) + " days', 'localtime') \
                     AND Client.Name LIKE '" + client + "' \
                     AND Job.Name LIKE '" + jobname + "' \
                     AND Type IN ('" + "','".join(jobtypeset) + "') \
@@ -1590,9 +1604,54 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
             counter += 1
         success_rates_table += '</table>'
 
-    # Close the outer table
-    # ---------------------
-    summary_and_rates_table += job_summary_table + success_rates_table + '</td></tr></table>'
+    # Test for pools numvols/maxvols to see if we are 80-89%, 90-95%, 95%+ and
+    # set a banner with color and information warning of pool occupations
+    # ------------------------------------------------------------------------
+    if chk_pool_use:
+        warn_pool_dict = {}
+        if dbtype in ('pgsql', 'sqlite'):
+            query_str = "SELECT Name FROM Pool ORDER BY Name ASC;"
+            p_names = db_query(query_str, 'pool names')
+            for p_name in p_names:
+                query_str = "SELECT NumVols, MaxVols FROM Pool WHERE Name='" + p_name[0] + "';"
+                pool_info = db_query(query_str, 'pool information for pool ' + p_name[0], 'one')
+                pct = calc_pool_use(p_name[0], pool_info[0], pool_info[1])
+
+        elif dbtype in ('mysql', 'maria'):
+            query_str = "SELECT CAST(Name as CHAR(50)) AS Name FROM Pool ORDER BY Name ASC;"
+            p_names = db_query(query_str, 'pool names')
+            for p_name in p_names:
+                query_str = "SELECT NumVols, MaxVols FROM Pool WHERE Name='" + p_name['Name'] + "';"
+                pool_info = db_query(query_str, 'pool information for pool ' + p_name['Name'], 'one')
+                calc_pool_use(p_name['Name'], pool_info['NumVols'], pool_info['MaxVols'])
+
+        # If we have some pools over the use
+        # thresholds, create the Pool Use table
+        # -------------------------------------
+        if len(warn_pool_dict) > 0:
+            pool_table = '<table style="border-collapse: collapse; display: inline-block; ' + summarytablestyle + '">' \
+                              + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
+                              + summarytableheadercellstyle + '">Pool Use</th></tr>'
+
+            # Fill the pool table with "Name (numvols/maxvols) ##%" sorted by %, DESC
+            # -----------------------------------------------------------------------
+            for pool in {k: v for k, v in sorted(warn_pool_dict.items(), key=lambda item: item[1][2], reverse=True)}:
+                pool_table += '<tr style="font-weight: bold; background-color: ' \
+                           + (poolredcolor if warn_pool_dict[pool][2] >= 96 else poolorangecolor \
+                           if warn_pool_dict[pool][2] >= 90 and warn_pool_dict[pool][2] < 96 else poolyellowcolor \
+                           if warn_pool_dict[pool][2] >= 80 and warn_pool_dict[pool][2] < 90 else '') + ';">' \
+                           + '<td style="' + summarytablecellstyle + 'text-align: left; padding-right: 40px;">' \
+                           + pool + ' (' + str(warn_pool_dict[pool][0]) + '/' + str(warn_pool_dict[pool][1]) + ')</td>' \
+                           + '<td style="' + summarytablecellstyle + 'text-align: right; padding-left: 40px;">' \
+                           + str(warn_pool_dict[pool][2]) + '%</td>' \
+                           + '</tr>\n'
+            pool_table += '</table>'
+        else:
+            pool_table = ''
+
+    # Insert the Job Summary, Success Rates, and Pool Table and close the outer table
+    # -------------------------------------------------------------------------------
+    summary_and_rates_table += job_summary_table + success_rates_table + pool_table + '</td></tr></table>'
 
 # For each Verify Job (V), get the
 # Job summary text from the log table
@@ -2163,7 +2222,7 @@ if (conn):
 # -------------------------------------------------------------
 if warn_on_will_not_descend and num_will_not_descend_jobs != 0:
     warning_banners += '<p style="' + willnotdescendstyle + '">' \
-                    + 'There ' + ('was ' if num_will_not_descend_jobs == 1 else 'were ') + str(num_will_not_descend_jobs) + ' \'OK\' backup job' \
+                    + '- There ' + ('was ' if num_will_not_descend_jobs == 1 else 'were ') + str(num_will_not_descend_jobs) + ' \'OK\' backup job' \
                     + ('s' if num_will_not_descend_jobs > 1 else '') + ' with zero errors' \
                     + ' which had \'Will not descend\' warnings. ' + ('Its' if num_will_not_descend_jobs == 1 else 'Their') \
                     + ' Status has been changed to \'OK/Warnings\'</p><br>\n'
@@ -2172,21 +2231,29 @@ if warn_on_will_not_descend and num_will_not_descend_jobs != 0:
 # ---------------------------------------------------------------------------------
 if warn_on_zero_inc and num_zero_inc_jobs != 0:
     warning_banners += '<p style="' + warnonzeroincstyle + '">' \
-                    + 'There ' + ('was ' if num_zero_inc_jobs == 1 else 'were ') + str(num_zero_inc_jobs) + ' \'OK\' Diff/Inc backup job' \
+                    + '- There ' + ('was ' if num_zero_inc_jobs == 1 else 'were ') + str(num_zero_inc_jobs) + ' \'OK\' Diff/Inc backup job' \
                     + ('s' if num_zero_inc_jobs > 1 else '') + ' which backed up zero files and/or zero bytes. ' \
                     + ('Its' if num_zero_inc_jobs == 1 else 'Their') + ' Status has been changed to \'OK/Warnings\'</p><br>\n'
+
+# Hhighlight when pools numvols is 80% or more of the maxvols?
+# ------------------------------------------------------------
+if chk_pool_use and ('warn_pool_dict' in globals() and len(warn_pool_dict) > 0):
+    warning_banners += '<p style="' + poolwarningstyle + '">' \
+                    + '- There ' + ('is ' if len(warn_pool_dict) == 1 else 'are ') + str(len(warn_pool_dict)) + ' pool' + ('s' if len(warn_pool_dict) > 1 else '') \
+                    + ' which ' + ('is' if len(warn_pool_dict) == 1 else 'are') + ' approaching or ' + ('has' if len(warn_pool_dict) == 1 else 'have') \
+                    + ' reached ' + ('its' if len(warn_pool_dict) == 1 else 'their') + ' MaxVols setting. See \'Pool Use\' table below.</p><br>\n'
 
 # Highlight Verify Jobs where virus(s) were found?
 # ------------------------------------------------
 if 'num_virus_jobs' in globals() and checkforvirus and num_virus_jobs != 0:
     warning_banners += '<p style="' + virusfoundstyle + '">' \
-                    + 'There were' + re.sub('^' + server + ' - Virus Report:(.*$)', '\\1', virusemailsubject) + '!</p><br>\n'
+                    + '- There were' + re.sub('^' + server + ' - Virus Report:(.*$)', '\\1', virusemailsubject) + '!</p><br>\n'
 
 # Highlight Jobs that are always failing?
 # ---------------------------------------
 if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
     warning_banners += '<p style="' + alwaysfailstyle + '">' \
-                    + 'The ' + str(len(always_fail_jobs)) + ' ' + ('jobs' if len(always_fail_jobs) > 1 else 'job') + ' whose ' \
+                    + '- The ' + str(len(always_fail_jobs)) + ' ' + ('jobs' if len(always_fail_jobs) > 1 else 'job') + ' whose ' \
                     + alwaysfailcolumn_str + ' has this background color ' + ('have' if len(always_fail_jobs) > 1 else 'has') \
                     + ' always failed in the past ' + days + ' ' + ('days' if int(days) > 1 else 'day') + '.</p><br>\n'
 
@@ -2194,7 +2261,7 @@ if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
 # ---------------------------------------------------
 if checkforvirus and num_virus_conn_errs != 0:
     warning_banners += '<p style="' + virusconnerrstyle + '">' \
-                    + 'There ' + ('were ' if num_virus_conn_errs > 1 else 'was ') \
+                    + '- There ' + ('were ' if num_virus_conn_errs > 1 else 'was ') \
                     + str(num_virus_conn_errs) + (' errors' if num_virus_conn_errs > 1 else ' error') \
                     + ' reported when connecting to the AntiVirus service in ' + str(len(virus_connerr_set)) \
                     + ' Verify/AV Scan ' + ('jobs' if len(virus_connerr_set) > 1 else 'job') + '!</p><br>\n'
@@ -2205,7 +2272,7 @@ if checkforvirus and num_virus_conn_errs != 0:
 # ------------------------------------------------
 if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
     warning_banners += '<p style="' + jobsneedingoprstyle + '">' \
-                    + 'The ' + str(len(job_needs_opr_lst)) + ' running ' \
+                    + '- The ' + str(len(job_needs_opr_lst)) + ' running ' \
                     + ('jobs' if len(job_needs_opr_lst) > 1 else 'job') \
                     + ' in this list with a status of "Needs Media" ' \
                     + ('require' if len(job_needs_opr_lst) > 1 else 'requires') \
@@ -2217,7 +2284,7 @@ if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
 # be preceded by an asterisk so they may be identified.
 # -----------------------------------------------------
 if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
-    warning_banners += '<p style="' + jobsolderthantimestyle + '">The ' + str(len(pnv_jobids_lst)) \
+    warning_banners += '<p style="' + jobsolderthantimestyle + '">- The ' + str(len(pnv_jobids_lst)) \
                     + ' Copied/Migrated/Verified ' + ('jobs' if len(pnv_jobids_lst) > 1 else 'job') + ' older than ' \
                     + time + ' ' + hour + ' pulled into this list ' + ('have' if len(pnv_jobids_lst) > 1 else 'has') \
                     + (' their' if len(pnv_jobids_lst) > 1 else ' its') + ' End Time' + ('s' if len(pnv_jobids_lst) > 1 else '') \
@@ -2227,7 +2294,7 @@ if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
 # ----------------------------------------------
 if 'rescheduledjobids' in globals() and flagrescheduled and len(rescheduledjobids) != 0:
     warning_banners += '<p style="' + rescheduledjobsstyle + '">' \
-                    + 'The number in parentheses in the Status ' + ('fields' if len(set(rescheduledjobids)) > 1 else 'field') \
+                    + '- The number in parentheses in the Status ' + ('fields' if len(set(rescheduledjobids)) > 1 else 'field') \
                     + ' of ' + str(len(set(rescheduledjobids))) + (' jobs' if len(set(rescheduledjobids)) > 1 else ' job') \
                     + ' represents the number of times ' + ('they' if len(set(rescheduledjobids)) > 1 else 'it') \
                     + (' were' if len(set(rescheduledjobids)) > 1 else ' was') + ' rescheduled.</p><br>\n'

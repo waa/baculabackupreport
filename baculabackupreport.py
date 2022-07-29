@@ -258,7 +258,7 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.78'
+version = '1.79'
 reldate = 'July 28, 2022'
 prog_info = '<p style="font-size: 8px;">' \
             + progname + ' - v' + version \
@@ -789,7 +789,8 @@ def translate_job_status(jobstatus, joberrors):
     'jobstatus is stored in the catalog as a single character, replace with words.'
     return {'A': 'Canceled', 'C': 'Created', 'D': 'Verify Diffs',
             'E': 'Errors', 'f': 'Failed', 'I': 'Incomplete',
-            'T': ('OK', 'OK/Warnings')[joberrors > 0 or (warn_on_will_not_descend and will_not_descend) or (warn_on_zero_inc and zero_inc)],
+            'T': (('OK', 'OK/Warnings')[joberrors > 0 or (warn_on_zero_inc and zero_inc)], \
+                   'OK/Warnings<br>(will not descend)')[warn_on_will_not_descend and will_not_descend],
             'R': ('Running', 'Needs Media')[job_needs_opr]}[jobstatus]
 
 def set_subject_icon():
@@ -950,6 +951,13 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     if (jobrow['jobstatus'] in ('R', 'C') and col in ('jobfiles', 'jobbytes')) \
         or (jobtype in ('D', 'c', 'g') and col in ('client', 'jobfiles', 'jobbytes')):
         content = '<hr width="20%">'
+
+    # Add the 'warn on zero' message for the files and/or bytes for Inc or Diff
+    # jobs that backed up zero files and/or bytes if warn_on_zero_inc is enabled
+    # --------------------------------------------------------------------------
+    if ((col == 'jobfiles' and jobrow['jobfiles'] == 0) or (col == 'jobbytes' \
+        and jobrow['jobbytes'] == 0)) and (warn_on_zero_inc and zero_inc):
+        content = content + '<br>(warn on zero inc)'
 
     # If the copied/migrated/verfied job
     # is outside of the "-t hours" set,
@@ -2102,9 +2110,16 @@ counter = 0
 for jobrow in alljobrows:
     # Set the will_not_descend variable, then check for
     # "Will not descend", but only for good Backup jobs
+    # Backup jobs will never have a priorjobid, but
+    # Migrated jobs will. Migrated backup jobs have a
+    # jobType 'B' so we need to check priorjobid here
     # -------------------------------------------------
     will_not_descend = False
-    if warn_on_will_not_descend and jobrow['type'] == 'B' and jobrow['jobstatus'] == 'T' and jobrow['joberrors'] == 0:
+    if warn_on_will_not_descend \
+        and jobrow['type'] == 'B' \
+        and jobrow['jobstatus'] == 'T' \
+        and jobrow['joberrors'] == 0 \
+        and jobrow['priorjobid'] == 0:
         will_not_descend = chk_will_not_descend()
 
     # Set the zero_inc variable True if an 'OK' Differential

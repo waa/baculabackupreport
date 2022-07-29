@@ -94,10 +94,21 @@ virusfoundtext = 'Virus detected'  # Some unique text that your AV software prin
                                    # log when a virus is detected. ONLY ClamAV is supported at this time!
 verified_job_name_col = 'both'         # What column should the job name of verified jobs be displayed? (name, type, both, none)
 copied_migrated_job_name_col = 'both'  # What column should the job name of Copied/Migrated jobs be displayed? (name, type, both, none)
-warn_on_will_not_descend = True        # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported in logs?
-warn_on_zero_inc = False               # Should 'OK' Inc/Diff jobs be set to 'OK/Warnings' when they backup zero files and/or bytes?
-ignore_warn_on_zero_inc_jobs = 'Job_1 Job_2'  # Case-sensitive, space-separated listing of job names to ignore for 'warn_on_zero_inc' test
-chk_pool_use = True                           # Warn about Pool 'numvols' approaching or surpassing 'maxvols'?
+
+# Warn about 'OK' jobs when "Will not descend" is reported in logs?
+# -----------------------------------------------------------------
+warn_on_will_not_descend = True  # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported in logs?
+ignore_warn_on_will_not_descend_jobs = ['Job_1', 'Job_2']  # Case-sensitive list of job names to ignore for 'warn_on_will_not_descend' test
+
+# Warn about 'OK' Diff/Inc jobs with zero files and/or bytes
+# ----------------------------------------------------------
+warn_on_zero_inc = True  # Should 'OK' Inc/Diff jobs be set to 'OK/Warnings' when they backup zero files and/or bytes?
+ignore_warn_on_zero_inc_jobs_lst = ['Job_1', 'Job_2']  # Case-sensitive list of job names to ignore for 'warn_on_zero_inc' test
+
+# Warn about pools approaching or surpassing maxvols?
+# ---------------------------------------------------
+chk_pool_use = True  # Check pools for numvols vs maxvols?
+pools_to_ignore_lst = ['pool_1', 'pool_2']  # Pools to always ignore for chk_pool_use test
 
 # Summary and Success Rates block
 # -------------------------------
@@ -258,7 +269,7 @@ from socket import gaierror
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.79'
+version = '1.80'
 reldate = 'July 28, 2022'
 prog_info = '<p style="font-size: 8px;">' \
             + progname + ' - v' + version \
@@ -1618,18 +1629,28 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
     if chk_pool_use:
         warn_pool_dict = {}
         if dbtype in ('pgsql', 'sqlite'):
-            query_str = "SELECT Name FROM Pool ORDER BY Name ASC;"
+            query_str = "SELECT Name \
+                FROM Pool \
+                WHERE Name NOT IN ('" + "','".join(pools_to_ignore_lst) + "') \
+                ORDER BY Name ASC;"
             p_names = db_query(query_str, 'pool names')
             for p_name in p_names:
-                query_str = "SELECT NumVols, MaxVols FROM Pool WHERE Name='" + p_name[0] + "';"
+                query_str = "SELECT NumVols, MaxVols \
+                    FROM Pool \
+                    WHERE Name='" + p_name[0] + "';"
                 pool_info = db_query(query_str, 'pool information for pool ' + p_name[0], 'one')
                 pct = calc_pool_use(p_name[0], pool_info[0], pool_info[1])
 
         elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT CAST(Name as CHAR(50)) AS Name FROM Pool ORDER BY Name ASC;"
+            query_str = "SELECT CAST(Name as CHAR(50)) AS Name \
+                FROM Pool \
+                WHERE Name NOT IN ('" + "','".join(pools_to_ignore_lst) + "') \
+                ORDER BY Name ASC;"
             p_names = db_query(query_str, 'pool names')
             for p_name in p_names:
-                query_str = "SELECT NumVols, MaxVols FROM Pool WHERE Name='" + p_name['Name'] + "';"
+                query_str = "SELECT NumVols, MaxVols \
+                    FROM Pool \
+                    WHERE Name='" + p_name['Name'] + "';"
                 pool_info = db_query(query_str, 'pool information for pool ' + p_name['Name'], 'one')
                 calc_pool_use(p_name['Name'], pool_info['NumVols'], pool_info['MaxVols'])
 
@@ -2119,7 +2140,8 @@ for jobrow in alljobrows:
         and jobrow['type'] == 'B' \
         and jobrow['jobstatus'] == 'T' \
         and jobrow['joberrors'] == 0 \
-        and jobrow['priorjobid'] == 0:
+        and jobrow['priorjobid'] == 0 \
+        and jobrow['jobname'] not in ignore_warn_on_will_not_descend_jobs:
         will_not_descend = chk_will_not_descend()
 
     # Set the zero_inc variable True if an 'OK' Differential
@@ -2131,7 +2153,7 @@ for jobrow in alljobrows:
     and jobrow['jobstatus'] == 'T' \
     and jobrow['level'] in ('D', 'I') \
     and (jobrow['jobfiles'] == 0 or jobrow['jobbytes'] == 0) \
-    and jobrow['jobname'] not in ignore_warn_on_zero_inc_jobs:
+    and jobrow['jobname'] not in ignore_warn_on_zero_inc_jobs_lst:
         num_zero_inc_jobs += 1
         zero_inc = True
 

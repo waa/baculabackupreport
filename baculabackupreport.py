@@ -33,7 +33,7 @@
 # ---------------------------------------------------------------------------
 # BSD 2-Clause License
 #
-# Copyright (c) 2021, William A. Arlofski waa@revpol.com
+# Copyright (c) 2021-2022, William A. Arlofski waa@revpol.com
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -59,16 +59,23 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # ----------------------------------------------------------------------------
-
+#
+# USER VARIABLES - All user variables below may be edited directly in this
+# script, or overridden in the config file. See the options -C and -S in the
+# instructions. Because the defaults in this script may change and more
+# variables may be added over time, it is highly recommended to make use of
+# the config file for customizing the variable settings.
+#
+# ----------------------------------------------------------------------------
 # External GUI link settings
 # --------------------------
-webgui = 'none'       # Which web interface to generate links for? (bweb, baculum, none)
-webguisvc = ''        # Use encrypted connection or not (ie: http or https)
-webguihost = ''       # FQDN or IP address of the web gui host
-webguiport = ''       # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
-urlifyalljobs = True  # Should jobids in the Status column for Copied/Migrated/Verified jobs
-                      # be made into URL links too? If set to False, only the jobids in the
-                      # jobid column will be made into URL links
+webgui = 'none'        # Which web interface to generate links for? (bweb, baculum, none)
+webguisvc = ''         # Use encrypted connection or not (ie: http or https)
+webguihost = ''        # FQDN or IP address of the web gui host
+webguiport = ''        # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
+urlifyalljobs = False  # Should jobids in the Status column for Copied/Migrated/Verified jobs
+                       # be made into URL links too? If set to False, only the jobids in the
+                       # jobid column will be made into URL links
 
 # Toggles and other formatting settings
 # -------------------------------------
@@ -90,25 +97,25 @@ include_pnv_jobs = True  # Include copied, migrated, verified jobs whose endtime
                          # - Verify jobs can verify any job, even very old ones. This option makes sure
                          #   verified jobs older than the hours set are also included in the listing.
 checkforvirus = False    # Enable the additional checks for viruses
-virusfoundtext = 'Virus detected'  # Some unique text that your AV software prints to the Bacula job
-                                   # log when a virus is detected. ONLY ClamAV is supported at this time!
-verified_job_name_col = 'both'         # What column should the job name of verified jobs be displayed? (name, type, both, none)
-copied_migrated_job_name_col = 'both'  # What column should the job name of Copied/Migrated jobs be displayed? (name, type, both, none)
+virusfoundtext = 'Virus detected'      # Some unique text that your AV software prints to the Bacula job
+                                       # log when a virus is detected. ONLY ClamAV is supported at this time!
+verified_job_name_col = 'name'         # What column should the job name of verified jobs be displayed? (name, type, both, none)
+copied_migrated_job_name_col = 'name'  # What column should the job name of Copied/Migrated jobs be displayed? (name, type, both, none)
 
 # Warn about 'OK' jobs when "Will not descend" is reported in logs?
 # -----------------------------------------------------------------
-warn_on_will_not_descend = True  # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported in logs?
-ignore_warn_on_will_not_descend_jobs = ['Job_1', 'Job_2']  # Case-sensitive list of job names to ignore for 'warn_on_will_not_descend' test
+warn_on_will_not_descend = True                       # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported in logs?
+ignore_warn_on_will_not_descend_jobs = 'Job_1 Job_2'  # Case-sensitive list of job names to ignore for 'warn_on_will_not_descend' test
 
 # Warn about 'OK' Diff/Inc jobs with zero files and/or bytes
 # ----------------------------------------------------------
-warn_on_zero_inc = True  # Should 'OK' Inc/Diff jobs be set to 'OK/Warnings' when they backup zero files and/or bytes?
-ignore_warn_on_zero_inc_jobs_lst = ['Job_1', 'Job_2']  # Case-sensitive list of job names to ignore for 'warn_on_zero_inc' test
+warn_on_zero_inc = False                      # Should 'OK' Inc/Diff jobs be set to 'OK/Warnings' when they backup zero files and/or bytes?
+ignore_warn_on_zero_inc_jobs = 'Job_2 Job_2'  # Case-sensitive list of job names to ignore for 'warn_on_zero_inc' test
 
 # Warn about pools approaching or surpassing maxvols?
 # ---------------------------------------------------
-chk_pool_use = True  # Check pools for numvols vs maxvols?
-pools_to_ignore_lst = ['pool_1', 'pool_2']  # Pools to always ignore for chk_pool_use test
+chk_pool_use = True                # Check pools for numvols vs maxvols?
+pools_to_ignore = 'pool_1 pool_2'  # Case-sesitive list of pools to always ignore for 'chk_pool_use' test
 
 # Summary and Success Rates block
 # -------------------------------
@@ -126,7 +133,6 @@ verified_stats = True            # Print Verified Files/Bytes?
 # Create a Success Rates table?
 # -----------------------------
 create_success_rates_table = True  # Create a Success Rates table in the Summary and Success Rates block?
-                                   # Intervals to display are in the 'success_rates_interval_dict' dictionary
 
 # Additional Job logs and summaries
 # ---------------------------------
@@ -178,9 +184,6 @@ virusfoundbodyicon = '&#x1F9A0'                 # HEX encoding for emoji in emai
 # as these may have special formatting applied by default in certain cases
 # ------------------------------------------------------------------------
 cols2show = 'jobid jobname client status joberrors type level jobfiles jobbytes starttime endtime runtime'
-# Dorian's minimalist preference
-# ------------------------------
-# cols2show = 'jobid jobname client status type level jobbytes'
 
 # Set the column to colorize for jobs that are always failing
 # -----------------------------------------------------------
@@ -265,18 +268,13 @@ import sys
 import smtplib
 from docopt import docopt
 from socket import gaierror
+from configparser import ConfigParser, BasicInterpolation
 
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '1.80'
-reldate = 'July 28, 2022'
-prog_info = '<p style="font-size: 8px;">' \
-            + progname + ' - v' + version \
-            + ' - <a href="https://github.com/waa/"' \
-            + ' target="_blank">baculabackupreport.py</a>' \
-            + '<br>By: Bill Arlofski waa@revpol.com (c) ' \
-            + reldate + '</body></html>'
+version = '2.00'
+reldate = 'August 06, 2022'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
@@ -293,6 +291,17 @@ valid_col_lst = [
     'jobbytes', 'starttime', 'endtime', 'runtime'
     ]
 
+# This variable is so that we can reliably convert the True/False strings
+# from the config file into real booleans to be used is later tests.
+# -----------------------------------------------------------------------
+cfg_file_true_false_lst = ['urlifyalljobs', 'boldjobname', 'boldstatus', 'showcopiedto',
+                           'print_subject', 'print_sent', 'flagrescheduled', 'show_db_stats',
+                           'include_pnv_jobs', 'warn_on_will_not_descend', 'warn_on_zero_inc',
+                           'chk_pool_use', 'create_job_summary_table', 'db_version', 'restore_stats',
+                           'copied_stats', 'migrated_stats', 'verified_stats', 'create_success_rates_table',
+                           'emailvirussummary', 'addsubjecticon', 'addsubjectrunningorcreated', 'colorstatusbg'
+                          ]
+
 # Directories to always ignore for the "Will not descend" feature
 # ---------------------------------------------------------------
 will_not_descend_ignore_lst = [ '/dev', '/misc', '/net', '/proc', '/run', '/srv', '/sys' ]
@@ -305,9 +314,9 @@ success_rates_interval_dict = {'Day': 1, 'Week': 7, 'Month': 30, 'Three Months':
 # -------------------------------------------
 num_virus_conn_errs = 0
 
-# The text that is printed in the log
-# when the AV daemon cannot be reached
-# ------------------------------------
+# The text that is printed in the log when the AV daemon cannot be reached
+# Note: For Bacula Enterprise, this string is hard-coded
+# ------------------------------------------------------------------------
 avconnfailtext = 'Unable to connect to antivirus-plugin-service'
 
 # Set some variables for the Summary stats for the special cases of Copy/Migration Control jobs
@@ -326,65 +335,50 @@ num_zero_inc_jobs = 0
 # -------------------------
 doc_opt_str = """
 Usage:
-    baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-d <days>]
-                          [-a <avemail>] [-c <client>] [-j <jobname>] [-y <jobtype>] [-x <jobstatus>]
-                          [--dbtype <dbtype>] [--dbport <dbport>] [--dbhost <dbhost>] [--dbname <dbname>]
-                          [--dbuser <dbuser>] [--dbpass <dbpass>]
+    baculabackupreport.py [-C <config>] [-S <section>] [-e <email>] [-s <server>] [-t <time>] [-d <days>]
+                          [-f <fromemail>] [-a <avemail>] [-c <client>] [-j <jobname>] [-y <jobtype>] [-x <jobstatus>]
+                          [--dbtype <dbtype>] [--dbhost <dbhost>] [--dbport <dbport>]
+                          [--dbname <dbname>] [--dbuser <dbuser>] [--dbpass <dbpass>]
                           [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
     baculabackupreport.py -h | --help
     baculabackupreport.py -v | --version
 
 Options:
+    -C, --config <config>        Configuration file - See the 'example.ini' file included in repository
+    -S, --section <section>      Section in configuration file [default: baculabackupreport]
     -e, --email <email>          Email address to send job report to
-    -f, --fromemail <fromemail>  Email address to be set in the From: field of the email
     -s, --server <server>        Name of the Bacula Server [default: Bacula]
     -t, --time <time>            Time to report on in hours [default: 24]
     -d, --days <days>            Days to check for "always failing jobs" [default: 7]
-    -a, --avemail <avemail>      Email address to send separate AV email to. [default --email]
+    -f, --fromemail <fromemail>  Email address to be set in the From: field of the email
+    -a, --avemail <avemail>      Email address to send separate AV email to. (default is --email)
     -c, --client <client>        Client to report on using SQL 'LIKE client' [default: %] (all clients)
     -j, --jobname <jobname>      Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
     -y, --jobtype <jobtype>      Type of job to report on [default: DBRCcMgV] (all job types)
     -x, --jobstatus <jobstatus>  Job status to report on [default: aABcCdDeEfFiIjmMpRsStT] (all job statuses)
                                  Note: 'R'unning and 'C'reated jobs are always included
+    -u, --smtpuser <smtpuser>    SMTP user
+    -p, --smtppass <smtppass>    SMTP password
+
     --dbtype <dbtype>            Database type [default: pgsql] (pgsql | mysql | maria | sqlite)
-    --dbport <dbport>            Database port (defaults pgsql 5432, mysql & maria 3306)
     --dbhost <dbhost>            Database host [default: localhost]
+    --dbport <dbport>            Database port (defaults pgsql 5432, mysql & maria 3306)
     --dbname <dbname>            Database name [default: bacula] (sqlite default: /opt/bacula/working/bacula.db)
     --dbuser <dbuser>            Database user [default: bacula]
     --dbpass <dbpass>            Database password
     --smtpserver <smtpserver>    SMTP server [default: localhost]
     --smtpport <smtpport>        SMTP port [default: 25]
-    -u, --smtpuser <smtpuser>    SMTP user
-    -p, --smtppass <smtppass>    SMTP password
 
     -h, --help                   Print this help message
     -v, --version                Print the script name and version
 
 Notes:
-* Edit variables at top of script to customize output
-* Only the email variable is required. It must be set on the command line or via an environment variable
-* Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
-* Variable assignment precedence is: command line > environment variable > default
+  * Edit variables near the top of script to customize output. Recommended: Use a configuration file instead
+  * Only the email variable is required. It must be set on the command line, via an environment variable, or in a config file
+  * Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
+  * Variable assignment precedence is: command line > environment variable > config file > script defaults
 
 """
-
-# Create a dictionary of column name to html strings so
-# that they may be used in any order in the jobs table
-# -----------------------------------------------------
-col_hdr_dict = {
-    'jobid':     '<th style="' + jobtableheadercellstyle + '">Job ID</th>',
-    'jobname':   '<th style="' + jobtableheadercellstyle + '">Job Name</th>',
-    'client':    '<th style="' + jobtableheadercellstyle + '">Client</th>',
-    'status':    '<th style="' + jobtableheadercellstyle + '">Status</th>',
-    'joberrors': '<th style="' + jobtableheadercellstyle + '">Errors</th>',
-    'type':      '<th style="' + jobtableheadercellstyle + '">Type</th>',
-    'level':     '<th style="' + jobtableheadercellstyle + '">Level</th>',
-    'jobfiles':  '<th style="' + jobtableheadercellstyle + '">Files</th>',
-    'jobbytes':  '<th style="' + jobtableheadercellstyle + '">Bytes</th>',
-    'starttime': '<th style="' + jobtableheadercellstyle + '">Start Time</th>',
-    'endtime':   '<th style="' + jobtableheadercellstyle + '">End Time</th>',
-    'runtime':   '<th style="' + jobtableheadercellstyle + '">Run Time</th>'
-    }
 
 # Now for some functions
 # ----------------------
@@ -393,23 +387,42 @@ def usage():
     print(doc_opt_str)
     sys.exit(1)
 
-def cli_vs_env_vs_default_vars(var_name, env_name):
-    'Assign/re-assign args[] vars based on if they came from cli, env, or defaults.'
-    if var_name in sys.argv:
-        return args[var_name]
-    elif env_name in os.environ and os.environ[env_name] != '':
-        return os.environ[env_name]
+def cli_vs_env_vs_config_vs_default_vars(short_cli, cli_env_cfg):
+    'Assign/re-assign args[] vars based on if they came from cli, env, config file, or defaults.'
+    # The 'cli_env_cfg' variable is multipurpose. It is just the lowecase name of the variable.
+    # It will have '--' prepended to it to test for the long_cli version. Its uppercase version
+    # will be checked against the os.environ variable and its lowercase version will be checked
+    # against the config_dict variable. For the short_cli (-t), long_cli (--time), and no
+    # matches, we return the long_cli version (--time) to work with the argv['--long_cli'] that
+    # is being assigned from the calling line.
+    # -----------------------------------------------------------------------------------------
+    tmp = 'long_cli'
+    globals()[tmp] = '--' + cli_env_cfg
+    if short_cli != None and short_cli in sys.argv:
+        return args[long_cli]
+    elif long_cli in sys.argv:
+        return args[long_cli]
+    elif cli_env_cfg.upper() in os.environ and os.environ[cli_env_cfg.upper()] != '':
+        return os.environ[cli_env_cfg.upper()]
+    elif 'config_dict' in globals() and cli_env_cfg.lower() in config_dict and config_dict[cli_env_cfg.lower()] != '':
+        return config_dict[cli_env_cfg.lower()]
     else:
-        return args[var_name]
+        return args[long_cli]
 
 def print_opt_errors(opt):
     'Print the incorrect variable and the reason it is incorrect.'
-    if opt in {'server', 'dbname', 'dbhost', 'dbuser', 'smtpserver'}:
+    if opt == 'config':
+        return '\nThe config file \'' + config_file + '\' does not exist or is not readable.'
+    if opt == 'section':
+        return '\nThe section [' + config_section + '] does not exist in the config file \'' + config_file + '\''
+    elif opt in ('server', 'dbname', 'dbhost', 'dbuser', 'smtpserver'):
         return '\nThe \'' + opt + '\' variable must not be empty.'
-    elif opt in {'time', 'days', 'smtpport', 'dbport'}:
+    elif opt in ('time', 'days', 'smtpport', 'dbport'):
         return '\nThe \'' + opt + '\' variable must not be empty and must be an integer.'
-    elif opt in {'email', 'fromemail', 'avemail'}:
-        return '\nThe \'' + opt + '\' variable is either empty or it does not look like a valid email address.'
+    elif opt == 'emailnone':
+        return '\nThe \'email\' variable is empty. Make sure it is assigned via cli, env, or config file'
+    elif opt in ('email', 'fromemail', 'avemail'):
+        return '\nThe \'' + opt + '\' variable does not look like a valid email address.'
     elif opt == 'dbtype':
         return '\nThe \'' + opt + '\' variable must not be empty, and must be one of: ' + ', '.join(valid_db_lst)
     elif opt == 'jobtype':
@@ -491,9 +504,9 @@ def db_query(query_str, query, one_or_all=None):
     'Query the database with the query string provided, text about what is being queried, and an optional "one" string.'
     try:
         cur.execute(query_str)
-        # This prevents dealing with nested lists
-        # when we know we have only one row returned
-        # ------------------------------------------
+        # This prevents dealing with nested lists when
+        # we know we will have only one row returned
+        # --------------------------------------------
         if one_or_all == 'one':
             rows = cur.fetchone()
         else:
@@ -621,12 +634,15 @@ def get_copied_migrated_job_name(copy_migrate_jobid):
                 WHERE jobid='" + pn_jobids_dict[str(copy_migrate_jobid)][0] + "';"
         row = db_query(query_str, 'the Job name of a jobid (from Job table) that was copied/migrated')
         if len(row) != 0:
-            # If a JobName was returned from the
-            # query, return it, otherwise return None
-            # ---------------------------------------
+            # If a JobName was returned from the query, return it,
+            # else if the (copied/migrated) jobid != '0' return
+            # 'JobId xx not in catalog', otherwise just return
+            # ----------------------------------------------------
             return row[0]['jobname']
+        elif pn_jobids_dict[str(copy_migrate_jobid)][0] != '0':
+            return 'JobID ' + pn_jobids_dict[str(copy_migrate_jobid)][0] + ' not in catalog'
         else:
-            return None
+            return
 
 def copied_ids(jobid):
     'For a given Backup or Migration job, return a list of jobids that it was copied to.'
@@ -884,10 +900,6 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
                 bgcolor = warnjobcolor
         if bgcolor:
             tdo = '<td style="' + jobtablecellstyle + 'background-color: ' + bgcolor + ';">'
-        # Default is set just above - remove this
-        # ---------------------------------------
-        # else:
-        #     tdo = '<td style="' + jobtablecellstyle + '">'
 
     if alwaysfailjob and col == alwaysfailcolumn:
         tdo = '<td style="' + jobtablealwaysfailcellstyle + '">'
@@ -1020,16 +1032,16 @@ def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtp
                 server.login(smtpuser, smtppass)
             server.sendmail(fromemail, to, message)
         if print_sent:
-            print('Email successfully sent to: ' + to + '\n')
+            print('- Email successfully sent to: ' + to + '\n')
     except (gaierror, ConnectionRefusedError):
-        print('Failed to connect to the SMTP server. Bad connection settings?')
+        print('- Failed to connect to the SMTP server. Bad connection settings?')
         sys.exit(1)
     except smtplib.SMTPServerDisconnected:
-        print('Failed to connect to the SMTP server. Wrong user/password?')
+        print('- Failed to connect to the SMTP server. Wrong user/password?')
         sys.exit(1)
-    except smtplib.SMTPException as e:
-        print('Error occurred while communicating with SMTP server ' + smtpserver + ':' + str(smtpport))
-        print('Error was: ' + str(e))
+    except smtplib.SMTPException as err:
+        print('- Error occurred while communicating with SMTP server ' + smtpserver + ':' + str(smtpport))
+        print('  - Error was: ' + str(err))
         sys.exit(1)
 
 def chk_will_not_descend():
@@ -1056,9 +1068,85 @@ def calc_pool_use(name, num, max):
             warn_pool_dict[name] = (num, max, int(pct))
         return
 
+def gen_rand_str():
+    'Return a pseudo-random string to append to the body of the email to thwart ProtonMail deduplication algorithm during testing'
+    import random
+    from base64 import b64encode
+    rand_int = random.randint(1, 100)
+    return b64encode(os.urandom(rand_int)).decode('utf-8')
+
+def prog_info():
+    'Return the program information along with the pseudo-random string and the closing HTML tags'
+    return '<p style="font-size: 8px;">' \
+           + progname + ' - v' + version \
+           + ' - <a href="https://github.com/waa/"' \
+           + ' target="_blank">baculabackupreport.py</a>' \
+           + '<br>By: Bill Arlofski waa@revpol.com (c) ' \
+           + reldate + '<!-- ' + gen_rand_str() + ' --></body></html>'
+
 # Assign docopt doc string variable
 # ---------------------------------
 args = docopt(doc_opt_str, version='\n' + progname + ' - v' + version + '\n' + reldate + '\n')
+
+# Check for and parse the configuration file first
+# ------------------------------------------------
+if args['--config'] != None:
+    config_file = args['--config']
+    config_section = args['--section']
+    if not os.path.exists(config_file) or not os.access(config_file, os.R_OK):
+        print(print_opt_errors('config'))
+        usage()
+    else:
+        try:
+            config = ConfigParser(inline_comment_prefixes=('# ', ';'), interpolation=BasicInterpolation())
+            print('- Reading configuration overrides from config file \'' + config_file + '\', section \'DEFAULT\' (if exists), and section \'' + config_section + '\'')
+            config.read(config_file)
+            # Create 'config_dict' dictionary from config file
+            # ------------------------------------------------
+            config_dict = dict(config.items(config_section))
+        except Exception as err:
+            print('  - An exception with the config file has occurred: ' + str(err))
+            sys.exit(1)
+
+    # For each key in the config_dict dictionary, make
+    # its key name into a global variable and assign it the key's dictionary value.
+    # https://www.pythonforbeginners.com/basics/convert-string-to-variable-name-in-python
+    # -----------------------------------------------------------------------------------
+    myvars = vars()
+    for k, v in config_dict.items():
+        if k in cfg_file_true_false_lst:
+            # Convert all the True/False strings to booleans on the fly
+            # ---------------------------------------------------------
+            # If any lower(dictionary) true/false variable
+            # is not 'true', then it is set to False.
+            # ----------------------------------------------
+            if v.lower() == 'true':
+                config_dict[k] = True
+            else:
+                config_dict[k] = False
+        # Set the global variable
+        # -----------------------
+        myvars[k] = config_dict[k]
+
+# Create a dictionary of column name to html strings so
+# that they may be used in any order in the jobs table
+# This must get done after any possible modifications
+# from a config file's overrides.
+# -----------------------------------------------------
+col_hdr_dict = {
+    'jobid':     '<th style="' + jobtableheadercellstyle + '">Job ID</th>',
+    'jobname':   '<th style="' + jobtableheadercellstyle + '">Job Name</th>',
+    'client':    '<th style="' + jobtableheadercellstyle + '">Client</th>',
+    'status':    '<th style="' + jobtableheadercellstyle + '">Status</th>',
+    'joberrors': '<th style="' + jobtableheadercellstyle + '">Errors</th>',
+    'type':      '<th style="' + jobtableheadercellstyle + '">Type</th>',
+    'level':     '<th style="' + jobtableheadercellstyle + '">Level</th>',
+    'jobfiles':  '<th style="' + jobtableheadercellstyle + '">Files</th>',
+    'jobbytes':  '<th style="' + jobtableheadercellstyle + '">Bytes</th>',
+    'starttime': '<th style="' + jobtableheadercellstyle + '">Start Time</th>',
+    'endtime':   '<th style="' + jobtableheadercellstyle + '">End Time</th>',
+    'runtime':   '<th style="' + jobtableheadercellstyle + '">Run Time</th>'
+    }
 
 # Set the gui variable to shorten
 # up some if statements later on
@@ -1086,15 +1174,15 @@ if verified_job_name_col not in valid_verified_job_name_col_lst:
 # all valid and that the alwaysfailcolumn
 # is also valid before we do anything else
 # ----------------------------------------
-c2sl = cols2show.split()
-if not all(item in valid_col_lst for item in c2sl):
+cols2show_lst = cols2show.split()
+if not all(item in valid_col_lst for item in cols2show_lst):
     print(print_opt_errors('cols2show'))
     usage()
 
-# Validate the alwaysfailcolumn. This is a special case since it needs to be a
-# valid column name, and it also needs to be in the c2sl list of colums to display
-# --------------------------------------------------------------------------------
-if alwaysfailcolumn not in c2sl and alwaysfailcolumn not in ('row', 'none'):
+# Validate the alwaysfailcolumn. This is a special case since it needs to be a valid
+# column name, and it also needs to be in the cols2show_lst list of colums to display
+# -----------------------------------------------------------------------------------
+if alwaysfailcolumn not in cols2show_lst and alwaysfailcolumn not in ('row', 'none'):
     print('\nThe \'alwaysfailcolumn\' name \'' + alwaysfailcolumn + '\' not valid or not in cols2show.')
     print('\nValid settings for \'alwaysfailcolumn\' are: ' + ' '.join(valid_col_lst) + ' none row')
     print('\nWith current \'cols2show\' setting, valid settings for \'alwaysfailcolumn\' are: ' + cols2show + ' none row')
@@ -1126,6 +1214,26 @@ else:
     else:
         alwaysfailcolumn_str = alwaysfailcolumn.title() + ' cell'
 
+# Assign/re-assign docopt args[] vars based on cli vs env vs config file vs script defaults
+# -----------------------------------------------------------------------------------------
+for cli_tup in [
+    ('-t', 'time'), ('-d', 'days'),
+    ('-e', 'email'), ('-a', 'avemail'),
+    ('-c', 'client'), ('-s', 'server'),
+    ('-j', 'jobname'), ('-y', 'jobtype'),
+    ('-x', 'jobstatus'), ('-u', 'smtpuser'),
+    ('-p', 'smtppass'), ('-f', 'fromemail'),
+    (None, 'smtpport'), (None, 'smtpserver'),
+    (None, 'dbtype'), (None, 'dbport'),
+    (None, 'dbhost'), (None, 'dbname'),
+    (None, 'dbuser'), (None, 'dbpass')
+    ]:
+    # This right here is ugly, and scary. The 'long_cli' variable gets created
+    # as a global() variable on-the-fly in the cli_vs_env_vs_config_vs_default_vars
+    # function, then we use it here as the docopt dictionary key to set the args[] variable
+    # -------------------------------------------------------------------------------------
+    args[long_cli] = cli_vs_env_vs_config_vs_default_vars(cli_tup[0], cli_tup[1])
+
 # Set the default ports for the different databases if not set on command line
 # Set the default database file if sqlite is used, and not set on command line
 # ----------------------------------------------------------------------------
@@ -1141,24 +1249,8 @@ elif args['--dbtype'] == 'sqlite':
     if args['--dbname'] == 'bacula':
         args['--dbname'] = '/opt/bacula/working/bacula.db'
 
-# Need to assign/re-assign args[] vars based on cli vs env vs defaults
+# Do some basic sanity checking on cli, env, and config file variables
 # --------------------------------------------------------------------
-for ced_tup in [
-    ('--time', 'TIME'), ('--days', 'DAYS'),
-    ('--email', 'EMAIL'), ('--avemail', 'AVEMAIL'),
-    ('--client', 'CLIENT'), ('--server', 'SERVER'),
-    ('--dbtype', 'DBTYPE'), ('--dbport', 'DBPORT'),
-    ('--dbhost', 'DBHOST'), ('--dbname', 'DBNAME'),
-    ('--dbuser', 'DBUSER'), ('--dbpass', 'DBPASS'),
-    ('--jobname', 'JOBNAME'), ('--jobtype', 'JOBTYPE'),
-    ('--jobstatus', 'JOBSTATUS'),('--smtpuser', 'SMTPUSER'),
-    ('--smtppass', 'SMTPPASS'), ('--smtpserver', 'SMTPSERVER'),
-    ('--smtpport', 'SMTPPORT'), ('--fromemail', 'FROMEMAIL')
-    ]:
-    args[ced_tup[0]] = cli_vs_env_vs_default_vars(ced_tup[0], ced_tup[1])
-
-# Do some basic sanity checking on cli and ENV variables
-# ------------------------------------------------------
 jobtypeset = set(args['--jobtype'])
 if not jobtypeset.issubset(set(all_jobtype_lst)):
     print(print_opt_errors('jobtype'))
@@ -1167,7 +1259,10 @@ jobstatusset = set(args['--jobstatus'])
 if not jobstatusset.issubset(set(all_jobstatus_lst)):
     print(print_opt_errors('jobstatus'))
     usage()
-if args['--email'] == None or '@' not in args['--email']:
+if args['--email'] == None:
+    print(print_opt_errors('emailnone'))
+    usage()
+elif '@' not in args['--email']:
     print(print_opt_errors('email'))
     usage()
 else:
@@ -1333,7 +1428,7 @@ if numjobs == 0:
         subject = set_subject_icon() + ' ' + subject
     msg = 'These are not the droids you are looking for.'
     if print_subject:
-        print(re.sub('=.*=\)? (.*)$', '\\1', subject))
+        print(re.sub('=.*=\)? (.*)$', '\\1', '- Job Report Subject: ' + subject))
     send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
     sys.exit(1)
 else:
@@ -1387,9 +1482,9 @@ always_fail_jobs = set(unique_bad_days_jobs.difference(good_days_jobs)).intersec
 # threshold and remove each job from the always_fail_jobs
 # set that has failed less times than the threshold
 # -------------------------------------------------------
-if always_fail_jobs_threshold > 1:
+if int(always_fail_jobs_threshold) > 1:
     for x in always_fail_jobs.copy():
-        if bad_days_jobs.count(x) < always_fail_jobs_threshold:
+        if bad_days_jobs.count(x) < int(always_fail_jobs_threshold):
             always_fail_jobs.remove(x)
 
 # For each Copy/Migration Control Job (c, g), get the Job summary
@@ -1631,7 +1726,7 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
         if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT Name \
                 FROM Pool \
-                WHERE Name NOT IN ('" + "','".join(pools_to_ignore_lst) + "') \
+                WHERE Name NOT IN ('" + "','".join(pools_to_ignore.split()) + "') \
                 ORDER BY Name ASC;"
             p_names = db_query(query_str, 'pool names')
             for p_name in p_names:
@@ -1644,7 +1739,7 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
         elif dbtype in ('mysql', 'maria'):
             query_str = "SELECT CAST(Name as CHAR(50)) AS Name \
                 FROM Pool \
-                WHERE Name NOT IN ('" + "','".join(pools_to_ignore_lst) + "') \
+                WHERE Name NOT IN ('" + "','".join(pools_to_ignore.split()) + "') \
                 ORDER BY Name ASC;"
             p_names = db_query(query_str, 'pool names')
             for p_name in p_names:
@@ -1884,7 +1979,7 @@ if len(runningjobids) != 0:
         # This works to limit the amount of data from the query
         # at the expense of full text searches in the log table
         # Is it worth it? I don't know. :-/ What if there are
-        # more than 1,000 jobs running? All log entries from all
+        # more than x,000 jobs running? All log entries from all
         # running jobs will be returned. Is this worse than using
         # a query with 5 full text clauses? Again, I don't know
         # -------------------------------------------------------
@@ -2115,18 +2210,18 @@ if show_db_stats:
         + '<td align="left"><b>Media: </b>' + str('{:,}'.format(num_vols)) + '</td>\n' \
         + '</tr></table></td></tr></table>\n'
 
-# Create the main job table header from the columns
-# in the c2sl list in the order they are defined
-# -------------------------------------------------
+# Create the main job table header from the columns in
+# the cols2show_lst list in the order they are defined
+# ----------------------------------------------------
 msg += '<table style="' + jobtablestyle + '">' \
     + '<tr style="' + jobtableheaderstyle + '">'
-for colname in c2sl:
+for colname in cols2show_lst:
     msg += col_hdr_dict[colname]
 msg += '</tr>\n'
 
-# Build the main jobs table from the columns in
-# the c2sl list in the order they are defined
-# ---------------------------------------------
+# Build the main jobs table from the columns in the
+# cols2show_lst list in the order they are defined
+# -------------------------------------------------
 counter = 0
 for jobrow in alljobrows:
     # Set the will_not_descend variable, then check for
@@ -2137,11 +2232,11 @@ for jobrow in alljobrows:
     # -------------------------------------------------
     will_not_descend = False
     if warn_on_will_not_descend \
-        and jobrow['type'] == 'B' \
-        and jobrow['jobstatus'] == 'T' \
-        and jobrow['joberrors'] == 0 \
-        and jobrow['priorjobid'] == 0 \
-        and jobrow['jobname'] not in ignore_warn_on_will_not_descend_jobs:
+    and jobrow['type'] == 'B' \
+    and jobrow['jobstatus'] == 'T' \
+    and jobrow['joberrors'] == 0 \
+    and jobrow['priorjobid'] == 0 \
+    and jobrow['jobname'] not in ignore_warn_on_will_not_descend_jobs.split():
         will_not_descend = chk_will_not_descend()
 
     # Set the zero_inc variable True if an 'OK' Differential
@@ -2153,7 +2248,7 @@ for jobrow in alljobrows:
     and jobrow['jobstatus'] == 'T' \
     and jobrow['level'] in ('D', 'I') \
     and (jobrow['jobfiles'] == 0 or jobrow['jobbytes'] == 0) \
-    and jobrow['jobname'] not in ignore_warn_on_zero_inc_jobs_lst:
+    and jobrow['jobname'] not in ignore_warn_on_zero_inc_jobs.split():
         num_zero_inc_jobs += 1
         zero_inc = True
 
@@ -2174,14 +2269,13 @@ for jobrow in alljobrows:
              msg += '<tr style="' + jobtablerowevenstyle + '">'
         else :
              msg += '<tr style="' + jobtablerowoddstyle + '">'
-    for colname in c2sl:
+    for colname in cols2show_lst:
         if colname == 'jobid':
             msg += html_format_cell(str(jobrow['jobid']), col = 'jobid', star = '*' if starbadjobids and jobrow['jobstatus'] in bad_job_set else '')
         elif colname == 'jobname':
             # TODO: See related TODO on or near line 725
-            # There is no Job summary with Prev Backup JobId: and New
-            # Backup JobId: for Running or Created, not yet running
-            # Copy/Migration control, nor Verify JobId: for Verify jobs.
+            # There is no Job summary with Prev Backup JobId: and New Backup JobId: for Running or
+            # Created, not yet running Copy/Migration control, nor Verify JobId: for Verify jobs.
             # Currently the two dictionaries pn_jobids_dict and v_jobids_dict are built by using re.sub
             # against these Job Summaries. To get the Job Name for one of these type of running Jobs, I
             # will need to have a query which looks for this line in running Copy/Migration Jobs:
@@ -2358,7 +2452,7 @@ subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
 if addsubjecticon:
     subject = set_subject_icon() + ' ' + subject
 if print_subject:
-    print('Job Report Subject: ' + re.sub('=.*=\)? (.*)$', '\\1', subject))
+    print('- Job Report Subject: ' + re.sub('=.*=\)? (.*)$', '\\1', subject))
 
 # Build the final message and send the email
 # ------------------------------------------
@@ -2368,7 +2462,7 @@ elif summary_and_rates == 'bottom':
     msg = msg + summary_and_rates_table
 elif summary_and_rates == 'both':
     msg = summary_and_rates_table + '</br>' + msg + summary_and_rates_table
-msg += (virussummaries if appendvirussummaries else '') + jobsummaries + badjoblogs + prog_info
+msg += (virussummaries if appendvirussummaries else '') + jobsummaries + badjoblogs + prog_info()
 send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
 
 # vim: expandtab tabstop=4 softtabstop=4 shiftwidth=4

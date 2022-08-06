@@ -4,45 +4,48 @@
 
 ```
 Usage:
-baculabackupreport.py [-e <email>] [-f <fromemail>] [-s <server>] [-t <time>] [-d <days>]
-                      [-a <avemail>] [-c <client>] [-j <jobname>] [-y <jobtype>] [-x <jobstatus>]
-                      [--dbtype <dbtype>] [--dbport <dbport>] [--dbhost <dbhost>] [--dbname <dbname>]
-                      [--dbuser <dbuser>] [--dbpass <dbpass>]
-                      [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
-baculabackupreport.py -h | --help
-baculabackupreport.py -v | --version
+    baculabackupreport.py [-C <config>] [-S <section>] [-e <email>] [-s <server>] [-t <time>] [-d <days>]
+                          [-f <fromemail>] [-a <avemail>] [-c <client>] [-j <jobname>] [-y <jobtype>] [-x <jobstatus>]
+                          [--dbtype <dbtype>] [--dbhost <dbhost>] [--dbport <dbport>]
+                          [--dbname <dbname>] [--dbuser <dbuser>] [--dbpass <dbpass>]
+                          [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
+    baculabackupreport.py -h | --help
+    baculabackupreport.py -v | --version
 
 Options:
+    -C, --config <config>        Configuration file - See the 'example.ini' file included in repository
+    -S, --section <section>      Section in configuration file [default: baculabackupreport]
     -e, --email <email>          Email address to send job report to
-    -f, --fromemail <fromemail>  Email address to be set in the From: field of the email
     -s, --server <server>        Name of the Bacula Server [default: Bacula]
     -t, --time <time>            Time to report on in hours [default: 24]
     -d, --days <days>            Days to check for "always failing jobs" [default: 7]
-    -a, --avemail <avemail>      Email address to send separate AV email to. [default --email]
+    -f, --fromemail <fromemail>  Email address to be set in the From: field of the email
+    -a, --avemail <avemail>      Email address to send separate AV email to. (default is --email)
     -c, --client <client>        Client to report on using SQL 'LIKE client' [default: %] (all clients)
     -j, --jobname <jobname>      Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
     -y, --jobtype <jobtype>      Type of job to report on [default: DBRCcMgV] (all job types)
     -x, --jobstatus <jobstatus>  Job status to report on [default: aABcCdDeEfFiIjmMpRsStT] (all job statuses)
                                  Note: 'R'unning and 'C'reated jobs are always included
+    -u, --smtpuser <smtpuser>    SMTP user
+    -p, --smtppass <smtppass>    SMTP password
+
     --dbtype <dbtype>            Database type [default: pgsql] (pgsql | mysql | maria | sqlite)
-    --dbport <dbport>            Database port (defaults pgsql 5432, mysql & maria 3306)
     --dbhost <dbhost>            Database host [default: localhost]
-    --dbname <dbname>            Database name [default: bacula]
+    --dbport <dbport>            Database port (defaults pgsql 5432, mysql & maria 3306)
+    --dbname <dbname>            Database name [default: bacula] (sqlite default: /opt/bacula/working/bacula.db)
     --dbuser <dbuser>            Database user [default: bacula]
     --dbpass <dbpass>            Database password
     --smtpserver <smtpserver>    SMTP server [default: localhost]
     --smtpport <smtpport>        SMTP port [default: 25]
-    -u, --smtpuser <smtpuser>    SMTP user
-    -p, --smtppass <smtppass>    SMTP password
 
     -h, --help                   Print this help message
     -v, --version                Print the script name and version
 
 Notes:
-* Edit variables at top of script to customize output
-* Only the email variable is required. It must be set on the command line or via an environment variable
-* Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
-* Variable assignment precedence is: command line > environment variable > default
+  * Edit variables near the top of script to customize output. Recommended: Use a configuration file instead
+  * Only the email variable is required. It must be set on the command line, via an environment variable, or in a config file
+  * Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
+  * Variable assignment precedence is: command line > environment variable > config file > script defaults
 ```
 ## Example commands:
 ```

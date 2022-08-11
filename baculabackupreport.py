@@ -2017,6 +2017,8 @@ if len(runningjobids) != 0:
                    'Please use the "label" command' in rjlt['logtext']:
                     if 'New volume' not in log_text and \
                        'Ready to append' not in log_text and \
+                       'Labeled new Volume' not in log_text and \
+                       'Wrote label to ' not in log_text and \
                        'all previous data lost' not in log_text:
                         job_needs_opr_lst.append(rj)
                     break

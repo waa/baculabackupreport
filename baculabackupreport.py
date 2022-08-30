@@ -230,6 +230,7 @@ fontfamily = 'Verdana, Arial, Helvetica, sans-serif'  # Font family to use for H
 fontsize = '16px'         # Font size to use for email title (title removed from email for now)
 fontsizejobinfo = '12px'  # Font size to use for job information inside of table
 fontsizesumlog = '12px'   # Font size of job summaries and bad job logs
+wnd_sof_style = '10px'    # Font size of (Will not descend) and (since or for) 'Needs Media' texts
 
 # HTML styles
 # -----------
@@ -278,8 +279,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '2.00'
-reldate = 'August 06, 2022'
+version = '2.01'
+reldate = 'August 30, 2022'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
@@ -848,12 +849,12 @@ def translate_job_status(jobstatus, joberrors):
         if joberrors > 0 or (warn_on_zero_inc and zero_inc):
             return 'OK/Warnings'
         elif warn_on_will_not_descend and will_not_descend:
-            return 'OK/Warnings<br>(will not descend)'
+            return 'OK/Warnings<br><span style="font-size: ' + wnd_sof_style + ';">(will not descend)</span>'
         else:
             return 'OK'
     elif jobstatus == 'R':
         if needs_media_since_or_for != 'none' and 'job_needs_opr_dict' in globals() and str(jobrow['jobid']) in job_needs_opr_dict:
-            return 'Needs Media<br>' + job_needs_opr_dict[str(jobrow['jobid'])]
+            return 'Needs Media<br><span style="font-size: ' + wnd_sof_style + ';">' + job_needs_opr_dict[str(jobrow['jobid'])] + '</span>'
         elif 'job_needs_opr_dict' in globals() and str(jobrow['jobid']) in job_needs_opr_dict:
             return 'Needs Media'
         else:

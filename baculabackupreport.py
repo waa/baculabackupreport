@@ -115,7 +115,7 @@ ignore_warn_on_zero_inc_jobs = 'Job_2 Job_2'  # Case-sensitive list of job names
 # Warn about pools approaching or surpassing maxvols?
 # ---------------------------------------------------
 chk_pool_use = True                # Check pools for numvols vs maxvols?
-pools_to_ignore = 'pool_1 pool_2'  # Case-sesitive list of pools to always ignore for 'chk_pool_use' test
+pools_to_ignore = 'Pool_1 Pool_2'  # Case-sesitive list of pools to always ignore for 'chk_pool_use' test
 
 # Summary and Success Rates block
 # -------------------------------
@@ -132,7 +132,11 @@ verified_stats = True            # Print Verified Files/Bytes?
 
 # Create a Success Rates table?
 # -----------------------------
-create_success_rates_table = True  # Create a Success Rates table in the Summary and Success Rates block?
+create_success_rates_table = True
+
+# Show how long a job has been been waiting on media under 'Needs Media' in the Status field
+# ------------------------------------------------------------------------------------------
+needs_media_since_or_for = 'for'  # none = print nothing, for = (for x Days, y Hours, z Minutes), since = (since YYYY-MM-DD HH:MM:SS)
 
 # Additional Job logs and summaries
 # ---------------------------------
@@ -268,6 +272,7 @@ import sys
 import smtplib
 from docopt import docopt
 from socket import gaierror
+from datetime import datetime
 from configparser import ConfigParser, BasicInterpolation
 
 # Set some variables
@@ -285,11 +290,17 @@ all_jobstatus_lst = ['a', 'A', 'B', 'c', 'C', 'd', 'D', \
 valid_verified_job_name_col_lst = \
 valid_copied_migrated_job_name_col_lst = ['name', 'type', 'both', 'none']
 valid_summary_location_lst = ['top', 'bottom', 'both', 'none']
+valid_needs_media_since_or_for_lst = ['since', 'for', 'none']
 valid_col_lst = [
     'jobid', 'jobname', 'client', 'status',
     'joberrors', 'type', 'level', 'jobfiles',
     'jobbytes', 'starttime', 'endtime', 'runtime'
     ]
+
+# Lists of strings to determine if a job is waiting on media, and if new media has been found/mounted
+# ---------------------------------------------------------------------------------------------------
+needs_mount_txt_lst = ['Please mount', 'Please use the "label" command']
+got_new_vol_txt_lst = ['New volume', 'Ready to append', 'Labeled new Volume', 'Wrote label to ', 'all previous data lost']
 
 # This variable is so that we can reliably convert the True/False strings
 # from the config file into real booleans to be used is later tests.
@@ -435,6 +446,8 @@ def print_opt_errors(opt):
         return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_copied_migrated_job_name_col_lst)
     elif opt == 'verified_job_name_col':
         return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_verified_job_name_col_lst)
+    elif opt == 'needs_media_since_or_for':
+        return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_needs_media_since_or_for_lst)
     elif opt == 'cols2show':
         return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_col_lst)
 
@@ -814,11 +827,37 @@ def translate_job_type(jobtype, jobid, priorjobid):
 
 def translate_job_status(jobstatus, joberrors):
     'jobstatus is stored in the catalog as a single character, replace with words.'
-    return {'A': 'Canceled', 'C': 'Created', 'D': 'Verify Diffs',
-            'E': 'Errors', 'f': 'Failed', 'I': 'Incomplete',
-            'T': (('OK', 'OK/Warnings')[joberrors > 0 or (warn_on_zero_inc and zero_inc)], \
-                   'OK/Warnings<br>(will not descend)')[warn_on_will_not_descend and will_not_descend],
-            'R': ('Running', 'Needs Media')[job_needs_opr]}[jobstatus]
+    # return {'A': 'Canceled', 'C': 'Created', 'D': 'Verify Diffs',
+    #         'E': 'Errors', 'f': 'Failed', 'I': 'Incomplete',
+    #         'T': (('OK', 'OK/Warnings')[joberrors > 0 or (warn_on_zero_inc and zero_inc)], \
+    #                'OK/Warnings<br>(will not descend)')[warn_on_will_not_descend and will_not_descend],
+    #         'R': ('Running', 'Needs Media')[job_needs_opr]}[jobstatus]
+    if jobstatus == 'A':
+        return 'Canceled'
+    elif jobstatus == 'C':
+        return 'Created'
+    elif jobstatus == 'D':
+        return 'Verify Diffs'
+    elif jobstatus == 'E':
+        return 'Errors'
+    elif jobstatus == 'f':
+        return 'Failed'
+    elif jobstatus == 'I':
+        return 'Incomplete'
+    elif jobstatus == 'T':
+        if joberrors > 0 or (warn_on_zero_inc and zero_inc):
+            return 'OK/Warnings'
+        elif warn_on_will_not_descend and will_not_descend:
+            return 'OK/Warnings<br>(will not descend)'
+        else:
+            return 'OK'
+    elif jobstatus == 'R':
+        if needs_media_since_or_for != 'none' and 'job_needs_opr_dict' in globals() and str(jobrow['jobid']) in job_needs_opr_dict:
+            return 'Needs Media<br>' + job_needs_opr_dict[str(jobrow['jobid'])]
+        elif 'job_needs_opr_dict' in globals() and str(jobrow['jobid']) in job_needs_opr_dict:
+            return 'Needs Media'
+        else:
+            return 'Running'
 
 def set_subject_icon():
     'Set the utf-8 subject icon(s).'
@@ -836,7 +875,7 @@ def set_subject_icon():
             subjecticon = goodjobsicon
     if 'num_virus_jobs' in globals() and num_virus_jobs != 0:
         subjecticon += ' ' + virusfoundicon
-    if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
+    if 'job_needs_opr_dict' in globals() and len(job_needs_opr_dict) != 0:
         subjecticon += ' (' + jobneedsopricon + ')'
     return subjecticon
 
@@ -1084,6 +1123,23 @@ def prog_info():
            + '<br>By: Bill Arlofski waa@revpol.com (c) ' \
            + reldate + '<!-- ' + gen_rand_str() + ' --></body></html>'
 
+def secs_to_days_hours_mins(secs):
+    'Given a number of seconds, convert to string representing days, hours, minutes'
+    # Thanks to https://www.w3resource.com/python-exercises/python-basic-exercise-65.php
+    # ----------------------------------------------------------------------------------
+    day = int(secs / (24 * 3600))
+    secs = secs % (24 * 3600)
+    hour = int(secs / 3600)
+    secs %= 3600
+    min = int(secs / 60)
+    return (str(day) if day > 0 else '') + (' Day' if day > 0 else '') \
+           + ('s' if day > 1 else '') + (', ' if day > 0 and (hour != 0 or min != 0) else '') \
+           + (str(hour) if hour > 0 else '') + (' Hour' if hour > 0 else '') \
+           + ('s' if hour > 1 else '') + (', ' if hour > 0 and min != 0 else '') \
+           + (str(min) if min > 0 else '') + (' Minute' if min > 0 else '') \
+           + ('s' if min > 1 else '') \
+           + (str(secs) + ' Seconds' if day == 0 and hour == 0 and min == 0 else '')
+
 # Assign docopt doc string variable
 # ---------------------------------
 args = docopt(doc_opt_str, version='\n' + progname + ' - v' + version + '\n' + reldate + '\n')
@@ -1157,6 +1213,12 @@ gui = True if webgui in valid_webgui_lst else False
 # ----------------------------------------------
 if summary_and_rates not in valid_summary_location_lst:
     print(print_opt_errors('summary_and_rates'))
+    usage()
+
+# Verify the needs_media_since_or_for variable is valid
+# -----------------------------------------------------
+if needs_media_since_or_for not in valid_needs_media_since_or_for_lst:
+    print(print_opt_errors('needs_media_since_or_for'))
     usage()
 
 # Verify that the copied_migrated_job_name_col
@@ -1991,17 +2053,17 @@ if len(runningjobids) != 0:
         #     OR logtext LIKE '%Ready to append%' \
         #     OR logtext LIKE '%all previous data lost%') \
         #     ORDER BY jobid, time DESC;"
-        query_str = "SELECT jobid, logtext FROM Log \
+        query_str = "SELECT jobid, time, logtext FROM Log \
             WHERE jobid IN (" + ','.join(runningjobids) + ") ORDER BY jobid, time DESC;"
     elif dbtype in ('mysql', 'maria'):
-        query_str = "SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext FROM Log \
+        query_str = "SELECT jobid, time, CAST(logtext as CHAR(2000)) AS logtext FROM Log \
             WHERE jobid IN (" + ','.join(runningjobids) + ") ORDER BY jobid, time DESC;"
     running_jobs_log_text = db_query(query_str, 'all running job logs')
 
-    # Create 'job_needs_opr_lst' list
-    # -------------------------------
-    job_needs_opr_lst = []
-    for rj in runningjobids:
+    # Create 'job_needs_opr_dict' dictionary
+    # --------------------------------------
+    job_needs_opr_dict = {}
+    for rjid in runningjobids:
         log_text = ''
         # Build the reversed log_text variable until the first text
         # indicating that operator action is required is found in the
@@ -2011,16 +2073,33 @@ if len(runningjobids) != 0:
         # stuck waiting on media.
         # --------------------------------------------------------------
         for rjlt in running_jobs_log_text:
-            if str(rjlt['jobid']) == rj:
+            if str(rjlt['jobid']) == rjid:
                 log_text += rjlt['logtext']
-                if 'Please mount' in rjlt['logtext'] or \
-                   'Please use the "label" command' in rjlt['logtext']:
-                    if 'New volume' not in log_text and \
-                       'Ready to append' not in log_text and \
-                       'Labeled new Volume' not in log_text and \
-                       'Wrote label to ' not in log_text and \
-                       'all previous data lost' not in log_text:
-                        job_needs_opr_lst.append(rj)
+                if any(txt in rjlt['logtext'] for txt in needs_mount_txt_lst):
+                    if not any(txt in log_text for txt in got_new_vol_txt_lst):
+                        # Here we need to find the chronologically first time we see a message about needing media
+                        # ----------------------------------------------------------------------------------------
+                        for rrjlt in reversed(running_jobs_log_text):
+                            if any(txt in rrjlt['logtext'] for txt in needs_mount_txt_lst):
+                               since_time = rrjlt['time']
+                               break
+
+                        # Do we print format "(for x Days, y Hours, z Minutes)", or "(since YYYY-MM-DD HH:MM:SS)"?
+                        # ----------------------------------------------------------------------------------------
+                        if needs_media_since_or_for == 'since':
+                            if dbtype == 'sqlite':
+                                job_needs_opr_dict[rjid] = '(since ' + since_time + ')'
+                            elif dbtype in ('pgsql', 'mysql', 'maria'):
+                                job_needs_opr_dict[rjid] = since_time.strftime('(since %Y-%m-%d %H:%M:%S)')
+                        elif needs_media_since_or_for == 'for':
+                            now = datetime.now()
+                            if dbtype == 'sqlite':
+                                for_time_secs = (now - datetime.strptime(since_time, "%Y-%m-%d %H:%M:%S")).seconds
+                            elif dbtype in ('pgsql', 'mysql', 'maria'):
+                                for_time_secs = (now - since_time).seconds
+                            job_needs_opr_dict[rjid] = '(for ' + secs_to_days_hours_mins(for_time_secs) + ')'
+                        else:
+                            job_needs_opr_dict[rjid] = None
                     break
 
 # If we have jobs that fail, but are rescheduled one or more times, should we print
@@ -2193,7 +2272,7 @@ if show_db_stats:
     query_str = "SELECT COUNT(*) FROM Media;"
     num_vols_qry = db_query(query_str, 'the total number of volumes', 'one')
 
-    # assign the num_vols variable based on db type
+    # Assign the num_vols variable based on db type
     # ---------------------------------------------
     if dbtype in ('mysql', 'maria'):
         num_vols = num_vols_qry['COUNT(*)']
@@ -2258,18 +2337,18 @@ for jobrow in alljobrows:
     # -------------------------------------------------------------
     alwaysfailjob = True if len(always_fail_jobs) != 0 and jobrow['jobname'] in always_fail_jobs else False
 
-    # If this job is waiting on media, Set the job_needs_opr variable
+    # If this job is waiting on media, set the job_needs_opr variable
     # ---------------------------------------------------------------
-    job_needs_opr = True if 'job_needs_opr_lst' in globals() and str(jobrow['jobid']) in job_needs_opr_lst else False
+    job_needs_opr = True if 'job_needs_opr_dict' in globals() and str(jobrow['jobid']) in job_needs_opr_dict else False
 
     # Set the job row's default bgcolor
     # ---------------------------------
     if alwaysfailjob and alwaysfailcolumn == 'row':
-        msg += '<tr style="' + jobtablealwaysfailrowstyle +'">'
+        msg += '<tr style="' + jobtablealwaysfailrowstyle + '">'
     else:
         if counter % 2 == 0:
              msg += '<tr style="' + jobtablerowevenstyle + '">'
-        else :
+        else:
              msg += '<tr style="' + jobtablerowoddstyle + '">'
     for colname in cols2show_lst:
         if colname == 'jobid':
@@ -2403,12 +2482,12 @@ if checkforvirus and num_virus_conn_errs != 0:
 # sitting there waiting on media, possibly holding
 # up other jobs from making any progress?
 # ------------------------------------------------
-if 'job_needs_opr_lst' in globals() and len(job_needs_opr_lst) != 0:
+if 'job_needs_opr_dict' in globals() and len(job_needs_opr_dict) != 0:
     warning_banners += '<p style="' + jobsneedingoprstyle + '">' \
-                    + '- The ' + str(len(job_needs_opr_lst)) + ' running ' \
-                    + ('jobs' if len(job_needs_opr_lst) > 1 else 'job') \
+                    + '- The ' + str(len(job_needs_opr_dict)) + ' running ' \
+                    + ('jobs' if len(job_needs_opr_dict) > 1 else 'job') \
                     + ' in this list with a status of "Needs Media" ' \
-                    + ('require' if len(job_needs_opr_lst) > 1 else 'requires') \
+                    + ('require' if len(job_needs_opr_dict) > 1 else 'requires') \
                     + ' operator attention.</p><br>\n'
 
 # Do we have any copied or migrated jobs that have an

@@ -227,10 +227,6 @@ poolyellowcolor = 'yellow'               # Background color of the Pool Use tabl
 # HTML fonts
 # ----------
 fontfamily = 'Verdana, Arial, Helvetica, sans-serif'  # Font family to use for HTML emails
-fontsize = '16px'         # Font size to use for email title (title removed from email for now)
-fontsizejobinfo = '12px'  # Font size to use for job information inside of table
-fontsizesumlog = '12px'   # Font size of job summaries and bad job logs
-wnd_sof_style = '10px'    # Font size of (Will not descend) and (since or for) 'Needs Media' texts
 fontsize = '16px'            # Font size to use for email title (title removed from email for now)
 fontsizejobinfo = '12px'     # Font size to use for job information inside of table
 fontsizesumlog = '12px'      # Font size of job summaries and bad job logs
@@ -283,8 +279,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '2.01'
-reldate = 'August 30, 2022'
+version = '2.02'
+reldate = 'August 31, 2022'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
@@ -1143,11 +1139,11 @@ def secs_to_days_hours_mins(secs):
     'Given a number of seconds, convert to string representing days, hours, minutes'
     # Thanks to https://www.w3resource.com/python-exercises/python-basic-exercise-65.php
     # ----------------------------------------------------------------------------------
-    day = int(secs / (24 * 3600))
+    day = secs // (24 * 3600)
     secs = secs % (24 * 3600)
-    hour = int(secs / 3600)
+    hour = secs // 3600
     secs %= 3600
-    min = int(secs / 60)
+    min = secs // 60
     return (str(day) if day > 0 else '') + (' Day' if day > 0 else '') \
            + ('s' if day > 1 else '') + (', ' if day > 0 and (hour != 0 or min != 0) else '') \
            + (str(hour) if hour > 0 else '') + (' Hour' if hour > 0 else '') \

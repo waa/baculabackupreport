@@ -231,6 +231,10 @@ fontsize = '16px'         # Font size to use for email title (title removed from
 fontsizejobinfo = '12px'  # Font size to use for job information inside of table
 fontsizesumlog = '12px'   # Font size of job summaries and bad job logs
 wnd_sof_style = '10px'    # Font size of (Will not descend) and (since or for) 'Needs Media' texts
+fontsize = '16px'            # Font size to use for email title (title removed from email for now)
+fontsizejobinfo = '12px'     # Font size to use for job information inside of table
+fontsizesumlog = '12px'      # Font size of job summaries and bad job logs
+fontsize_addtional_texts = '10px'  # Font size of (will not descend), (since or for), (warn on zero inc) additional info texts
 
 # HTML styles
 # -----------
@@ -742,18 +746,21 @@ def translate_job_type(jobtype, jobid, priorjobid):
     if jobtype == 'c':
         if jobrow['jobstatus'] in ('C', 'R'):
             return 'Copy Ctrl:' \
-                + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
+                + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
                 if copied_migrated_job_name_col in ('type', 'both') else '')
         if jobrow['jobstatus'] in bad_job_set:
             return 'Copy Ctrl: Failed' \
-                + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
+                + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
                 if copied_migrated_job_name_col in ('type', 'both') else '')
         if pn_jobids_dict[str(jobid)][1] == '0':
             if pn_jobids_dict[str(jobid)][0] != '0':
                 return 'Copy Ctrl: ' \
                     + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][0]) \
                     + ' (No files to copy)' \
-                    + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                    + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
+                    + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
                     if copied_migrated_job_name_col in ('type', 'both') else '')
             else:
                 return 'Copy Ctrl: No jobs to copy'
@@ -762,24 +769,28 @@ def translate_job_type(jobtype, jobid, priorjobid):
                 + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][0]) \
                 + '->' \
                 + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][1]) \
-                + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                + ('<br><span style="font-size: ' + fontsize_addtional_texts \
+                + ';">(' + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
                 if copied_migrated_job_name_col in ('type', 'both') else '')
 
     if jobtype == 'g':
         if jobrow['jobstatus'] in ('C', 'R'):
             return 'Migration Ctrl:' \
-                + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
+                + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
                 if copied_migrated_job_name_col in ('type', 'both') else '')
         if jobrow['jobstatus'] in bad_job_set:
             return 'Migration Ctrl: Failed' \
-                + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
+                + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
                 if copied_migrated_job_name_col in ('type', 'both') else '')
         if pn_jobids_dict[str(jobid)][1] == '0':
             if pn_jobids_dict[str(jobid)][0] != '0':
                 return 'Migration Ctrl: ' \
                     + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][0]) \
                     + ' (No data to migrate)' \
-                    + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                    + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
+                    + get_copied_migrated_job_name(jobrow['jobid']) + ')<span>' \
                     if copied_migrated_job_name_col in ('type', 'both') else '')
             else:
                 return 'Migration Ctrl: No jobs to migrate'
@@ -788,7 +799,8 @@ def translate_job_type(jobtype, jobid, priorjobid):
                 + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][0]) \
                 + '->' \
                 + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][1]) \
-                + ('<br>(' + get_copied_migrated_job_name(jobrow['jobid']) + ')' \
+                + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
+                + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
                 if copied_migrated_job_name_col in ('type', 'both') else '')
 
     if jobtype == 'V':
@@ -796,7 +808,8 @@ def translate_job_type(jobtype, jobid, priorjobid):
         # if jobrow['jobstatus'] in ('C', 'R') and v_jobids_dict[str(jobid)] == '0':
         # ------------------------------------------------------------------------------------------
         if jobrow['jobstatus'] in ('C', 'R') and jobid not in v_jobids_dict:
-            return 'Verify of n/a' + ('<br>(No Info Yet)' if verified_job_name_col in ('type', 'both') else '')
+            return 'Verify of n/a' + ('<br><span style="font-size: ' + fontsize_addtional_texts \
+                   + ';">(No Info Yet)</span>' if verified_job_name_col in ('type', 'both') else '')
         # TODO: See related TODO on or near line 1959 Need to fix this! In
         # this temporary workaround, I am returning the same exact thing
         # for two different if/elif tests. Basically, we cannot include
@@ -805,9 +818,11 @@ def translate_job_type(jobtype, jobid, priorjobid):
         # fail with a keyerror.
         # ----------------------------------------------------------------
         elif jobrow['jobstatus'] in ('C', 'R') and str(jobid) in v_jobids_dict and v_jobids_dict[str(jobid)] == '0':
-            return 'Verify of n/a' + ('<br>(No Info Yet)' if verified_job_name_col in ('type', 'both') else '')
+            return 'Verify of n/a' + ('<br><span style="font-size: ' + fontsize_addtional_texts \
+                   + ';">(No Info Yet)</span>' if verified_job_name_col in ('type', 'both') else '')
         elif str(jobid) in v_jobids_dict and v_jobids_dict[str(jobid)] == '0':
-            return 'Verify of n/a' + ('<br>(No Info)' if verified_job_name_col in ('type', 'both') else '')
+            return 'Verify of n/a' + ('<br><span style="font-size: ' + fontsize_addtional_texts \
+                   + ';">(No Info)</span>' if verified_job_name_col in ('type', 'both') else '')
         else:
             if str(jobid) in v_jobids_dict.keys():
                 if 'virus_dict' in globals() and jobid in virus_dict:
@@ -817,9 +832,9 @@ def translate_job_type(jobtype, jobid, priorjobid):
             return 'Verify of ' \
                    + (urlify_jobid(v_jobids_dict[str(jobid)]) if gui and urlifyalljobs else v_jobids_dict[str(jobid)]) \
                    + virus_found_str \
-                   + ('<br>(' + (get_verify_client_info(jobrow['jobid'])[2] \
+                   + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' + (get_verify_client_info(jobrow['jobid'])[2] \
                       if get_verify_client_info(jobrow['jobid'])[2] != '0' \
-                      else 'Job not in catalog') + ')' \
+                      else 'Job not in catalog') + ')</span>' \
                    if verified_job_name_col in ('type', 'both') else '')
 
     # Catchall for the last two Job types
@@ -849,12 +864,12 @@ def translate_job_status(jobstatus, joberrors):
         if joberrors > 0 or (warn_on_zero_inc and zero_inc):
             return 'OK/Warnings'
         elif warn_on_will_not_descend and will_not_descend:
-            return 'OK/Warnings<br><span style="font-size: ' + wnd_sof_style + ';">(will not descend)</span>'
+            return 'OK/Warnings<br><span style="font-size: ' + fontsize_addtional_texts + ';">(will not descend)</span>'
         else:
             return 'OK'
     elif jobstatus == 'R':
         if needs_media_since_or_for != 'none' and 'job_needs_opr_dict' in globals() and str(jobrow['jobid']) in job_needs_opr_dict:
-            return 'Needs Media<br><span style="font-size: ' + wnd_sof_style + ';">' + job_needs_opr_dict[str(jobrow['jobid'])] + '</span>'
+            return 'Needs Media<br><span style="font-size: ' + fontsize_addtional_texts + ';">' + job_needs_opr_dict[str(jobrow['jobid'])] + '</span>'
         elif 'job_needs_opr_dict' in globals() and str(jobrow['jobid']) in job_needs_opr_dict:
             return 'Needs Media'
         else:
@@ -1020,7 +1035,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     # --------------------------------------------------------------------------
     if ((col == 'jobfiles' and jobrow['jobfiles'] == 0) or (col == 'jobbytes' \
         and jobrow['jobbytes'] == 0)) and (warn_on_zero_inc and zero_inc):
-        content = content + '<br>(warn on zero inc)'
+        content = content + '<br><span style="font-size: ' + fontsize_addtional_texts + ';">(warn on zero inc)</span>'
 
     # If the copied/migrated/verfied job
     # is outside of the "-t hours" set,
@@ -1700,59 +1715,31 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
         success_rates_table_data = []
         success_rates_table += '<table style="display: inline-block; float: left; padding-right: 20px; ' + summarytablestyle + '">' \
                             + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
-                            + summarytableheadercellstyle + '">Success Rates</th></tr>'
-
+                            + summarytableheadercellstyle + '">Success Rates (all jobs)</th></tr>'
         for interval_key, interval_days in success_rates_interval_dict.items():
             if dbtype == 'pgsql':
                 all_query_str = "SELECT COUNT(JobId) \
                     FROM Job \
-                    INNER JOIN Client on Job.ClientID=Client.ClientID \
-                    WHERE endtime >= (NOW()) - (INTERVAL '" + str(interval_days) + " DAY') \
-                    AND Client.Name LIKE '" + client + "' \
-                    AND Job.Name LIKE '" + jobname + "' \
-                    AND Type IN ('" + "','".join(jobtypeset) + "') \
-                    AND JobStatus IN ('" + "','".join(jobstatusset) + "');"
+                    WHERE endtime >= (NOW()) - (INTERVAL '" + str(interval_days) + " DAY');"
                 bad_query_str = "SELECT COUNT(JobId) \
                     FROM Job \
-                    INNER JOIN Client on Job.clientid=Client.clientid \
                     WHERE endtime >= (NOW()) - (INTERVAL '" + str(interval_days) + " DAY') \
-                    AND Client.Name LIKE '" + client + "' \
-                    AND Job.Name LIKE '" + jobname + "' \
-                    AND Type IN ('" + "','".join(jobtypeset) + "') \
                     AND JobStatus IN ('" + "','".join(bad_job_set) + "');"
             elif dbtype in ('mysql', 'maria'):
                 all_query_str = "SELECT COUNT(jobid) \
                     FROM Job \
-                    INNER JOIN Client on Job.clientid=Client.clientid \
-                    WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + str(interval_days) + " DAY) \
-                    AND Client.Name LIKE '" + client + "' \
-                    AND Job.Name LIKE '" + jobname + "' \
-                    AND type IN ('" + "','".join(jobtypeset) + "') \
-                    AND jobstatus IN ('" + "','".join(jobstatusset) + "');"
+                    WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + str(interval_days) + " DAY);"
                 bad_query_str = "SELECT COUNT(jobid) \
                     FROM Job \
-                    INNER JOIN Client on Job.clientid=Client.clientid \
                     WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + str(interval_days) + " DAY) \
-                    AND Client.Name LIKE '" + client + "' \
-                    AND Job.Name LIKE '" + jobname + "' \
-                    AND type IN ('" + "','".join(jobtypeset) + "') \
                     AND jobstatus IN ('" + "','".join(bad_job_set) + "');"
             elif dbtype == 'sqlite':
                all_query_str = "SELECT COUNT(JobId) \
                     FROM Job \
-                    INNER JOIN Client on Job.ClientId=Client.ClientId \
-                    WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(interval_days) + " days', 'localtime') \
-                    AND Client.Name LIKE '" + client + "' \
-                    AND Job.Name LIKE '" + jobname + "' \
-                    AND Type IN ('" + "','".join(jobtypeset) + "') \
-                    AND JobStatus IN ('" + "','".join(jobstatusset) + "');"
+                    WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(interval_days) + " days', 'localtime');"
                bad_query_str = "SELECT COUNT(JobId) \
                     FROM Job \
-                    INNER JOIN Client on Job.ClientId=Client.ClientId \
                     WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(interval_days) + " days', 'localtime') \
-                    AND Client.Name LIKE '" + client + "' \
-                    AND Job.Name LIKE '" + jobname + "' \
-                    AND Type IN ('" + "','".join(jobtypeset) + "') \
                     AND JobStatus IN ('" + "','".join(bad_job_set) + "');"
             allintervaljobs = db_query(all_query_str, 'all jobs in the past ' + str(interval_days) + ' days for success rate caclulations', 'one')
             badintervaljobs = db_query(bad_query_str, 'bad jobs in the past ' + str(interval_days) + ' days for success rate caclulations', 'one')
@@ -1798,7 +1785,6 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
                     WHERE Name='" + p_name[0] + "';"
                 pool_info = db_query(query_str, 'pool information for pool ' + p_name[0], 'one')
                 pct = calc_pool_use(p_name[0], pool_info[0], pool_info[1])
-
         elif dbtype in ('mysql', 'maria'):
             query_str = "SELECT CAST(Name as CHAR(50)) AS Name \
                 FROM Pool \
@@ -2369,19 +2355,26 @@ for jobrow in alljobrows:
             # ...and then add them to the correct dictionary. A value of '0' will be used for Created,
             # not yet running Copy/Migration/Verify jobs
             # ------------------------------------------------------------------------------------------
+            # the 'and jobrow['jobid'] in vrfy_jobids' clause prevents calling get_verify_client_info()
+            # with a Verify jobid that is not in the vrfy_jobids list, but was pulled in due to a failed
+            # Verify, Copy, or Migrate job that tried to act on a Verify job. An awful corner-case bug.
+            # ------------------------------------------------------------------------------------------
+            # and jobrow['jobid'] in vrfy_jobids \
             if jobrow['type'] == 'V' \
             and verified_job_name_col in ('name', 'both'):
                 vjobname = get_verify_client_info(jobrow['jobid'])[2]
                 if vjobname == '0':
                     vjobname = 'Job not in catalog'
-                msg += html_format_cell(jobrow['jobname'] + '<br>(' + vjobname + ')', col = 'jobname')
+                msg += html_format_cell(jobrow['jobname'] + '<br><span style="font-size: ' \
+                    + fontsize_addtional_texts + ';">(' + vjobname + ')</span>', col = 'jobname')
             elif jobrow['type'] in ('c', 'g') \
                 and copied_migrated_job_name_col in ('name', 'both'):
                     cmjobname = get_copied_migrated_job_name(jobrow['jobid'])
                     if cmjobname == None:
                         msg += html_format_cell(jobrow['jobname'], col = 'jobname')
                     else:
-                        msg += html_format_cell(jobrow['jobname'] + '<br>(' + cmjobname + ')', col = 'jobname')
+                        msg += html_format_cell(jobrow['jobname'] + '<br><span style="font-size: ' \
+                            + fontsize_addtional_texts + ';">(' + cmjobname + ')</span>', col = 'jobname')
             else:
                 msg += html_format_cell(jobrow['jobname'], col = 'jobname')
         elif colname == 'client':
@@ -2435,7 +2428,8 @@ if (conn):
 # -------------------------------------------------------------
 if warn_on_will_not_descend and num_will_not_descend_jobs != 0:
     warning_banners += '<p style="' + willnotdescendstyle + '">' \
-                    + '- There ' + ('was ' if num_will_not_descend_jobs == 1 else 'were ') + str(num_will_not_descend_jobs) + ' \'OK\' backup job' \
+                    + '- There ' + ('was ' if num_will_not_descend_jobs == 1 else 'were ') \
+                    + str(num_will_not_descend_jobs) + ' \'OK\' backup job' \
                     + ('s' if num_will_not_descend_jobs > 1 else '') + ' with zero errors' \
                     + ' which had \'Will not descend\' warnings. ' + ('Its' if num_will_not_descend_jobs == 1 else 'Their') \
                     + ' Status has been changed to \'OK/Warnings\'</p><br>\n'
@@ -2452,9 +2446,12 @@ if warn_on_zero_inc and num_zero_inc_jobs != 0:
 # ------------------------------------------------------------
 if chk_pool_use and ('warn_pool_dict' in globals() and len(warn_pool_dict) > 0):
     warning_banners += '<p style="' + poolwarningstyle + '">' \
-                    + '- There ' + ('is ' if len(warn_pool_dict) == 1 else 'are ') + str(len(warn_pool_dict)) + ' pool' + ('s' if len(warn_pool_dict) > 1 else '') \
-                    + ' which ' + ('is' if len(warn_pool_dict) == 1 else 'are') + ' approaching or ' + ('has' if len(warn_pool_dict) == 1 else 'have') \
-                    + ' reached ' + ('its' if len(warn_pool_dict) == 1 else 'their') + ' MaxVols setting. See \'Pool Use\' table below.</p><br>\n'
+                    + '- There ' + ('is ' if len(warn_pool_dict) == 1 else 'are ') + str(len(warn_pool_dict)) \
+                    + ' pool' + ('s' if len(warn_pool_dict) > 1 else '') \
+                    + ' which ' + ('is' if len(warn_pool_dict) == 1 else 'are') + ' approaching or ' \
+                    + ('has' if len(warn_pool_dict) == 1 else 'have') \
+                    + ' reached ' + ('its' if len(warn_pool_dict) == 1 else 'their') \
+                    + ' MaxVols setting. See \'Pool Use\' table below.</p><br>\n'
 
 # Highlight Verify Jobs where virus(s) were found?
 # ------------------------------------------------

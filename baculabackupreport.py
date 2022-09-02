@@ -144,6 +144,7 @@ emailvirussummary = True      # Email the viruses summary report as a separate e
 appendvirussummaries = False  # Append virus summary information to the job report email?
 appendjobsummaries = False    # Append all job summaries? Be careful with this, it can generate very large emails
 appendbadlogs = False         # Append logs of bad jobs? Be careful with this, it can generate very large emails
+attach_csv = False            # Attach a plain text csv file of the job table to the email?
 
 # Email subject settings including some example utf-8
 # icons to prepend the subject with. Examples from:
@@ -227,10 +228,10 @@ poolyellowcolor = 'yellow'               # Background color of the Pool Use tabl
 # HTML fonts
 # ----------
 fontfamily = 'Verdana, Arial, Helvetica, sans-serif'  # Font family to use for HTML emails
-fontsize = '16px'            # Font size to use for email title (title removed from email for now)
-fontsizejobinfo = '12px'     # Font size to use for job information inside of table
-fontsizesumlog = '12px'      # Font size of job summaries and bad job logs
-fontsize_addtional_texts = '10px'  # Font size of (will not descend), (since or for), (warn on zero inc) additional info texts
+fontsize = '16px'                                     # Font size to use for email title (title removed from email for now)
+fontsizejobinfo = '12px'                              # Font size to use for job information inside of table
+fontsizesumlog = '12px'                               # Font size of job summaries and bad job logs
+fontsize_addtional_texts = '10px'                     # Font size of (will not descend), (since or for), (warn on zero inc) additional info texts
 
 # HTML styles
 # -----------
@@ -274,13 +275,16 @@ import smtplib
 from docopt import docopt
 from socket import gaierror
 from datetime import datetime
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
 from configparser import ConfigParser, BasicInterpolation
 
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '2.02'
-reldate = 'August 31, 2022'
+version = '2.03'
+reldate = 'September 1, 2022'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
@@ -1069,19 +1073,31 @@ def humanbytes(B):
     elif PB <= B:
        return '{0:.2f} PB'.format(B/PB)
 
-def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport):
-    'Send the email.'
-    # Thank you to Aleksandr Varnin for this short and simple to implement solution
-    # https://blog.mailtrap.io/sending-emails-in-python-tutorial-with-code-examples
-    # -----------------------------------------------------------------------------
-    # f-strings require Python version 3.6 or above
-    # message = f"""Content-Type: text/html\nMIME-Version: 1.0\nTo: {email}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}"""
-    message = "Content-Type: text/html\nMIME-Version: 1.0\nTo: %s\nFrom: %s\nSubject: %s\n\n%s" % (to, fromemail, subject, msg)
+def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport, server):
+    'Send the email and any attachments.'
+    # With thanks to these two howtos
+    # https://www.justintodata.com/send-email-using-python-tutorial/
+    # https://www.geeksforgeeks.org/send-mail-attachment-gmail-account-using-python/
+    # ------------------------------------------------------------------------------
+    message = MIMEMultipart()
+    message['To'] = to
+    message['From'] = fromemail
+    message['Subject'] = subject
+    message.attach(MIMEText(msg, "html"))
+    if attach_csv:
+        csv_filename = server.replace(' ', '') + '_' + datetime.now().strftime('%Y%m%d_%H%M%S') + '.csv'
+        csv_attach = MIMEBase('application', 'octet-stream')
+        csv_attach.set_payload(csv_msg)
+        csv_attach.add_header('Content-Disposition', 'attachment; filename=%s' % csv_filename)
+        csv_attach.add_header('Content-Type', 'text/plain; name=%s' % csv_filename)
+        message.attach(csv_attach)
+    message_str = message.as_string()
+
     try:
         with smtplib.SMTP(smtpserver, smtpport) as server:
             if smtpuser != '' and smtppass != '':
                 server.login(smtpuser, smtppass)
-            server.sendmail(fromemail, to, message)
+            server.sendmail(fromemail, to, message_str)
         if print_sent:
             print('- Email successfully sent to: ' + to + '\n')
     except (gaierror, ConnectionRefusedError):
@@ -1503,7 +1519,7 @@ if numjobs == 0:
     msg = 'These are not the droids you are looking for.'
     if print_subject:
         print(re.sub('=.*=\)? (.*)$', '\\1', '- Job Report Subject: ' + subject))
-    send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
+    send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport, server)
     sys.exit(1)
 else:
     # More silly OCD string manipulations
@@ -1613,6 +1629,30 @@ if len(ctrl_jobids) != 0:
         else:
             total_migrated_files += int(files)
             total_migrated_bytes += int(bytes)
+
+# Do we build the csv attachment?
+# We build this early so we do not include
+# any Copy/Migrate/Verfiy jobs outside of
+# the '-t hours' that get pulled into the
+# alljobrows list later
+# ----------------------------------------
+if attach_csv:
+    # Build the csv_msg text attachment header from the columns
+    # in the cols2show_lst list in the order they are defined
+    # ---------------------------------------------------------
+    csv_msg = ''
+    for colname in cols2show_lst:
+        csv_colname = (colname if colname != 'status' else 'jobstatus')
+        csv_msg += '"' + csv_colname + '"' + (',' if colname != cols2show_lst[-1] else '')
+    csv_msg += '\n'
+
+    # Build the rest of the csv_msg text attachment
+    # ---------------------------------------------
+    for jobrow in alljobrows:
+        for colname in cols2show_lst:
+            csv_colname = (colname if colname != 'status' else 'jobstatus')
+            csv_msg += '"' + str(jobrow[csv_colname]) + '"' + (',' if colname != cols2show_lst[-1] else '')
+        csv_msg += ('\n' if jobrow != alljobrows[-1] else '')
 
 # Include the Summary and Success Rates block in the job report?
 # We need to build the Job Summary table now to prevent any
@@ -2155,7 +2195,7 @@ if 'virus_dict' in globals() and checkforvirus and len(virus_set) != 0:
     if print_subject:
         print('Virus Report Subject: ' + re.sub('=.*=\)? (.*)$', '\\1', virusemailsubject))
     if emailvirussummary:
-        send_email(avemail, fromemail, virusemailsubject, virussummaries, smtpuser, smtppass, smtpserver, smtpport)
+        send_email(avemail, fromemail, virusemailsubject, virussummaries, smtpuser, smtppass, smtpserver, smtpport, server)
 
 # Do we append all job summaries?
 # -------------------------------
@@ -2285,6 +2325,7 @@ msg += '</tr>\n'
 
 # Build the main jobs table from the columns in the
 # cols2show_lst list in the order they are defined
+# but first set some variables for special cases
 # -------------------------------------------------
 counter = 0
 for jobrow in alljobrows:
@@ -2395,7 +2436,7 @@ for jobrow in alljobrows:
             if dbtype == 'sqlite':
                 if jobrow['jobstatus'] in ('R', 'C'):
                     runtime = '0'
-                else: 
+                else:
                     runtime = "{:0>8}".format(str(timedelta(seconds=jobrow['runtime'])))
                 msg += html_format_cell(runtime, col = 'runtime')
             else:
@@ -2538,6 +2579,6 @@ elif summary_and_rates == 'bottom':
 elif summary_and_rates == 'both':
     msg = summary_and_rates_table + '</br>' + msg + summary_and_rates_table
 msg += (virussummaries if appendvirussummaries else '') + jobsummaries + badjoblogs + prog_info()
-send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
+send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport, server)
 
 # vim: expandtab tabstop=4 softtabstop=4 shiftwidth=4

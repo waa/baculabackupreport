@@ -1143,7 +1143,7 @@ def prog_info():
            + ' - <a href="https://github.com/waa/"' \
            + ' target="_blank">baculabackupreport.py</a>' \
            + '<br>By: Bill Arlofski waa@revpol.com (c) ' \
-           + reldate + '<!-- ' + gen_rand_str() + ' --></body></html>'
+           + reldate + '<!-- ' + gen_rand_str()
 
 def secs_to_days_hours_mins(secs):
     'Given a number of seconds, convert to string representing days, hours, minutes'
@@ -2233,6 +2233,9 @@ else:
 # ------------------------------------------------
 msg = ''
 warning_banners = ''
+html_header = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' \
+            + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
+            + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n'
 
 # Do we display the database stats above
 # the main jobs report's table header?
@@ -2524,8 +2527,10 @@ if 'rescheduledjobids' in globals() and flagrescheduled and len(rescheduledjobid
 # Assemble the whole msg variable from
 # html_header, warning_banners, and msg
 # -------------------------------------
-msg = warning_banners + msg
-
+if args['--enableconfluence']:
+    msg = warning_banners + msg
+else:
+    msg = html_header + warning_banners + msg
 # Do we append the 'Running or Created' message to the Subject?
 # -------------------------------------------------------------
 if addsubjectrunningorcreated and runningorcreated != 0:
@@ -2554,6 +2559,7 @@ elif summary_and_rates == 'bottom':
 elif summary_and_rates == 'both':
     msg = summary_and_rates_table + '</br>' + msg + summary_and_rates_table
 msg += (virussummaries if appendvirussummaries else '') + jobsummaries + badjoblogs + prog_info()
+
 if args['--email']:
     send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
 if args['--enableconfluence']:

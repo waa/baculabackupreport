@@ -144,7 +144,6 @@ emailvirussummary = True      # Email the viruses summary report as a separate e
 appendvirussummaries = False  # Append virus summary information to the job report email?
 appendjobsummaries = False    # Append all job summaries? Be careful with this, it can generate very large emails
 appendbadlogs = False         # Append logs of bad jobs? Be careful with this, it can generate very large emails
-attach_csv = False            # Attach a plain text csv file of the job table to the email?
 
 # Email subject settings including some example utf-8
 # icons to prepend the subject with. Examples from:
@@ -347,8 +346,8 @@ num_will_not_descend_jobs = 0
 # -----------------------------------------
 num_zero_inc_jobs = 0
 
-# Set the string for docopt
-# -------------------------
+# Define the docopt string
+# ------------------------
 doc_opt_str = """
 Usage:
     baculabackupreport.py [-C <config>] [-S <section>] [-e <email>] [-s <server>] [-t <time>] [-d <days>]
@@ -579,11 +578,11 @@ def get_verify_client_info(vrfy_jobid):
                 FROM Log WHERE jobid='" + str(vrfy_jobid) + "' \
                 AND logtext LIKE '%Verifying against JobId=%' \
                 ORDER BY time DESC LIMIT 1;"
-        row = db_query(query_str, 'the Job name (from log table) of a jobid that was copied/migrated')
-        if len(row) == 0:
+        row = db_query(query_str, 'the Job name (from log table) of a jobid that was verified', 'one')
+        if row == None or len(row) == 0:
             return '', '', 'No Info'
         else:
-            return '', '', re.sub('.*Verifying against JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row[0][0], flags=re.DOTALL)
+            return '', '', re.sub('.*Verifying against JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row['logtext'], flags=re.DOTALL)
     else:
         if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
@@ -624,15 +623,12 @@ def get_copied_migrated_job_name(copy_migrate_jobid):
                 FROM Log WHERE jobid='" + str(copy_migrate_jobid) + "' \
                 AND (logtext LIKE '%Copying using JobId=%' OR logtext LIKE '%Migration using JobId=%') \
                 ORDER BY time DESC LIMIT 1;"
-        row = db_query(query_str, 'the Job name (from log table) of a jobid that was copied/migrated')
-        if len(row)!= 0:
-            # If a JobName was returned from the
-            # query, return it, otherwise return 'No Info'
-            # --------------------------------------------
-            if dbtype in ('pgsql', 'sqlite'):
-                return re.sub('.*[Copying\|Migration] using JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row[0][0], flags=re.DOTALL)
-            elif dbtype in ('mysql', 'maria'):
-                return re.sub('.*[Copying\|Migration] using JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row[0]['logtext'], flags=re.DOTALL)
+        row = db_query(query_str, 'the Job name (from log table) of a jobid that was copied/migrated', 'one')
+        if row != None and len(row)!= 0:
+            # If a JobName was returned from the query
+            # return it, otherwise return 'No Info'
+            # ----------------------------------------
+            return re.sub('.*[Copying\|Migration] using JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row['logtext'], flags=re.DOTALL)
         else:
             # This is for when a Copy/Migration control job is canceled due to:
             # Fatal error: JobId 47454 already running. Duplicate job not allowed.
@@ -1075,7 +1071,7 @@ def humanbytes(B):
 
 def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport, server):
     'Send the email and any attachments.'
-    # With thanks to these two howtos
+    # With thanks to these two howtos:
     # https://www.justintodata.com/send-email-using-python-tutorial/
     # https://www.geeksforgeeks.org/send-mail-attachment-gmail-account-using-python/
     # ------------------------------------------------------------------------------
@@ -1083,16 +1079,7 @@ def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtp
     message['To'] = to
     message['From'] = fromemail
     message['Subject'] = subject
-    message.attach(MIMEText(msg, "html"))
-    if attach_csv:
-        csv_filename = server.replace(' ', '') + '_' + datetime.now().strftime('%Y%m%d_%H%M%S') + '.csv'
-        csv_attach = MIMEBase('application', 'octet-stream')
-        csv_attach.set_payload(csv_msg)
-        csv_attach.add_header('Content-Disposition', 'attachment; filename=%s' % csv_filename)
-        csv_attach.add_header('Content-Type', 'text/plain; name=%s' % csv_filename)
-        message.attach(csv_attach)
     message_str = message.as_string()
-
     try:
         with smtplib.SMTP(smtpserver, smtpport) as server:
             if smtpuser != '' and smtppass != '':
@@ -1630,30 +1617,6 @@ if len(ctrl_jobids) != 0:
             total_migrated_files += int(files)
             total_migrated_bytes += int(bytes)
 
-# Do we build the csv attachment?
-# We build this early so we do not include
-# any Copy/Migrate/Verfiy jobs outside of
-# the '-t hours' that get pulled into the
-# alljobrows list later
-# ----------------------------------------
-if attach_csv:
-    # Build the csv_msg text attachment header from the columns
-    # in the cols2show_lst list in the order they are defined
-    # ---------------------------------------------------------
-    csv_msg = ''
-    for colname in cols2show_lst:
-        csv_colname = (colname if colname != 'status' else 'jobstatus')
-        csv_msg += '"' + csv_colname + '"' + (',' if colname != cols2show_lst[-1] else '')
-    csv_msg += '\n'
-
-    # Build the rest of the csv_msg text attachment
-    # ---------------------------------------------
-    for jobrow in alljobrows:
-        for colname in cols2show_lst:
-            csv_colname = (colname if colname != 'status' else 'jobstatus')
-            csv_msg += '"' + str(jobrow[csv_colname]) + '"' + (',' if colname != cols2show_lst[-1] else '')
-        csv_msg += ('\n' if jobrow != alljobrows[-1] else '')
-
 # Include the Summary and Success Rates block in the job report?
 # We need to build the Job Summary table now to prevent any
 # Copy/Migrate/Verify jobs that are older than "-t hours" which
@@ -1878,12 +1841,27 @@ if len(vrfy_jobids) != 0:
             AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
     vji_rows = db_query(query_str, 'verify job information')
 
+    # waa - 20230317 - Here's a problem! ^^^^^     Sometimes, failed Jobs will ONLY have the stub summary!
+    #                  There is no log information at all, or there may be a few lines, but no full summary
+    #                  so there it no 'Termination:' text.
+    #                  So, a Verify job WILL be in the vrfy_jobids list, BUT it does not make it into the
+    #                  v_jobids_dict dictionary in the next step. So later, when we go to look up the Job that
+    #                  a verify job verified in the v_job_id function, we get nothing, so the Verify job is
+    #                  not added as a key to the v_jobids_dict dictionary.
+
     # For each row of the returned vji_rows (Vrfy Jobs), add
     # to the v_jobids_dict dict as [VrfyJobid: 'Verified JobId']
     # ------------------------------------------------------
     v_jobids_dict = {}
     for vji in vji_rows:
         v_jobids_dict[str(vji['jobid'])] = v_job_id(vji)
+
+    # Add Verify JobIds with no full summary
+    # into the v_jobids_dict dictionary
+    # --------------------------------------
+    for vrfy_jobid in vrfy_jobids:
+        if vrfy_jobid not in v_jobids_dict:
+            v_jobids_dict[str(vrfy_jobid)] = '0'
 
 # Now that we have the jobids of the Previous/New jobids of Copy/Migrated jobs in the
 # pn_jobids_dict dictionary, and the jobids of Verified jobs in the v_jobids_dict
@@ -1966,7 +1944,6 @@ if include_pnv_jobs:
             #     print(tuple(row))
             #     pn_jobids_dict[str(row['jobid'])] = pn_job_id(row['jobid'])
             alljobrows.append(row)
-
 
         # Sort the full list of all jobs by
         # jobid based on sortorder variable

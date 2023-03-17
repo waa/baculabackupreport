@@ -192,7 +192,7 @@ cols2show = 'jobid jobname client status joberrors type level jobfiles jobbytes 
 # Set the column to colorize for jobs that are always failing
 # -----------------------------------------------------------
 alwaysfailcolumn = 'jobname'    # Column to colorize for "always failing jobs" (column name, row, none)
-always_fail_jobs_threshold = 3  # A job must have failed at least this many times in '-d days' to be considered as 'always failing'
+always_fail_jobs_threshold = 5  # A job must have failed at least this many times in '-d days' to be considered as 'always failing'
                                 # This prevents a failed job that is run one or two times from being displayed as always failing
                                 # for at least a week by default. Set this to 0 or 1 to disable the threshold feature.
 
@@ -1069,22 +1069,20 @@ def humanbytes(B):
     elif PB <= B:
        return '{0:.2f} PB'.format(B/PB)
 
-def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport, server):
-    'Send the email and any attachments.'
-    # With thanks to these two howtos:
-    # https://www.justintodata.com/send-email-using-python-tutorial/
-    # https://www.geeksforgeeks.org/send-mail-attachment-gmail-account-using-python/
+def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport):
+    'Send the email'
+    # Thank you to Aleksandr Varnin for this short and simple to implement solution
+    # https://blog.mailtrap.io/sending-emails-in-python-tutorial-with-code-examples
+    # -----------------------------------------------------------------------------
+    # f-strings require Python version 3.6 or above
+    # message = f"""Content-Type: text/html\nMIME-Version: 1.0\nTo: {email}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}"""
     # ------------------------------------------------------------------------------
-    message = MIMEMultipart()
-    message['To'] = to
-    message['From'] = fromemail
-    message['Subject'] = subject
-    message_str = message.as_string()
+    message = "Content-Type: text/html\nMIME-Version: 1.0\nTo: %s\nFrom: %s\nSubject: %s\n\n%s" % (to, fromemail, subject, msg)
     try:
         with smtplib.SMTP(smtpserver, smtpport) as server:
             if smtpuser != '' and smtppass != '':
                 server.login(smtpuser, smtppass)
-            server.sendmail(fromemail, to, message_str)
+            server.sendmail(fromemail, to, message)
         if print_sent:
             print('- Email successfully sent to: ' + to + '\n')
     except (gaierror, ConnectionRefusedError):
@@ -1506,7 +1504,7 @@ if numjobs == 0:
     msg = 'These are not the droids you are looking for.'
     if print_subject:
         print(re.sub('=.*=\)? (.*)$', '\\1', '- Job Report Subject: ' + subject))
-    send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport, server)
+    send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
     sys.exit(1)
 else:
     # More silly OCD string manipulations
@@ -2172,7 +2170,7 @@ if 'virus_dict' in globals() and checkforvirus and len(virus_set) != 0:
     if print_subject:
         print('Virus Report Subject: ' + re.sub('=.*=\)? (.*)$', '\\1', virusemailsubject))
     if emailvirussummary:
-        send_email(avemail, fromemail, virusemailsubject, virussummaries, smtpuser, smtppass, smtpserver, smtpport, server)
+        send_email(avemail, fromemail, virusemailsubject, virussummaries, smtpuser, smtppass, smtpserver, smtpport)
 
 # Do we append all job summaries?
 # -------------------------------
@@ -2556,6 +2554,6 @@ elif summary_and_rates == 'bottom':
 elif summary_and_rates == 'both':
     msg = summary_and_rates_table + '</br>' + msg + summary_and_rates_table
 msg += (virussummaries if appendvirussummaries else '') + jobsummaries + badjoblogs + prog_info()
-send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport, server)
+send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
 
 # vim: expandtab tabstop=4 softtabstop=4 shiftwidth=4

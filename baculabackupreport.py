@@ -282,8 +282,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '2.04'
-reldate = 'March 17, 2023'
+version = '2.05'
+reldate = 'March 20, 2023'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
@@ -1599,6 +1599,13 @@ if len(ctrl_jobids) != 0:
     for cji in cji_rows:
         pn_jobids_dict[str(cji['jobid'])] = (pn_job_id(cji))
 
+    # Add Copy JobIds with no full summary
+    # into the pn_jobids_dict dictionary
+    # ------------------------------------
+    for ctrl_jobid in ctrl_jobids:
+        if ctrl_jobid not in pn_jobids_dict:
+            pn_jobids_dict[str(ctrl_jobid)] = ('0', '0')
+
     # (**) This is to solve the issue where versions of Bacula
     # community < 13.0 and Bacula Enterprise < 14.0 did not put
     # the jobfiles and jobbytes of Copy/Migrate control jobs
@@ -1844,8 +1851,8 @@ if len(vrfy_jobids) != 0:
     #                  so there it no 'Termination:' text.
     #                  So, a Verify job WILL be in the vrfy_jobids list, BUT it does not make it into the
     #                  v_jobids_dict dictionary in the next step. So later, when we go to look up the Job that
-    #                  a verify job verified in the v_job_id function, we get nothing, so the Verify job is
-    #                  not added as a key to the v_jobids_dict dictionary.
+    #                  a verify job verified in the v_job_id function, we get a key error, because the Verify
+    #                  job is not added as a key to the v_jobids_dict dictionary in the next step below.
 
     # For each row of the returned vji_rows (Vrfy Jobs), add
     # to the v_jobids_dict dict as [VrfyJobid: 'Verified JobId']

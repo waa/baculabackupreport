@@ -282,8 +282,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '2.05'
-reldate = 'March 20, 2023'
+version = '2.06'
+reldate = 'March 21, 2023'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
@@ -1595,32 +1595,33 @@ if len(ctrl_jobids) != 0:
     # Control jobs not being added to the catalog makes use of the information
     # already obtained in the query above.
     # ------------------------------------------------------------------------
-    pn_jobids_dict = {}
-    for cji in cji_rows:
-        pn_jobids_dict[str(cji['jobid'])] = (pn_job_id(cji))
+    if len(cji_rows) != 0:
+        pn_jobids_dict = {}
+        for cji in cji_rows:
+            pn_jobids_dict[str(cji['jobid'])] = (pn_job_id(cji))
 
-    # Add Copy JobIds with no full summary
-    # into the pn_jobids_dict dictionary
-    # ------------------------------------
-    for ctrl_jobid in ctrl_jobids:
-        if ctrl_jobid not in pn_jobids_dict:
-            pn_jobids_dict[str(ctrl_jobid)] = ('0', '0')
+        # Add Copy JobIds with no full summary
+        # into the pn_jobids_dict dictionary
+        # ------------------------------------
+        for ctrl_jobid in ctrl_jobids:
+            if ctrl_jobid not in pn_jobids_dict:
+                pn_jobids_dict[str(ctrl_jobid)] = ('0', '0')
 
-    # (**) This is to solve the issue where versions of Bacula
-    # community < 13.0 and Bacula Enterprise < 14.0 did not put
-    # the jobfiles and jobbytes of Copy/Migrate control jobs
-    # into the catalog. The only other place to find this
-    # information is in the Job's Summary text blob in the
-    # 'SD Files Written:' and 'SD Bytes Written:' lines
-    # ---------------------------------------------------------
-        files, bytes = ctrl_job_files_bytes(cji)
-        type = [r['type'] for r in alljobrows if r['jobid'] == cji['jobid']]
-        if type[0] == 'c':
-            total_copied_files += int(files)
-            total_copied_bytes += int(bytes)
-        else:
-            total_migrated_files += int(files)
-            total_migrated_bytes += int(bytes)
+        # (**) This is to solve the issue where versions of Bacula
+        # community < 13.0 and Bacula Enterprise < 14.0 did not put
+        # the jobfiles and jobbytes of Copy/Migrate control jobs
+        # into the catalog. The only other place to find this
+        # information is in the Job's Summary text blob in the
+        # 'SD Files Written:' and 'SD Bytes Written:' lines
+        # ---------------------------------------------------------
+            files, bytes = ctrl_job_files_bytes(cji)
+            type = [r['type'] for r in alljobrows if r['jobid'] == cji['jobid']]
+            if type[0] == 'c':
+                total_copied_files += int(files)
+                total_copied_bytes += int(bytes)
+            else:
+                total_migrated_files += int(files)
+                total_migrated_bytes += int(bytes)
 
 # Include the Summary and Success Rates block in the job report?
 # We need to build the Job Summary table now to prevent any

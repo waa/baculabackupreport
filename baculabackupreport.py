@@ -282,7 +282,7 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '2.08'
+version = '2.09'
 reldate = 'March 30, 2023'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
@@ -1537,7 +1537,7 @@ if numfilteredjobs == 0:
 else:
     # More silly OCD string manipulations
     # -----------------------------------
-    job = 'job' if numfilteredjobs == 1 else 'jobs'
+    job = 'job' if numjobs == 1 else 'jobs'
 
 # Assign the rest of the lists, lengths, and totals to variables
 # --------------------------------------------------------------
@@ -1680,10 +1680,10 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
         # ---------------------------------------------------
         job_summary_table_data = [
             {'label': 'Total Jobs', 'data': '{:,}'.format(numjobs)},
-            {'label': 'Running/Queued Jobs', 'data': '{:,}'.format(runningorcreated)},
             {'label': 'Filtered Jobs', 'data': '{:,}'.format(numfilteredjobs)},
+            {'label': 'Running/Queued Jobs', 'data': '{:,}'.format(runningorcreated)},
             {'label': 'Good Jobs', 'data': '{:,}'.format(len(goodjobids))},
-            {'label': 'Bad Jobs (Includes Canceled)', 'data': '{:,}'.format(numbadjobs)},
+            {'label': 'Bad Jobs (Includes canceled)', 'data': '{:,}'.format(numbadjobs)},
             {'label': 'Canceled Jobs', 'data': '{:,}'.format(len(canceledjobids))},
             {'label': 'Jobs with Errors', 'data': '{:,}'.format(jobswitherrors)},
             {'label': 'Total Job Errors', 'data': '{:,}'.format(totaljoberrors)},
@@ -2571,13 +2571,13 @@ msg = html_header + warning_banners + msg
 # -------------------------------------------------------------
 if addsubjectrunningorcreated and runningorcreated != 0:
     runningjob = 'job' if runningorcreated == 1 else 'jobs'
-    runningorcreatedsubject = ' (' + str(runningorcreated) + ' ' + runningjob + ' queued/running)'
+    runningorcreatedsubject = ' (' + str(runningorcreated) + ' ' + runningjob + ' running/queued)'
 else:
     runningorcreatedsubject = ''
 
 # Create the Subject for the Job report and summary
 # -------------------------------------------------
-subject = server + ' - ' + str(numfilteredjobs) + ' ' + job + ' in the past ' \
+subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
         + str(time) + ' ' + hour + ': ' + str(numbadjobs) + ' bad, ' \
         + str(jobswitherrors) + ' with errors, for ' + clientstr + ', ' \
         + jobstr + ', ' + jobtypestr + ', and ' + jobstatusstr + runningorcreatedsubject

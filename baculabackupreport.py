@@ -282,7 +282,7 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '2.07'
+version = '2.08'
 reldate = 'March 30, 2023'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
@@ -565,9 +565,9 @@ def get_verify_client_info(vrfy_jobid):
     # This was originally for the anti-virus feature, but is now
     # also used to show the jobname of the job a Verify Job verified
     # --------------------------------------------------------------
-    if [r['jobstatus'] for r in alljobrows if r['jobid'] == vrfy_jobid][0] == 'C':
+    if [r['jobstatus'] for r in filteredjobsrows if r['jobid'] == vrfy_jobid][0] == 'C':
         return '', '', 'No Info Yet'
-    elif [r['jobstatus'] for r in alljobrows if r['jobid'] == vrfy_jobid][0] in ('A', 'E', 'f', 'R'):
+    elif [r['jobstatus'] for r in filteredjobsrows if r['jobid'] == vrfy_jobid][0] in ('A', 'E', 'f', 'R'):
         if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT logtext \
                 FROM log WHERE jobid='" + str(vrfy_jobid) + "' \
@@ -606,13 +606,13 @@ def get_verify_client_info(vrfy_jobid):
 
 def get_copied_migrated_job_name(copy_migrate_jobid):
     'Given a Copy/Migration Control Jobid, return the Job name of the jobid that was copied/migrated.'
-    if [r['jobstatus'] for r in alljobrows if r['jobid'] == copy_migrate_jobid][0] == 'C':
+    if [r['jobstatus'] for r in filteredjobsrows if r['jobid'] == copy_migrate_jobid][0] == 'C':
         return 'No Info Yet'
     # If the job is aborted/running/failed, there may be
     # no Job Summary, so let's see if we can scrape some info
     # about the job name being copied/migrated from the Log table
     # -----------------------------------------------------------
-    elif [r['jobstatus'] for r in alljobrows if r['jobid'] == copy_migrate_jobid][0] in ('A', 'E', 'f', 'R'):
+    elif [r['jobstatus'] for r in filteredjobsrows if r['jobid'] == copy_migrate_jobid][0] in ('A', 'E', 'f', 'R'):
         if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT logtext \
                 FROM log WHERE jobid='" + str(copy_migrate_jobid) + "' \
@@ -873,7 +873,7 @@ def translate_job_status(jobstatus, joberrors):
 
 def set_subject_icon():
     'Set the utf-8 subject icon(s).'
-    if numjobs == 0:
+    if numfilteredjobs == 0:
         subjecticon = nojobsicon
     else:
         if numbadjobs != 0:
@@ -1428,8 +1428,35 @@ smtppass = '' if args['--smtppass'] == None else args['--smtppass']
 db_connect()
 
 # Create the query_str to send to the db_query() function
+# to query for all jobs that have run in the past 'time'
+# hours with no filters applied. This will give us the
+# number of all jobs run, regardless of any filters on
+# Job types, or Job statuses, or Job names, or Client
+# -------------------------------------------------------
+if dbtype == 'pgsql':
+    query_str = "SELECT count(*) \
+        FROM Job \
+        WHERE (EndTime >= CURRENT_TIMESTAMP(2) - cast('" + time + " HOUR' as INTERVAL) \
+        OR JobStatus IN ('R', 'C'));"
+elif dbtype in ('mysql', 'maria'):
+    query_str = "SELECT count(*) \
+        FROM Job \
+        WHERE (endtime >= DATE_ADD(NOW(), INTERVAL -" + time + " HOUR) \
+        OR jobstatus IN ('R','C'));"
+elif dbtype == 'sqlite':
+    query_str = "SELECT count(*) \
+        FROM Job \
+        WHERE (strftime('%s', EndTime) >= strftime('%s', 'now', '-" + time + " hours', 'localtime') \
+        OR JobStatus IN ('R','C'));"
+alljobrows = db_query(query_str, 'all jobs', 'one')
+if dbtype in ('mysql', 'maria'):
+    numjobs = alljobrows['count(*)']
+else:
+    numjobs = alljobrows[0]
+
+# Create the query_str to send to the db_query() function
 # to query for all matching jobs in the past 'time' hours
-# with all other command line filters applied
+# with all other Job, Status, and Client filters applied
 # -------------------------------------------------------
 if dbtype == 'pgsql':
     query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
@@ -1471,15 +1498,16 @@ elif dbtype == 'sqlite':
         AND Type IN ('" + "','".join(jobtypeset) + "') \
         AND JobStatus IN ('" + "','".join(jobstatusset) + "') \
         ORDER BY JobId " + sortorder + ";"
-alljobrows = db_query(query_str, 'all jobs')
+filteredjobsrows = db_query(query_str, 'filtered jobs')
 
-# Assign the numjobs variable and minimal
-# other variables needed ASAP to be able to
-# short circuit everything when no jobs are
-# found and just send the 'no jobs run' email
-# without doing any additional work
-# -------------------------------------------
-numjobs = len(alljobrows)
+# Assign the numfilteredjobs variable and
+# minimal other variables needed ASAP to be
+# able to short circuit everything when no
+# jobs are found and just send the 'no jobs
+# run' email without doing any additional
+# work
+# -----------------------------------------
+numfilteredjobs = len(filteredjobsrows)
 
 # Silly OCD string manipulations for singular vs. plural
 # ------------------------------------------------------
@@ -1495,7 +1523,7 @@ jobstatusstr = 'all job statuses' if set(all_jobstatus_lst).issubset(jobstatusse
 
 # If there are no jobs to report on, just send the email & exit
 # -------------------------------------------------------------
-if numjobs == 0:
+if numfilteredjobs == 0:
     subject = server + ' - No jobs found for ' + clientstr + ' in the past ' \
             + time + ' ' + hour + ' for ' + jobstr + ', ' + jobtypestr \
             + ', and ' + jobstatusstr
@@ -1509,30 +1537,31 @@ if numjobs == 0:
 else:
     # More silly OCD string manipulations
     # -----------------------------------
-    job = 'job' if numjobs == 1 else 'jobs'
+    job = 'job' if numfilteredjobs == 1 else 'jobs'
 
 # Assign the rest of the lists, lengths, and totals to variables
 # --------------------------------------------------------------
-alljobids = [r['jobid'] for r in alljobrows]
-alljobnames = [r['jobname'] for r in alljobrows]
-goodjobids = [r['jobid'] for r in alljobrows if r['jobstatus'] in ('T', 'e')]
-badjobids = [r['jobid'] for r in alljobrows if r['jobstatus'] in bad_job_set]
-canceledjobids = [r['jobid'] for r in alljobrows if r['jobstatus'] == 'A']
-numgoodjobs = len(goodjobids)
+alljobids = [r['jobid'] for r in filteredjobsrows]
+alljobnames = [r['jobname'] for r in filteredjobsrows]
+goodjobids = [r['jobid'] for r in filteredjobsrows if r['jobstatus'] in ('T', 'e')]
+badjobids = [r['jobid'] for r in filteredjobsrows if r['jobstatus'] in bad_job_set]
+canceledjobids = [r['jobid'] for r in filteredjobsrows if r['jobstatus'] == 'A']
+total_backup_files = sum([r['jobfiles'] for r in filteredjobsrows if r['type'] == 'B'])
+total_backup_bytes = sum([r['jobbytes'] for r in filteredjobsrows if r['type'] == 'B'])
+jobswitherrors = len([r['joberrors'] for r in filteredjobsrows if r['joberrors'] > 0])
+totaljoberrors = sum([r['joberrors'] for r in filteredjobsrows if r['joberrors'] > 0])
+runningjobids = [str(r['jobid']) for r in filteredjobsrows if r['jobstatus'] == 'R']
+runningorcreated = len([r['jobstatus'] for r in filteredjobsrows if r['jobstatus'] in ('R', 'C')])
+ctrl_jobids = [str(r['jobid']) for r in filteredjobsrows if r['type'] in ('c', 'g')]
+vrfy_jobids = [str(r['jobid']) for r in filteredjobsrows if r['type'] == 'V']
+
+# Used in the Summary table, and also used in the subject
+# -------------------------------------------------------
 numbadjobs = len(badjobids)
-numcanceledjobs = len(canceledjobids)
-total_backup_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'B'])
-total_backup_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'B'])
-jobswitherrors = len([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
-totaljoberrors = sum([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
-runningjobids = [str(r['jobid']) for r in alljobrows if r['jobstatus'] == 'R']
-runningorcreated = len([r['jobstatus'] for r in alljobrows if r['jobstatus'] in ('R', 'C')])
-ctrl_jobids = [str(r['jobid']) for r in alljobrows if r['type'] in ('c', 'g')]
-vrfy_jobids = [str(r['jobid']) for r in alljobrows if r['type'] == 'V']
 
 # This next one is special. It is only used for the AV tests
 # ----------------------------------------------------------
-vrfy_data_jobids = [str(r['jobid']) for r in alljobrows if r['type'] == 'V' and r['level'] == 'A']
+vrfy_data_jobids = [str(r['jobid']) for r in filteredjobsrows if r['type'] == 'V' and r['level'] == 'A']
 
 # Get a list of jobs that have always failed for the
 # past 'days' days so that we can display a column
@@ -1619,7 +1648,7 @@ if len(ctrl_jobids) != 0:
         # 'SD Files Written:' and 'SD Bytes Written:' lines
         # ---------------------------------------------------------
             files, bytes = ctrl_job_files_bytes(cji)
-            type = [r['type'] for r in alljobrows if r['jobid'] == cji['jobid']]
+            type = [r['type'] for r in filteredjobsrows if r['jobid'] == cji['jobid']]
             if type[0] == 'c':
                 total_copied_files += int(files)
                 total_copied_bytes += int(bytes)
@@ -1630,10 +1659,10 @@ if len(ctrl_jobids) != 0:
 # Include the Summary and Success Rates block in the job report?
 # We need to build the Job Summary table now to prevent any
 # Copy/Migrate/Verify jobs that are older than "-t hours" which
-# might get pulled into the alljobrows list from having their
+# might get pulled into the filteredjobsrows list from having their
 # files/bytes included in the optional stats: restored, copied,
 # verified, migrated files/bytes
-# --------------------------------------------------------------
+# -----------------------------------------------------------------
 if summary_and_rates != 'none' and (create_job_summary_table or create_success_rates_table or chk_pool_use):
     job_summary_table = success_rates_table = pool_table = ''
     summary_and_rates_table = '<table style="border-collapse: collapse;">' \
@@ -1645,15 +1674,17 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
     if create_job_summary_table:
         job_summary_table = '<table style="border-collapse: collapse; display: inline-block; float: left; padding-right: 20px; ' + summarytablestyle + '">' \
                           + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
-                          + summarytableheadercellstyle + '">Summary</th></tr>'
+                          + summarytableheadercellstyle + '">Summary (' + time + ' hours)</th></tr>'
 
         # Create the list of basic (non optional) information
         # ---------------------------------------------------
         job_summary_table_data = [
             {'label': 'Total Jobs', 'data': '{:,}'.format(numjobs)},
-            {'label': 'Good Jobs', 'data': '{:,}'.format(numgoodjobs)},
-            {'label': 'Bad Jobs', 'data': '{:,}'.format(numbadjobs)},
-            {'label': 'Canceled Jobs', 'data': '{:,}'.format(numcanceledjobs)},
+            {'label': 'Running/Queued Jobs', 'data': '{:,}'.format(runningorcreated)},
+            {'label': 'Filtered Jobs', 'data': '{:,}'.format(numfilteredjobs)},
+            {'label': 'Good Jobs', 'data': '{:,}'.format(len(goodjobids))},
+            {'label': 'Bad Jobs (Includes Canceled)', 'data': '{:,}'.format(numbadjobs)},
+            {'label': 'Canceled Jobs', 'data': '{:,}'.format(len(canceledjobids))},
             {'label': 'Jobs with Errors', 'data': '{:,}'.format(jobswitherrors)},
             {'label': 'Total Job Errors', 'data': '{:,}'.format(totaljoberrors)},
             {'label': 'Total Backup Files', 'data': '{:,}'.format(total_backup_files)},
@@ -1685,27 +1716,27 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
         # - Create variables for some optional statistics
         #   and append the corresponding label and data to
         #   the job_summary_table_data list to be iterated through
-        # --------------------------------------------------
+        # --------------------------------------------------------
         if restore_stats:
-            total_restore_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'R'])
-            total_restore_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'R'])
+            total_restore_files = sum([r['jobfiles'] for r in filteredjobsrows if r['type'] == 'R'])
+            total_restore_bytes = sum([r['jobbytes'] for r in filteredjobsrows if r['type'] == 'R'])
             job_summary_table_data.append({'label': 'Total Restore Files', 'data': '{:,}'.format(total_restore_files)})
             job_summary_table_data.append({'label': 'Total Restore Bytes', 'data': humanbytes(total_restore_bytes)})
         if copied_stats:
             # These cannot be added this way due to issue (**) noted above
-            # total_copied_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'c'])
-            # total_copied_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'c'])
+            # total_copied_files = sum([r['jobfiles'] for r in filteredjobsrows if r['type'] == 'c'])
+            # total_copied_bytes = sum([r['jobbytes'] for r in filteredjobsrows if r['type'] == 'c'])
             job_summary_table_data.append({'label': 'Total Copied Files', 'data': '{:,}'.format(total_copied_files)})
             job_summary_table_data.append({'label': 'Total Copied Bytes', 'data': humanbytes(total_copied_bytes)})
         if migrated_stats:
             # These cannot be added this way due to issue (**) noted above
-            # total_migrated_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'g'])
-            # total_migrated_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'g'])
+            # total_migrated_files = sum([r['jobfiles'] for r in filteredjobsrows if r['type'] == 'g'])
+            # total_migrated_bytes = sum([r['jobbytes'] for r in filteredjobsrows if r['type'] == 'g'])
             job_summary_table_data.append({'label': 'Total Migrated Files', 'data': '{:,}'.format(total_migrated_files)})
             job_summary_table_data.append({'label': 'Total Migrated Bytes', 'data': humanbytes(total_migrated_bytes)})
         if verified_stats:
-            total_verify_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'V'])
-            total_verify_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'V'])
+            total_verify_files = sum([r['jobfiles'] for r in filteredjobsrows if r['type'] == 'V'])
+            total_verify_bytes = sum([r['jobbytes'] for r in filteredjobsrows if r['type'] == 'V'])
             job_summary_table_data.append({'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)})
             job_summary_table_data.append({'label': 'Total Verify Bytes', 'data': humanbytes(total_verify_bytes)})
 
@@ -1877,11 +1908,11 @@ if len(vrfy_jobids) != 0:
 
 # Now that we have the jobids of the Previous/New jobids of Copy/Migrated jobs in the
 # pn_jobids_dict dictionary, and the jobids of Verified jobs in the v_jobids_dict
-# dictionary we can get information about them and add their job rows to alljobrows.
+# dictionary we can get information about them and add their job rows to filteredjobsrows.
 # If the 'include_pnv_jobs' option is disabled, it can be confusing to see Copy,
 # Migrate, or Verify control jobs referencing jobids which are not in the listing
 # NOTE: Statisitics (Files, bytes, etc) are not counted for these jobs that are pulled in
-# ---------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------
 if include_pnv_jobs:
     pnv_jobids_lst = []
     # waa - 20210830 - TODO - There is a minor bug here. If a job is copied, migrated, or
@@ -1910,8 +1941,8 @@ if include_pnv_jobs:
                     pnv_jobids_lst.append(pn_jobids_dict[ctrl_job_id][1])
 
     # If the pnv_jobids_lst is not empty, then we get their job
-    # rows from the db and append them to alljobrows and sort
-    # ---------------------------------------------------------
+    # rows from the db and append them to filteredjobsrows and sort
+    # -------------------------------------------------------------
     if len(pnv_jobids_lst) != 0:
         # Query for the Previous/New/Verified jobs in the pnv_jobids_lst
         # --------------------------------------------------------------
@@ -1941,8 +1972,8 @@ if include_pnv_jobs:
         pnv_jobrows = db_query(query_str, 'previous, new, and verified jobs outside of "-t hours" range')
 
         # Append the pnv_jobrows to
-        # the alljobrows list of jobs
-        # ---------------------------
+        # the filteredjobsrows list of jobs
+        # ---------------------------------
         for row in pnv_jobrows:
             # TODO: Here we can get the job info of the job a Copy/Migrate/Verify
             # job worked on and add the row to the v_jobids_dict and pn_jobids_dict dictionaries
@@ -1955,16 +1986,12 @@ if include_pnv_jobs:
             # elif row['Type'] in ('c', 'g'):
             #     print(tuple(row))
             #     pn_jobids_dict[str(row['jobid'])] = pn_job_id(row['jobid'])
-            alljobrows.append(row)
+            filteredjobsrows.append(row)
 
         # Sort the full list of all jobs by
         # jobid based on sortorder variable
         # ---------------------------------
-        alljobrows = sorted(alljobrows, key=lambda k: k['jobid'], reverse=True if sortorder == 'DESC' else False)
-        # for r in alljobrows:
-        #     print(tuple(r))
-        # print(v_jobids_dict)
-        # print(pn_jobids_dict)
+        filteredjobsrows = sorted(filteredjobsrows, key=lambda k: k['jobid'], reverse=True if sortorder == 'DESC' else False)
 
 # Currently (20220106), virus detection is only possible
 # in Verify, Level=Data jobs and only in Bacula Enterprise
@@ -2317,7 +2344,7 @@ msg += '</tr>\n'
 # but first set some variables for special cases
 # -------------------------------------------------
 counter = 0
-for jobrow in alljobrows:
+for jobrow in filteredjobsrows:
     # Set the will_not_descend variable, then check for
     # "Will not descend", but only for good Backup jobs
     # Backup jobs will never have a priorjobid, but
@@ -2550,7 +2577,7 @@ else:
 
 # Create the Subject for the Job report and summary
 # -------------------------------------------------
-subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
+subject = server + ' - ' + str(numfilteredjobs) + ' ' + job + ' in the past ' \
         + str(time) + ' ' + hour + ': ' + str(numbadjobs) + ' bad, ' \
         + str(jobswitherrors) + ' with errors, for ' + clientstr + ', ' \
         + jobstr + ', ' + jobtypestr + ', and ' + jobstatusstr + runningorcreatedsubject

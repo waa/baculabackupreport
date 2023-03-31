@@ -282,8 +282,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '2.06'
-reldate = 'March 21, 2023'
+version = '2.07'
+reldate = 'March 30, 2023'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
@@ -1515,8 +1515,12 @@ else:
 # --------------------------------------------------------------
 alljobids = [r['jobid'] for r in alljobrows]
 alljobnames = [r['jobname'] for r in alljobrows]
+goodjobids = [r['jobid'] for r in alljobrows if r['jobstatus'] in ('T', 'e')]
 badjobids = [r['jobid'] for r in alljobrows if r['jobstatus'] in bad_job_set]
+canceledjobids = [r['jobid'] for r in alljobrows if r['jobstatus'] == 'A']
+numgoodjobs = len(goodjobids)
 numbadjobs = len(badjobids)
+numcanceledjobs = len(canceledjobids)
 total_backup_files = sum([r['jobfiles'] for r in alljobrows if r['type'] == 'B'])
 total_backup_bytes = sum([r['jobbytes'] for r in alljobrows if r['type'] == 'B'])
 jobswitherrors = len([r['joberrors'] for r in alljobrows if r['joberrors'] > 0])
@@ -1647,7 +1651,9 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
         # ---------------------------------------------------
         job_summary_table_data = [
             {'label': 'Total Jobs', 'data': '{:,}'.format(numjobs)},
+            {'label': 'Good Jobs', 'data': '{:,}'.format(numgoodjobs)},
             {'label': 'Bad Jobs', 'data': '{:,}'.format(numbadjobs)},
+            {'label': 'Canceled Jobs', 'data': '{:,}'.format(numcanceledjobs)},
             {'label': 'Jobs with Errors', 'data': '{:,}'.format(jobswitherrors)},
             {'label': 'Total Job Errors', 'data': '{:,}'.format(totaljoberrors)},
             {'label': 'Total Backup Files', 'data': '{:,}'.format(total_backup_files)},

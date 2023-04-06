@@ -282,8 +282,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '2.09'
-reldate = 'March 30, 2023'
+version = '2.10'
+reldate = 'April 06, 2023'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
@@ -1552,6 +1552,7 @@ jobswitherrors = len([r['joberrors'] for r in filteredjobsrows if r['joberrors']
 totaljoberrors = sum([r['joberrors'] for r in filteredjobsrows if r['joberrors'] > 0])
 runningjobids = [str(r['jobid']) for r in filteredjobsrows if r['jobstatus'] == 'R']
 runningorcreated = len([r['jobstatus'] for r in filteredjobsrows if r['jobstatus'] in ('R', 'C')])
+queued = len([r['jobstatus'] for r in filteredjobsrows if r['jobstatus'] ==  'C'])
 ctrl_jobids = [str(r['jobid']) for r in filteredjobsrows if r['type'] in ('c', 'g')]
 vrfy_jobids = [str(r['jobid']) for r in filteredjobsrows if r['type'] == 'V']
 
@@ -1681,7 +1682,7 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
         job_summary_table_data = [
             {'label': 'Total Jobs', 'data': '{:,}'.format(numjobs)},
             {'label': 'Filtered Jobs', 'data': '{:,}'.format(numfilteredjobs)},
-            {'label': 'Running/Queued Jobs', 'data': '{:,}'.format(runningorcreated)},
+            {'label': 'Running/Queued Jobs', 'data': '{:,}'.format(len(runningjobids)) + '/' + str('{:,}'.format(queued))},
             {'label': 'Good Jobs', 'data': '{:,}'.format(len(goodjobids))},
             {'label': 'Bad Jobs (Includes canceled)', 'data': '{:,}'.format(numbadjobs)},
             {'label': 'Canceled Jobs', 'data': '{:,}'.format(len(canceledjobids))},
@@ -2495,8 +2496,8 @@ if warn_on_zero_inc and num_zero_inc_jobs != 0:
                     + ('s' if num_zero_inc_jobs > 1 else '') + ' which backed up zero files and/or zero bytes. ' \
                     + ('Its' if num_zero_inc_jobs == 1 else 'Their') + ' Status has been changed to \'OK/Warnings\'</p><br>\n'
 
-# Hhighlight when pools numvols is 80% or more of the maxvols?
-# ------------------------------------------------------------
+# Highlight when pools numvols is 80% or more of the maxvols?
+# -----------------------------------------------------------
 if chk_pool_use and ('warn_pool_dict' in globals() and len(warn_pool_dict) > 0):
     warning_banners += '<p style="' + poolwarningstyle + '">' \
                     + '- There ' + ('is ' if len(warn_pool_dict) == 1 else 'are ') + str(len(warn_pool_dict)) \
@@ -2570,8 +2571,7 @@ msg = html_header + warning_banners + msg
 # Do we append the 'Running or Created' message to the Subject?
 # -------------------------------------------------------------
 if addsubjectrunningorcreated and runningorcreated != 0:
-    runningjob = 'job' if runningorcreated == 1 else 'jobs'
-    runningorcreatedsubject = ' (' + str(runningorcreated) + ' ' + runningjob + ' running/queued)'
+    runningorcreatedsubject = ' (' + str('{:,}'.format(len(runningjobids))) + ' running, ' + str('{:,}'.format(queued)) + ' queued)'
 else:
     runningorcreatedsubject = ''
 

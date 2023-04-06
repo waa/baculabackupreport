@@ -66,42 +66,42 @@ Notes:
 ```
 
 ## Screenshots
-#### Screenshot one:
+#### Sample of several types of jobs and several statuses:
 Some OK, Running, Created (but not yet running), and a Canceled job:
 ![BackupReport-1-20210902_225754](https://user-images.githubusercontent.com/108133/131952788-2d6e3256-5da3-4a27-84bb-c849794aa1ce.png)
 
-#### Screenshot two:
-Shows an OK Backup job, an OK Admin Job, and two Backup jobs that had been copied, and then migrated. At the bottom is the optional summary/totals table:
+#### Optional summary table with a few sample jobs.
+Summary table may appear at the top, bottom, both, or not at all. Screenshot shows an OK Backup job, an OK Admin Job, and two Backup jobs that had been copied, and then migrated. At the bottom is the optional summary/totals table:
 ![BackupReport-2-20210902_230236](https://user-images.githubusercontent.com/108133/131953131-6078933e-1751-438b-a10b-875cab034400.png)
 
-#### Screenshot three:
-Shows the (optional) summary/totals table followed by the (optional) Job log summaries:
+#### Job summaries of failed jobs:
+Shows the (optional) summary/totals table followed by the (optional) Job summaries of failed jobs:
 ![BackupReport-3-20210902_230647](https://user-images.githubusercontent.com/108133/131953501-001190e0-4606-424d-a52b-471d01ce72da.png)
 
-#### Screenshot four:
+#### Full logs of 'bad' jobs:
 Shows the tail end of the (optional) summary/totals table followed by the (optional) 'bad' Jobs logs:
 ![baculabackupreport-Sample_4-2021-05-06_16-49](https://user-images.githubusercontent.com/108133/117374978-65690280-ae8b-11eb-8b8a-3e7b82a1f0f7.png)
 
-#### Screenshot five:
-Shows the "Always failing jobs" feature (red arrows). Jobs that have been only/always failing in the past "-d days" (default 7) can have any column or their entire row highlighted. When there are jobs that are "always failing" the special subject icon can quickly alert you. Additionally, if using BWeb or Baculum, the Job's name can be a link to its history in the Web Gui. The blue arrows show that there are some copy and migration jobs that ran in the past 24 hours which had copied jobs that were outside of the 24 hours. They are pulled into the list so they may be quickly accessed. Their files/bytes stats are not counted in the summary.
+#### Aways Failing Jobs feature:
+Shows the "Always failing jobs" feature (red arrows). Jobs that have been only/always failing in the past "-d days" (default 7) can have any column or their entire row highlighted. When there are jobs that are "always failing" the special subject icon can quickly alert you. Additionally, if using BWeb or Baculum, the Job's name can be a link to its history in the web GUI. The blue arrows show that there are some copy and migration jobs that ran in the past 24 hours which had copied jobs that were outside of the 24 hours. They are pulled into the list so they may be quickly accessed. Their files/bytes stats are not counted in the summary table.
 ![BaculaReport-5-20210902_231153](https://user-images.githubusercontent.com/108133/131954405-ea9776b6-adaa-47df-b5ba-8414175819e7.png)
 
-#### Screenshot six:
+#### Choose the columns and their order:
 Shows the "Always failing jobs" feature, the copied/migrated jobs older than 24 hours feature, along with the ability to choose any columns and display them in any order
 ![BackupReport-6-20210902_232145](https://user-images.githubusercontent.com/108133/131954696-3851a7ed-5db4-499f-83e7-99987fc23de3.png)
 
-#### Screenshot seven:
+#### Alert when job(s) are waiting on media:
 Shows the "Needs Media" feature. If any jobs are running, and are waiting on media, regardless of the status of the rest of the jobs and the Subject icon (could be all green/OK), there will be a small tape icon next to the subject icon to let you quickly know job(s) are waiting on media. Additionally, there will be a banner explaining that there are running jobs that require operator attention, and that these jobs will have "Needs Media" in their Status column.
 ![BackupReport-7-20210903_002520](https://user-images.githubusercontent.com/108133/131960494-cb512380-cd05-4465-9aa5-a57c71c2c11c.png)
 
-#### Screenshot eight:
+#### Display information about 'Rescheduled Jobs':
 Shows the "Rescheduled Jobs" feature. If any jobs have been rescheduled, they will have a number in parentheses in their Status field representing the number of times they were rescheduled. Additionally, there will be a banner message explaining this. This feature, like almost all other features is optional and may be disabled by setting the `flagrescheduled` variable.
 ![BackupReport-8-20210909_205928](https://user-images.githubusercontent.com/108133/132792663-6b2e6ab9-d5e1-4ee5-8d6c-4fad2a24a9c2.png)
 
-#### Screenshot nine:
+#### Antivirus notifications:
 Shows the Antivirus features. Starting with Bacula Enterprise Edition 14.0.2, there is a new antivirus plugin that allows for a Verify job to pass the files being verified to the open-source ClamAV virus scanner. In the image below we can see that there is a new Subject icon (microbe emoji) when viruses are detected. Additionally, a banner will show some information about the viruses found. In the job list, there is a microbe emoji and the number of infected files detected in that verify job. There is also a banner to warn when the ClamAV scanner deamon could not be reached in the verify job. 
 ![AVFeatures-20220206_163456](https://user-images.githubusercontent.com/108133/152706741-cba5cc49-58ae-4f37-b7cc-6ccb599f38c4.png)
 
-#### Screenshot ten:
+#### Email antivirus summary report:
 If enabled, a new virus summary can be appended to the job report email, and you can also send a separate "Virus Report" email to a different '-a <avemail>' email address. The default is to send the Virus Report to the same email address as the jobs report. The image below shows a sample of the Virus Report email. The text in the body of the Virus Report email is the same text that would be appended to the jobs report if that feature is also enabled.
 ![AVEmailReport-20220206_165223](https://user-images.githubusercontent.com/108133/152706957-f2838179-cb91-4e31-b360-80fe7bee44c0.png)

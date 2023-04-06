@@ -69,6 +69,7 @@
 # ----------------------------------------------------------------------------
 # External GUI link settings
 # --------------------------
+
 webgui = 'none'        # Which web interface to generate links for? (bweb, baculum, none)
 webguisvc = ''         # Use encrypted connection or not (ie: http or https)
 webguihost = ''        # FQDN or IP address of the web gui host
@@ -355,6 +356,8 @@ Usage:
                           [--dbtype <dbtype>] [--dbhost <dbhost>] [--dbport <dbport>]
                           [--dbname <dbname>] [--dbuser <dbuser>] [--dbpass <dbpass>]
                           [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
+                          [--enableconfluence ] [ --confserver <confserver> ] [ --workspace <workspace> ] [ --confpage <confpage> ]
+                             [--confuser <confuser> ] [--confpass <confpass> ]
     baculabackupreport.py -h | --help
     baculabackupreport.py -v | --version
 
@@ -375,6 +378,7 @@ Options:
     -u, --smtpuser <smtpuser>    SMTP user
     -p, --smtppass <smtppass>    SMTP password
 
+
     --dbtype <dbtype>            Database type [default: pgsql] (pgsql | mysql | maria | sqlite)
     --dbhost <dbhost>            Database host [default: localhost]
     --dbport <dbport>            Database port (defaults pgsql 5432, mysql & maria 3306)
@@ -383,7 +387,13 @@ Options:
     --dbpass <dbpass>            Database password
     --smtpserver <smtpserver>    SMTP server [default: localhost]
     --smtpport <smtpport>        SMTP port [default: 25]
-
+    
+    --enableconfluence           Enable Confluence API Body/Report
+    --workspace <workspace>      Set Confluence workspace
+    --confpage <confpage>        Page ID To Update In Confluence
+    --confserver <confserver>    Confluence Host
+    --confuser <confuser>        Confluence Username
+    --confpass <confpass>        Confluence Password
     -h, --help                   Print this help message
     -v, --version                Print the script name and version
 
@@ -1134,7 +1144,7 @@ def prog_info():
            + ' - <a href="https://github.com/waa/"' \
            + ' target="_blank">baculabackupreport.py</a>' \
            + '<br>By: Bill Arlofski waa@revpol.com (c) ' \
-           + reldate + '<!-- ' + gen_rand_str() + ' --></body></html>'
+           + reldate + '<!-- ' + gen_rand_str()
 
 def secs_to_days_hours_mins(secs):
     'Given a number of seconds, convert to string representing days, hours, minutes'
@@ -1312,6 +1322,7 @@ for cli_tup in [
 # Set the default ports for the different databases if not set on command line
 # Set the default database file if sqlite is used, and not set on command line
 # ----------------------------------------------------------------------------
+
 if args['--dbtype'] not in valid_db_lst:
     print(print_opt_errors('dbtype'))
     usage()
@@ -1334,28 +1345,36 @@ jobstatusset = set(args['--jobstatus'])
 if not jobstatusset.issubset(set(all_jobstatus_lst)):
     print(print_opt_errors('jobstatus'))
     usage()
-if args['--email'] == None:
+
+if  not args['--email'] and not args['--enableconfluence']:
     print(print_opt_errors('emailnone'))
     usage()
-elif '@' not in args['--email']:
-    print(print_opt_errors('email'))
-    usage()
-else:
-    email = args['--email']
-if args['--avemail'] == None:
+if args['--enableconfluence']:
+    if not args['--confserver'] or not args['--confpage'] or not args['--confuser'] or not args['--confpass']:
+        print("Sorry confluence is missing required parameters") 
+        usage()
+if args['--email']:
+    if '@' not in args['--email']:
+        print(print_opt_errors('email'))
+        usage()
+    else:
+        email = args['--email']
+if args['--email'] and args['--avemail'] == None:
     avemail = email
-elif '@' not in args['--avemail']:
+elif args['--avemail'] and '@' not in args['--avemail']:
     print(print_opt_errors('avemail'))
     usage()
 else:
     avemail = args['--avemail']
-if args['--fromemail'] == None:
+
+if not args['--fromemail'] and args['--email']:
     fromemail = email
-elif '@' not in args['--fromemail']:
+elif args['--fromemail']  and '@' not in args['--fromemail']:
     print(print_opt_errors('fromemail'))
     usage()
 else:
     fromemail = args['--fromemail']
+    
 if not args['--time'].isnumeric():
     print(print_opt_errors('time'))
     usage()
@@ -2565,8 +2584,10 @@ if 'rescheduledjobids' in globals() and flagrescheduled and len(rescheduledjobid
 # Assemble the whole msg variable from
 # html_header, warning_banners, and msg
 # -------------------------------------
-msg = html_header + warning_banners + msg
-
+if args['--enableconfluence']:
+    msg = warning_banners + msg
+else:
+    msg = html_header + warning_banners + msg
 # Do we append the 'Running or Created' message to the Subject?
 # -------------------------------------------------------------
 if addsubjectrunningorcreated and runningorcreated != 0:
@@ -2595,6 +2616,14 @@ elif summary_and_rates == 'bottom':
 elif summary_and_rates == 'both':
     msg = summary_and_rates_table + '</br>' + msg + summary_and_rates_table
 msg += (virussummaries if appendvirussummaries else '') + jobsummaries + badjoblogs + prog_info()
-send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
 
+if args['--email']:
+    send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
+if args['--enableconfluence']:
+    from atlassian import Confluence
+    import bs4
+    import datetime
+    confluence = Confluence(url=args['--confserver'],username=args['--confuser'],password=args['--confpass'])
+    lxmlvalue = bs4.BeautifulSoup(msg,"lxml")
+    confluence.create_page(confluence.get_page_space(args['--confpage']), str(datetime.datetime.now()),lxmlvalue.prettify(), parent_id=args['--confpage'], type='page', representation='storage', editor='v2')
 # vim: expandtab tabstop=4 softtabstop=4 shiftwidth=4

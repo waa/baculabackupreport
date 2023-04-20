@@ -282,8 +282,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '2.10'
-reldate = 'April 06, 2023'
+version = '2.11'
+reldate = 'April 20, 2023'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
@@ -295,11 +295,9 @@ valid_verified_job_name_col_lst = \
 valid_copied_migrated_job_name_col_lst = ['name', 'type', 'both', 'none']
 valid_summary_location_lst = ['top', 'bottom', 'both', 'none']
 valid_needs_media_since_or_for_lst = ['since', 'for', 'none']
-valid_col_lst = [
-    'jobid', 'jobname', 'client', 'status',
-    'joberrors', 'type', 'level', 'jobfiles',
-    'jobbytes', 'starttime', 'endtime', 'runtime'
-    ]
+valid_col_lst = ['jobid', 'jobname', 'client', 'status',
+                 'joberrors', 'type', 'level', 'jobfiles',
+                 'jobbytes', 'starttime', 'endtime', 'runtime']
 
 # Lists of strings to determine if a job is waiting on media, and if new media has been found/mounted
 # ---------------------------------------------------------------------------------------------------
@@ -314,12 +312,11 @@ cfg_file_true_false_lst = ['urlifyalljobs', 'boldjobname', 'boldstatus', 'showco
                            'include_pnv_jobs', 'warn_on_will_not_descend', 'warn_on_zero_inc',
                            'chk_pool_use', 'create_job_summary_table', 'db_version', 'restore_stats',
                            'copied_stats', 'migrated_stats', 'verified_stats', 'create_success_rates_table',
-                           'emailvirussummary', 'addsubjecticon', 'addsubjectrunningorcreated', 'colorstatusbg'
-                          ]
+                           'emailvirussummary', 'addsubjecticon', 'addsubjectrunningorcreated', 'colorstatusbg']
 
 # Directories to always ignore for the "Will not descend" feature
 # ---------------------------------------------------------------
-will_not_descend_ignore_lst = [ '/dev', '/misc', '/net', '/proc', '/run', '/srv', '/sys' ]
+will_not_descend_ignore_lst = ['/dev', '/misc', '/net', '/proc', '/run', '/srv', '/sys']
 
 # Dictionary for the success rate intervals
 # -----------------------------------------
@@ -542,14 +539,14 @@ def pn_job_id(ctrl_jobid):
     new = re.sub('.*New Backup JobId: +(.+?)\n.*', '\\1', ctrl_jobid['logtext'], flags = re.DOTALL)
     return prev, new
 
-def ctrl_job_files_bytes(ctrl_jobid):
+def ctrl_job_files_bytes(cji):
     'Return SD Files/Bytes Written for Copy/Migration Control jobs.'
     # Given a Copy Ctrl or Migration Ctrl job's jobid, perform a re.sub on
     # the joblog's job summary block of 20+ lines of text using a search term
     # of "SD Files/Bytes Written:"
     # -----------------------------------------------------------------------
-    files = re.sub('.*SD Files Written: +(.+?)\n.*', '\\1', ctrl_jobid['logtext'], flags = re.DOTALL).replace(',','')
-    bytes = re.sub('.*SD Bytes Written: +(.+?) .*\n.*', '\\1', ctrl_jobid['logtext'], flags = re.DOTALL).replace(',','')
+    files = re.sub('.*SD Files Written: +(.+?)\n.*', '\\1', cji['logtext'], flags = re.DOTALL).replace(',','')
+    bytes = re.sub('.*SD Bytes Written: +(.+?) .*\n.*', '\\1', cji['logtext'], flags = re.DOTALL).replace(',','')
     return files, bytes
 
 def v_job_id(vrfy_jobid):
@@ -1301,8 +1298,7 @@ for cli_tup in [
     (None, 'smtpport'), (None, 'smtpserver'),
     (None, 'dbtype'), (None, 'dbport'),
     (None, 'dbhost'), (None, 'dbname'),
-    (None, 'dbuser'), (None, 'dbpass')
-    ]:
+    (None, 'dbuser'), (None, 'dbpass')]:
     # This right here is ugly, and scary. The 'long_cli' variable gets created
     # as a global() variable on-the-fly in the cli_vs_env_vs_config_vs_default_vars
     # function, then we use it here as the docopt dictionary key to set the args[] variable
@@ -1544,8 +1540,18 @@ else:
 alljobids = [r['jobid'] for r in filteredjobsrows]
 alljobnames = [r['jobname'] for r in filteredjobsrows]
 goodjobids = [r['jobid'] for r in filteredjobsrows if r['jobstatus'] in ('T', 'e')]
+numgoodbackupjobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == 'B' and r['jobstatus'] in ('T', 'e')])
+numgoodrestorejobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == 'R' and r['jobstatus'] in ('T', 'e')])
+numgoodcopyjobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == 'c' and r['jobstatus'] in ('T', 'e')])
+numgoodmigratejobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == 'g' and r['jobstatus'] in ('T', 'e')])
+numgoodverifyjobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == 'V' and r['jobstatus'] in ('T', 'e')])
 badjobids = [r['jobid'] for r in filteredjobsrows if r['jobstatus'] in bad_job_set]
-canceledjobids = [r['jobid'] for r in filteredjobsrows if r['jobstatus'] == 'A']
+numbadbackupjobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == 'B' and r['jobstatus'] not in ('R', 'C', 'T', 'e')])
+numbadrestorejobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == 'R' and r['jobstatus'] not in ('R', 'C', 'T', 'e')])
+numbadcopyjobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == 'c' and r['jobstatus'] not in ('R', 'C', 'T', 'e')])
+numbadmigratejobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == 'g' and r['jobstatus'] not in ('R', 'C', 'T', 'e')])
+numbadverifyjobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == 'V' and r['jobstatus'] not in ('R', 'C', 'T', 'e')])
+numcanceledjobs = len([r['jobid'] for r in filteredjobsrows if r['jobstatus'] == 'A'])
 total_backup_files = sum([r['jobfiles'] for r in filteredjobsrows if r['type'] == 'B'])
 total_backup_bytes = sum([r['jobbytes'] for r in filteredjobsrows if r['type'] == 'B'])
 jobswitherrors = len([r['joberrors'] for r in filteredjobsrows if r['joberrors'] > 0])
@@ -1631,16 +1637,18 @@ if len(ctrl_jobids) != 0:
     # ------------------------------------------------------------------------
     if len(cji_rows) != 0:
         pn_jobids_dict = {}
-        for cji in cji_rows:
-            pn_jobids_dict[str(cji['jobid'])] = (pn_job_id(cji))
-
-        # Add Copy JobIds with no full summary
-        # into the pn_jobids_dict dictionary
-        # ------------------------------------
+        # Pre-populate the pn_jobids_dict dictionary with all Copy and Migration Control
+        # Jobs having their prev and next jobids set to '0'. This will prevent a crash
+        # for the Control Jobs with no Job Summary text which will not be returned by the
+        # DB query above. Then, any Control JobId which has a Job Summary will have its
+        # prev & next JobIds overridden in the pn_jobids_dict dictionary in the next steps.
+        # ---------------------------------------------------------------------------------
         for ctrl_jobid in ctrl_jobids:
             if ctrl_jobid not in pn_jobids_dict:
                 pn_jobids_dict[str(ctrl_jobid)] = ('0', '0')
 
+        for cji in cji_rows:
+            pn_jobids_dict[str(cji['jobid'])] = (pn_job_id(cji))
         # (**) This is to solve the issue where versions of Bacula
         # community < 13.0 and Bacula Enterprise < 14.0 did not put
         # the jobfiles and jobbytes of Copy/Migrate control jobs
@@ -1682,15 +1690,16 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
         job_summary_table_data = [
             {'label': 'Total Jobs', 'data': '{:,}'.format(numjobs)},
             {'label': 'Filtered Jobs', 'data': '{:,}'.format(numfilteredjobs)},
-            {'label': 'Running/Queued Jobs', 'data': '{:,}'.format(len(runningjobids)) + '/' + str('{:,}'.format(queued))},
+            {'label': 'Running/Queued Jobs', 'data': '{:,}'.format(len(runningjobids)) + '/' + '{:,}'.format(queued)},
             {'label': 'Good Jobs', 'data': '{:,}'.format(len(goodjobids))},
             {'label': 'Bad Jobs (Includes canceled)', 'data': '{:,}'.format(numbadjobs)},
-            {'label': 'Canceled Jobs', 'data': '{:,}'.format(len(canceledjobids))},
+            {'label': 'Canceled Jobs', 'data': '{:,}'.format(numcanceledjobs)},
             {'label': 'Jobs with Errors', 'data': '{:,}'.format(jobswitherrors)},
             {'label': 'Total Job Errors', 'data': '{:,}'.format(totaljoberrors)},
+            {'label': 'Backup Job Totals (G/B/T)', 'data': '{:,}'.format(numgoodbackupjobs) + '/' \
+                    + '{:,}'.format(numbadbackupjobs) + '/' + '{:,}'.format(numgoodbackupjobs + numbadbackupjobs)},
             {'label': 'Total Backup Files', 'data': '{:,}'.format(total_backup_files)},
-            {'label': 'Total Backup Bytes', 'data': humanbytes(total_backup_bytes)}
-        ]
+            {'label': 'Total Backup Bytes', 'data': humanbytes(total_backup_bytes)}]
 
         # Do we include the database version in the Job Summary table?
         # ------------------------------------------------------------
@@ -1721,21 +1730,29 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
         if restore_stats:
             total_restore_files = sum([r['jobfiles'] for r in filteredjobsrows if r['type'] == 'R'])
             total_restore_bytes = sum([r['jobbytes'] for r in filteredjobsrows if r['type'] == 'R'])
+            job_summary_table_data.append({'label': 'Restore Job Totals (G/B/T)', 'data': '{:,}'.format(numgoodrestorejobs) \
+                                          + '/' + '{:,}'.format(numbadrestorejobs) + '/' + '{:,}'.format(numgoodrestorejobs + numbadrestorejobs)})
             job_summary_table_data.append({'label': 'Total Restore Files', 'data': '{:,}'.format(total_restore_files)})
             job_summary_table_data.append({'label': 'Total Restore Bytes', 'data': humanbytes(total_restore_bytes)})
         if copied_stats:
             # These cannot be added this way due to issue (**) noted above
             # total_copied_files = sum([r['jobfiles'] for r in filteredjobsrows if r['type'] == 'c'])
             # total_copied_bytes = sum([r['jobbytes'] for r in filteredjobsrows if r['type'] == 'c'])
+            job_summary_table_data.append({'label': 'Copy Job Totals (G/B/T)', 'data': '{:,}'.format(numgoodcopyjobs) \
+                                          + '/' + '{:,}'.format(numbadcopyjobs) + '/' + '{:,}'.format(numgoodcopyjobs + numbadcopyjobs)})
             job_summary_table_data.append({'label': 'Total Copied Files', 'data': '{:,}'.format(total_copied_files)})
             job_summary_table_data.append({'label': 'Total Copied Bytes', 'data': humanbytes(total_copied_bytes)})
         if migrated_stats:
             # These cannot be added this way due to issue (**) noted above
             # total_migrated_files = sum([r['jobfiles'] for r in filteredjobsrows if r['type'] == 'g'])
             # total_migrated_bytes = sum([r['jobbytes'] for r in filteredjobsrows if r['type'] == 'g'])
+            job_summary_table_data.append({'label': 'Migrate Job Totals (G/B/T)', 'data': '{:,}'.format(numgoodmigratejobs) \
+                                          + '/' + '{:,}'.format(numbadmigratejobs) + '/' + '{:,}'.format(numgoodmigratejobs + numbadmigratejobs)})
             job_summary_table_data.append({'label': 'Total Migrated Files', 'data': '{:,}'.format(total_migrated_files)})
             job_summary_table_data.append({'label': 'Total Migrated Bytes', 'data': humanbytes(total_migrated_bytes)})
         if verified_stats:
+            job_summary_table_data.append({'label': 'Verify Job Totals (G/B/T)', 'data': '{:,}'.format(numgoodverifyjobs) \
+                                          + '/' + '{:,}'.format(numbadverifyjobs) + '/' + '{:,}'.format(numgoodverifyjobs + numbadverifyjobs)})
             total_verify_files = sum([r['jobfiles'] for r in filteredjobsrows if r['type'] == 'V'])
             total_verify_bytes = sum([r['jobbytes'] for r in filteredjobsrows if r['type'] == 'V'])
             job_summary_table_data.append({'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)})
@@ -1887,7 +1904,7 @@ if len(vrfy_jobids) != 0:
 
     # waa - 20230317 - Here's a problem! ^^^^^     Sometimes, failed Jobs will ONLY have the stub summary!
     #                  There is no log information at all, or there may be a few lines, but no full summary
-    #                  so there it no 'Termination:' text.
+    #                  so there is no 'Termination:' text in the log table.
     #                  So, a Verify job WILL be in the vrfy_jobids list, BUT it does not make it into the
     #                  v_jobids_dict dictionary in the next step. So later, when we go to look up the Job that
     #                  a verify job verified in the v_job_id function, we get a key error, because the Verify

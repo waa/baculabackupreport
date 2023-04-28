@@ -187,7 +187,25 @@ virusfoundbodyicon = '&#x1F9A0'                 # HEX encoding for emoji in emai
 # Recommended to always include jobid, jobname, status, type, and endtime
 # as these may have special formatting applied by default in certain cases
 # ------------------------------------------------------------------------
-cols2show = 'jobid jobname client status joberrors type level jobfiles jobbytes starttime endtime runtime'
+cols2show = 'jobid jobname client fileset pool status joberrors type level jobfiles jobbytes starttime endtime runtime'
+
+# waa - 20230427 - I want to add the storage, pool, and fileset to the `cols2show` list. The
+#                  problem is that the Director's Storage and SD's device used is not stored in
+#                  the Job table! This information is only in the log table. The SD device used
+#                  is in the log lines which will need to be queried and parsed, and the Director's
+#                  Storage resource used is in both the log lines and in the Summary. But for the 
+#                  Director's Storage there is not a 100% guaranteed way to get it from the logs
+#                  because the Director and the FD log very similar messages:
+#
+# Director connecting to Storage (Director logs the name of the Storage resource in double quotes):
+# logtext: bacula-dir JobId 53884: Connected to Storage "speedy-file" at 10.1.1.4:9103 with TLS
+#
+# FD connecting to Storage (FD just logs the IP or FQDN of the storage but not its name):
+# logtext: speedy-fd JobId 53884: Connected to Storage at 10.1.1.4:9103 without encryption
+
+# Directories to always ignore for the "Will not descend" feature
+# ---------------------------------------------------------------
+will_not_descend_ignore_lst = ['/dev', '/misc', '/net', '/proc', '/run', '/srv', '/sys']
 
 # Set the column to colorize for jobs that are always failing
 # -----------------------------------------------------------
@@ -282,8 +300,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '2.11'
-reldate = 'April 20, 2023'
+version = '2.12'
+reldate = 'April 27, 2023'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
@@ -297,7 +315,8 @@ valid_summary_location_lst = ['top', 'bottom', 'both', 'none']
 valid_needs_media_since_or_for_lst = ['since', 'for', 'none']
 valid_col_lst = ['jobid', 'jobname', 'client', 'status',
                  'joberrors', 'type', 'level', 'jobfiles',
-                 'jobbytes', 'starttime', 'endtime', 'runtime']
+                 'jobbytes', 'starttime', 'endtime',
+                 'runtime', 'pool', 'fileset']
 
 # Lists of strings to determine if a job is waiting on media, and if new media has been found/mounted
 # ---------------------------------------------------------------------------------------------------
@@ -313,10 +332,6 @@ cfg_file_true_false_lst = ['urlifyalljobs', 'boldjobname', 'boldstatus', 'showco
                            'chk_pool_use', 'create_job_summary_table', 'db_version', 'restore_stats',
                            'copied_stats', 'migrated_stats', 'verified_stats', 'create_success_rates_table',
                            'emailvirussummary', 'addsubjecticon', 'addsubjectrunningorcreated', 'colorstatusbg']
-
-# Directories to always ignore for the "Will not descend" feature
-# ---------------------------------------------------------------
-will_not_descend_ignore_lst = ['/dev', '/misc', '/net', '/proc', '/run', '/srv', '/sys']
 
 # Dictionary for the success rate intervals
 # -----------------------------------------
@@ -1211,7 +1226,9 @@ col_hdr_dict = {
     'jobbytes':  '<th style="' + jobtableheadercellstyle + '">Bytes</th>',
     'starttime': '<th style="' + jobtableheadercellstyle + '">Start Time</th>',
     'endtime':   '<th style="' + jobtableheadercellstyle + '">End Time</th>',
-    'runtime':   '<th style="' + jobtableheadercellstyle + '">Run Time</th>'
+    'runtime':   '<th style="' + jobtableheadercellstyle + '">Run Time</th>',
+    'pool':      '<th style="' + jobtableheadercellstyle + '">Pool</th>',
+    'fileset':   '<th style="' + jobtableheadercellstyle + '">Fileset</th>'
     }
 
 # Set the gui variable to shorten
@@ -1283,6 +1300,10 @@ else:
         alwaysfailcolumn_str = 'End Time cell'
     elif alwaysfailcolumn == 'runtime':
         alwaysfailcolumn_str = 'Run Time cell'
+    elif alwaysfailcolumn == 'pool':
+        alwaysfailcolumn_str = 'Pool cell'
+    elif alwaysfailcolumn == 'Fileset':
+        alwaysfailcolumn_str = 'Fileset cell'
     else:
         alwaysfailcolumn_str = alwaysfailcolumn.title() + ' cell'
 
@@ -1455,11 +1476,13 @@ else:
 # with all other Job, Status, and Client filters applied
 # -------------------------------------------------------
 if dbtype == 'pgsql':
-    query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
-        JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
+    query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, Pool.Name AS Pool, \
+        Fileset.Fileset AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
         PriorJobId, AGE(EndTime, StartTime) AS RunTime \
         FROM Job \
         INNER JOIN Client on Job.ClientID=Client.ClientID \
+        INNER JOIN Pool on Job.PoolID=Pool.PoolID \
+        INNER JOIN Fileset on Job.FilesetID=Fileset.FilesetID \
         WHERE (EndTime >= CURRENT_TIMESTAMP(2) - cast('" + time + " HOUR' as INTERVAL) \
         OR JobStatus IN ('R', 'C')) \
         AND Client.Name LIKE '" + client + "' \
@@ -1468,12 +1491,14 @@ if dbtype == 'pgsql':
         AND JobStatus IN ('" + "','".join(jobstatusset) + "') \
         ORDER BY jobid " + sortorder + ";"
 elif dbtype in ('mysql', 'maria'):
-    query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
-        CAST(Job.name as CHAR(50)) AS jobname, CAST(jobstatus as CHAR(1)) AS jobstatus, \
+    query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, CAST(Job.name as CHAR(50)) AS jobname, \
+        CAST(Pool.name as CHAR(50)) AS pool, CAST(FileSet.fileset as CHAR(50)) AS fileset, CAST(jobstatus as CHAR(1)) AS jobstatus, \
         joberrors, CAST(type as CHAR(1)) AS type, CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
         starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime \
         FROM Job \
         INNER JOIN Client on Job.clientid=Client.clientid \
+        INNER JOIN Pool on Job.poolid=Pool.poolid \
+        INNER JOIN FileSet on Job.filesetid=FileSet.filesetid \
         WHERE (endtime >= DATE_ADD(NOW(), INTERVAL -" + time + " HOUR) \
         OR jobstatus IN ('R','C')) \
         AND Client.Name LIKE '" + client + "' \
@@ -1482,11 +1507,13 @@ elif dbtype in ('mysql', 'maria'):
         AND jobstatus IN ('" + "','".join(jobstatusset) + "') \
         ORDER BY jobid " + sortorder + ";"
 elif dbtype == 'sqlite':
-    query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
-        JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
+    query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, Pool.Name AS Pool, \
+        Fileset.Fileset AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
         PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime \
         FROM Job \
         INNER JOIN Client on Job.ClientId=Client.ClientId \
+        INNER JOIN Pool on Job.PoolID=Pool.PoolID \
+        INNER JOIN Fileset on Job.FilesetID=Fileset.FilesetID \
         WHERE (strftime('%s', EndTime) >= strftime('%s', 'now', '-" + time + " hours', 'localtime') \
         OR JobStatus IN ('R','C')) \
         AND Client.Name LIKE '" + client + "' \
@@ -1965,27 +1992,32 @@ if include_pnv_jobs:
         # Query for the Previous/New/Verified jobs in the pnv_jobids_lst
         # --------------------------------------------------------------
         if dbtype == 'pgsql':
-            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
-                JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
-                PriorJobId, AGE(EndTime, StartTime) AS RunTime \
+            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, Pool.Name AS Pool, \
+                Fileset.Fileset AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, \
+                EndTime, PriorJobId, AGE(EndTime, StartTime) AS RunTime \
                 FROM Job \
                 INNER JOIN Client on Job.ClientID=Client.ClientID \
+                INNER JOIN Pool on Job.PoolID=Pool.PoolID \
+                INNER JOIN Fileset on Job.FilesetID=Fileset.FilesetID \
                 WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ")";
         elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
-                CAST(Job.name as CHAR(50)) AS jobname, \
-                CAST(jobstatus as CHAR(1)) AS jobstatus, joberrors, CAST(type as CHAR(1)) AS type, \
-                CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
+            query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, CAST(Job.name as CHAR(50)) AS jobname, \
+                CAST(Pool.name as CHAR(50)) AS pool, CAST(FileSet.fileset as CHAR(50)) AS fileset, CAST(jobstatus as CHAR(1)) AS jobstatus, \
+                joberrors, CAST(type as CHAR(1)) AS type, CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
                 starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime \
                 FROM Job \
                 INNER JOIN Client on Job.clientid=Client.clientid \
+                INNER JOIN Pool on Job.poolid=Pool.poolid \
+                INNER JOIN FileSet on Job.filesetid=FileSet.filesetid \
                 WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ");"
         elif dbtype == 'sqlite':
-            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
-                JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
+            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, Pool.Name AS Pool, \
+                Fileset.Fileset AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
                 PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime \
                 FROM Job \
                 INNER JOIN Client on Job.ClientID=Client.ClientID \
+                INNER JOIN Pool on Job.PoolID=Pool.PoolID \
+                INNER JOIN Fileset on Job.FilesetID=Fileset.FilesetID \
                 WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ")";
         pnv_jobrows = db_query(query_str, 'previous, new, and verified jobs outside of "-t hours" range')
 
@@ -2439,13 +2471,13 @@ for jobrow in filteredjobsrows:
                 msg += html_format_cell(jobrow['jobname'] + '<br><span style="font-size: ' \
                     + fontsize_addtional_texts + ';">(' + vjobname + ')</span>', col = 'jobname')
             elif jobrow['type'] in ('c', 'g') \
-                and copied_migrated_job_name_col in ('name', 'both'):
-                    cmjobname = get_copied_migrated_job_name(jobrow['jobid'])
-                    if cmjobname == None:
-                        msg += html_format_cell(jobrow['jobname'], col = 'jobname')
-                    else:
-                        msg += html_format_cell(jobrow['jobname'] + '<br><span style="font-size: ' \
-                            + fontsize_addtional_texts + ';">(' + cmjobname + ')</span>', col = 'jobname')
+            and copied_migrated_job_name_col in ('name', 'both'):
+                cmjobname = get_copied_migrated_job_name(jobrow['jobid'])
+                if cmjobname == None:
+                    msg += html_format_cell(jobrow['jobname'], col = 'jobname')
+                else:
+                    msg += html_format_cell(jobrow['jobname'] + '<br><span style="font-size: ' \
+                        + fontsize_addtional_texts + ';">(' + cmjobname + ')</span>', col = 'jobname')
             else:
                 msg += html_format_cell(jobrow['jobname'], col = 'jobname')
         elif colname == 'client':
@@ -2466,6 +2498,10 @@ for jobrow in filteredjobsrows:
             msg += html_format_cell(str(jobrow['starttime']), col = 'starttime')
         elif colname == 'endtime':
             msg += html_format_cell(str(jobrow['endtime']), col = 'endtime')
+        elif colname == 'pool':
+            msg += html_format_cell(jobrow['pool'], col = 'pool')
+        elif colname == 'fileset':
+            msg += html_format_cell(jobrow['fileset'], col = 'fileset')
         elif colname == 'runtime':
             if dbtype == 'sqlite':
                 if jobrow['jobstatus'] in ('R', 'C'):

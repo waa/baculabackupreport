@@ -240,7 +240,7 @@ virusfoundcolor = '#88eebb'              # Background color of the Banner and 'T
 virusconnerrcolor = '#ffb3b3'            # Background color of the Banner and 'Type' Cell when there are errors connecting to AV service
 poolredcolor = 'red'                     # Background color of the Pool Use table row for pools with use % >= 96%
 poolorangecolor = 'orange'               # Background color of the Pool Use table row for pools with use % 90-95%
-poolyellowcolor = 'yellow'               # Background color of the Pool Use table row for pools with use % 80-89%
+poolyellowcolor = 'yellow'               # Background color of the Pool Use table row for pools with use % 81-89%
 
 # HTML fonts
 # ----------
@@ -252,22 +252,14 @@ fontsize_addtional_texts = '10px'                     # Font size of (will not d
 
 # HTML styles
 # -----------
-virusfoundstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0; background-color: %s;' % virusfoundcolor
-virusconnerrstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0; background-color: %s;' % virusconnerrcolor
-alwaysfailstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0; background-color: %s;' % alwaysfailcolor
-jobsneedingoprstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
-jobsolderthantimestyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
-rescheduledjobsstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
-willnotdescendstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
-warnonzeroincstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
-poolwarningstyle = 'display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;'
+# 20230429 - Still working to replace all inline styles with internal
+#            css to reduce line length of the job rows in the report.
+# -------------------------------------------------------------------
 jobtablestyle = 'width: 100%; border-collapse: collapse;'
 dbstatstableheaderstyle = 'width: 35%; border-collapse: collapse;'
 jobtableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (jobtableheadercolor, jobtableheadertxtcolor)
 jobtableheadercellstyle = 'padding: 6px'
-jobtablerowevenstyle = 'background-color: %s; color: %s;' % (jobtablerowevencolor, jobtableroweventxtcolor)
-jobtablerowoddstyle = 'background-color: %s; color: %s;' % (jobtablerowoddcolor, jobtablerowoddtxtcolor)
-jobtablecellstyle = 'text-align: center; padding: 5px;'
+jobtablecellpadding = '5px;'
 jobtablealwaysfailrowstyle = 'background-color: %s;' % alwaysfailcolor
 jobtablealwaysfailcellstyle = 'text-align: center; background-color: %s;' % alwaysfailcolor
 jobtablevirusfoundcellstyle = 'text-align: center; background-color: %s;' % virusfoundcolor
@@ -300,8 +292,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '2.12'
-reldate = 'April 27, 2023'
+version = '2.13'
+reldate = 'April 29, 2023'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
@@ -407,6 +399,27 @@ Notes:
 
 """
 
+# Internal CSS to reduce the length of the lines in the email report. Lines over
+# 1000 characters are chopped at the 998 character mark per RFC, and this breaks
+# the rendering of the HTML in an email client in strange and wonderous ways.
+# https://www.w3schools.com/css/css_table_style.asp
+# ------------------------------------------------------------------------------
+css_str = f"""
+pre {{font-size: {fontsizesumlog};}}
+body {{font-family: {fontfamily}; font-size: {fontsize};}}
+th {{background-color: {jobtableheadercolor}; color: {jobtableheadertxtcolor};}}
+td {{text-align: center; font-size: {fontsizejobinfo}; padding: {jobtablecellpadding};}}
+tr:nth-child(even) {{background-color: {jobtablerowevencolor}; color: {jobtableroweventxtcolor};}}
+tr:nth-child(odd) {{background-color: {jobtablerowoddcolor}; color: {jobtablerowoddtxtcolor};}}
+
+.proginfo {{font-size: 8px;}}
+.bannerwarnings {{display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;}}
+.alwaysfail-bannerwarning {{background-color: {alwaysfailcolor};}}
+.virus-bannerwarning {{background-color: {virusfoundcolor};}}
+.virusconn-bannerwarning {{background-color: {virusconnerrcolor};}}
+
+"""
+
 # Now for some functions
 # ----------------------
 def usage():
@@ -416,13 +429,13 @@ def usage():
 
 def cli_vs_env_vs_config_vs_default_vars(short_cli, cli_env_cfg):
     'Assign/re-assign args[] vars based on if they came from cli, env, config file, or defaults.'
-    # The 'cli_env_cfg' variable is multipurpose. It is just the lowecase name of the variable.
+    # The 'cli_env_cfg' variable is multipurpose. It is just the lowercase name of the variable.
     # It will have '--' prepended to it to test for the long_cli version. Its uppercase version
     # will be checked against the os.environ variable and its lowercase version will be checked
     # against the config_dict variable. For the short_cli (-t), long_cli (--time), and no
     # matches, we return the long_cli version (--time) to work with the argv['--long_cli'] that
     # is being assigned from the calling line.
-    # -----------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------
     tmp = 'long_cli'
     globals()[tmp] = '--' + cli_env_cfg
     if short_cli != None and short_cli in sys.argv:
@@ -930,7 +943,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
     'Format/modify some table cells based on settings and conditions.'
     # Set default tdo and tdc to wrap each cell
     # -----------------------------------------
-    tdo = '<td style="' + jobtablecellstyle + '">'
+    tdo = '<td>'
     tdc = '</td>'
 
     # Colorize the Status cell?
@@ -962,7 +975,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
             elif jobrow['jobstatus'] == 'I':
                 bgcolor = warnjobcolor
         if bgcolor:
-            tdo = '<td style="' + jobtablecellstyle + 'background-color: ' + bgcolor + ';">'
+            tdo = '<td style="background-color: ' + bgcolor + ';">'
 
     if alwaysfailjob and col == alwaysfailcolumn:
         tdo = '<td style="' + jobtablealwaysfailcellstyle + '">'
@@ -1141,12 +1154,12 @@ def gen_rand_str():
 
 def prog_info():
     'Return the program information along with the pseudo-random string and the closing HTML tags'
-    return '<p style="font-size: 8px;">' \
+    return '<div class="proginfo">' \
            + progname + ' - v' + version \
            + ' - <a href="https://github.com/waa/"' \
            + ' target="_blank">baculabackupreport.py</a>' \
            + '<br>By: Bill Arlofski waa@revpol.com (c) ' \
-           + reldate + '<!-- ' + gen_rand_str() + ' --></body></html>'
+           + reldate + '<!-- ' + gen_rand_str() + ' --></div></body></html>'
 
 def secs_to_days_hours_mins(secs):
     'Given a number of seconds, convert to string representing days, hours, minutes'
@@ -2320,9 +2333,12 @@ else:
 # ------------------------------------------------
 msg = ''
 warning_banners = ''
+# html_header = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' \
+#             + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
+#             + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n'
+
 html_header = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' \
-            + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
-            + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n'
+            + '<style>' + css_str + '</style></head><body>\n'
 
 # Do we display the database stats above
 # the main jobs report's table header?
@@ -2393,7 +2409,7 @@ msg += '</tr>\n'
 # cols2show_lst list in the order they are defined
 # but first set some variables for special cases
 # -------------------------------------------------
-counter = 0
+# counter = 0
 for jobrow in filteredjobsrows:
     # Set the will_not_descend variable, then check for
     # "Will not descend", but only for good Backup jobs
@@ -2436,10 +2452,7 @@ for jobrow in filteredjobsrows:
     if alwaysfailjob and alwaysfailcolumn == 'row':
         msg += '<tr style="' + jobtablealwaysfailrowstyle + '">'
     else:
-        if counter % 2 == 0:
-             msg += '<tr style="' + jobtablerowevenstyle + '">'
-        else:
-             msg += '<tr style="' + jobtablerowoddstyle + '">'
+        msg += '<tr>'
     for colname in cols2show_lst:
         if colname == 'jobid':
             msg += html_format_cell(str(jobrow['jobid']), col = 'jobid', star = '*' if starbadjobids and jobrow['jobstatus'] in bad_job_set else '')
@@ -2512,7 +2525,6 @@ for jobrow in filteredjobsrows:
             else:
                 msg += html_format_cell(str(jobrow['runtime']), col = 'runtime')
     msg += '</tr>\n'
-    counter += 1
 msg += '</table>'
 
 # Close the database cursor and connection
@@ -2534,7 +2546,7 @@ if (conn):
 # Highlight 'OK' jobs that have 'Will not descend' log entries?
 # -------------------------------------------------------------
 if warn_on_will_not_descend and num_will_not_descend_jobs != 0:
-    warning_banners += '<p style="' + willnotdescendstyle + '">' \
+    warning_banners += '<p class="bannerwarnings">' \
                     + '- There ' + ('was ' if num_will_not_descend_jobs == 1 else 'were ') \
                     + str(num_will_not_descend_jobs) + ' \'OK\' backup job' \
                     + ('s' if num_will_not_descend_jobs > 1 else '') + ' with zero errors' \
@@ -2544,7 +2556,7 @@ if warn_on_will_not_descend and num_will_not_descend_jobs != 0:
 # Highlight 'OK' Differential and Incremental jobs that backed up zero files/bytes?
 # ---------------------------------------------------------------------------------
 if warn_on_zero_inc and num_zero_inc_jobs != 0:
-    warning_banners += '<p style="' + warnonzeroincstyle + '">' \
+    warning_banners += '<p class="bannerwarnings">' \
                     + '- There ' + ('was ' if num_zero_inc_jobs == 1 else 'were ') + str(num_zero_inc_jobs) + ' \'OK\' Diff/Inc backup job' \
                     + ('s' if num_zero_inc_jobs > 1 else '') + ' which backed up zero files and/or zero bytes. ' \
                     + ('Its' if num_zero_inc_jobs == 1 else 'Their') + ' Status has been changed to \'OK/Warnings\'</p><br>\n'
@@ -2552,7 +2564,7 @@ if warn_on_zero_inc and num_zero_inc_jobs != 0:
 # Highlight when pools numvols is 80% or more of the maxvols?
 # -----------------------------------------------------------
 if chk_pool_use and ('warn_pool_dict' in globals() and len(warn_pool_dict) > 0):
-    warning_banners += '<p style="' + poolwarningstyle + '">' \
+    warning_banners += '<p class="bannerwarnings">' \
                     + '- There ' + ('is ' if len(warn_pool_dict) == 1 else 'are ') + str(len(warn_pool_dict)) \
                     + ' pool' + ('s' if len(warn_pool_dict) > 1 else '') \
                     + ' which ' + ('is' if len(warn_pool_dict) == 1 else 'are') + ' approaching or ' \
@@ -2563,13 +2575,13 @@ if chk_pool_use and ('warn_pool_dict' in globals() and len(warn_pool_dict) > 0):
 # Highlight Verify Jobs where virus(s) were found?
 # ------------------------------------------------
 if 'num_virus_jobs' in globals() and checkforvirus and num_virus_jobs != 0:
-    warning_banners += '<p style="' + virusfoundstyle + '">' \
+    warning_banners += '<p class="bannerwarnings virus-bannerwarning">' \
                     + '- There were' + re.sub('^' + server + ' - Virus Report:(.*$)', '\\1', virusemailsubject) + '!</p><br>\n'
 
 # Highlight Jobs that are always failing?
 # ---------------------------------------
 if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
-    warning_banners += '<p style="' + alwaysfailstyle + '">' \
+    warning_banners += '<p class="bannerwarnings alwaysfail-bannerwarning">' \
                     + '- The ' + str(len(always_fail_jobs)) + ' ' + ('jobs' if len(always_fail_jobs) > 1 else 'job') + ' whose ' \
                     + alwaysfailcolumn_str + ' has this background color ' + ('have' if len(always_fail_jobs) > 1 else 'has') \
                     + ' always failed in the past ' + days + ' ' + ('days' if int(days) > 1 else 'day') + '.</p><br>\n'
@@ -2577,7 +2589,7 @@ if alwaysfailcolumn != 'none' and len(always_fail_jobs) != 0:
 # Were there any errors connecting to the AV service?
 # ---------------------------------------------------
 if checkforvirus and num_virus_conn_errs != 0:
-    warning_banners += '<p style="' + virusconnerrstyle + '">' \
+    warning_banners += '<p class="bannerwarnings virusconn-bannerwarning">' \
                     + '- There ' + ('were ' if num_virus_conn_errs > 1 else 'was ') \
                     + str(num_virus_conn_errs) + (' errors' if num_virus_conn_errs > 1 else ' error') \
                     + ' reported when connecting to the AntiVirus service in ' + str(len(virus_connerr_set)) \
@@ -2588,7 +2600,7 @@ if checkforvirus and num_virus_conn_errs != 0:
 # up other jobs from making any progress?
 # ------------------------------------------------
 if 'job_needs_opr_dict' in globals() and len(job_needs_opr_dict) != 0:
-    warning_banners += '<p style="' + jobsneedingoprstyle + '">' \
+    warning_banners += '<p class="bannerwarnings">' \
                     + '- The ' + str(len(job_needs_opr_dict)) + ' running ' \
                     + ('jobs' if len(job_needs_opr_dict) > 1 else 'job') \
                     + ' in this list with a status of "Needs Media" ' \
@@ -2601,7 +2613,7 @@ if 'job_needs_opr_dict' in globals() and len(job_needs_opr_dict) != 0:
 # be preceded by an asterisk so they may be identified.
 # -----------------------------------------------------
 if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
-    warning_banners += '<p style="' + jobsolderthantimestyle + '">- The ' + str(len(pnv_jobids_lst)) \
+    warning_banners += '<p class="bannerwarnings">- The ' + str(len(pnv_jobids_lst)) \
                     + ' Copied/Migrated/Verified ' + ('jobs' if len(pnv_jobids_lst) > 1 else 'job') + ' older than ' \
                     + time + ' ' + hour + ' pulled into this list ' + ('have' if len(pnv_jobids_lst) > 1 else 'has') \
                     + (' their' if len(pnv_jobids_lst) > 1 else ' its') + ' End Time' + ('s' if len(pnv_jobids_lst) > 1 else '') \
@@ -2610,7 +2622,7 @@ if 'pnv_jobids_lst' in globals() and len(pnv_jobids_lst) != 0:
 # Do we have any jobs that had been rescheduled?
 # ----------------------------------------------
 if 'rescheduledjobids' in globals() and flagrescheduled and len(rescheduledjobids) != 0:
-    warning_banners += '<p style="' + rescheduledjobsstyle + '">' \
+    warning_banners += '<p class="bannerwarnings">' \
                     + '- The number in parentheses in the Status ' + ('fields' if len(set(rescheduledjobids)) > 1 else 'field') \
                     + ' of ' + str(len(set(rescheduledjobids))) + (' jobs' if len(set(rescheduledjobids)) > 1 else ' job') \
                     + ' represents the number of times ' + ('they' if len(set(rescheduledjobids)) > 1 else 'it') \

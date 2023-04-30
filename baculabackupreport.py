@@ -290,7 +290,7 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '2.14'
+version = '2.15'
 reldate = 'April 29, 2023'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
@@ -610,13 +610,13 @@ def get_verify_client_info(vrfy_jobid):
         if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
                 FROM Job \
-                INNER JOIN Client on Job.ClientID=Client.ClientID \
+                INNER JOIN Client ON Job.ClientID=Client.ClientID \
                 WHERE JobId='" + v_jobids_dict[str(vrfy_jobid)] + "';"
         elif dbtype in ('mysql', 'maria'):
             query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
                 CAST(Job.name as CHAR(50)) AS jobname \
                 FROM Job \
-                INNER JOIN Client on Job.clientid=Client.clientid \
+                INNER JOIN Client ON Job.clientid=Client.clientid \
                 WHERE jobid='" + v_jobids_dict[str(vrfy_jobid)] + "';"
     row = db_query(query_str, 'the JobId, Client Name, and Job Name of a job that was verified')
     if len(row) == 0:
@@ -1487,13 +1487,13 @@ else:
 # with all other Job, Status, and Client filters applied
 # -------------------------------------------------------
 if dbtype == 'pgsql':
-    query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, Pool.Name AS Pool, \
-        Fileset.Fileset AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
+    query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, coalesce(Pool.Name, 'N/A') AS Pool, \
+        coalesce(Fileset.Fileset, 'N/A') AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
         PriorJobId, AGE(EndTime, StartTime) AS RunTime \
         FROM Job \
-        INNER JOIN Client on Job.ClientID=Client.ClientID \
-        INNER JOIN Pool on Job.PoolID=Pool.PoolID \
-        INNER JOIN Fileset on Job.FilesetID=Fileset.FilesetID \
+        INNER JOIN Client ON Job.ClientID=Client.ClientID \
+        LEFT OUTER JOIN Pool ON Job.PoolID=Pool.PoolID \
+        LEFT OUTER JOIN Fileset ON Job.FilesetID=Fileset.FilesetID \
         WHERE (EndTime >= CURRENT_TIMESTAMP(2) - cast('" + time + " HOUR' as INTERVAL) \
         OR JobStatus IN ('R', 'C')) \
         AND Client.Name LIKE '" + client + "' \
@@ -1507,9 +1507,9 @@ elif dbtype in ('mysql', 'maria'):
         joberrors, CAST(type as CHAR(1)) AS type, CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
         starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime \
         FROM Job \
-        INNER JOIN Client on Job.clientid=Client.clientid \
-        INNER JOIN Pool on Job.poolid=Pool.poolid \
-        INNER JOIN FileSet on Job.filesetid=FileSet.filesetid \
+        INNER JOIN Client ON Job.clientid=Client.clientid \
+        LEFT OUTER JOIN Pool ON Job.poolid=Pool.poolid \
+        LEFT OUTER JOIN FileSet ON Job.filesetid=FileSet.filesetid \
         WHERE (endtime >= DATE_ADD(NOW(), INTERVAL -" + time + " HOUR) \
         OR jobstatus IN ('R','C')) \
         AND Client.Name LIKE '" + client + "' \
@@ -1522,9 +1522,9 @@ elif dbtype == 'sqlite':
         Fileset.Fileset AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
         PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime \
         FROM Job \
-        INNER JOIN Client on Job.ClientId=Client.ClientId \
-        INNER JOIN Pool on Job.PoolID=Pool.PoolID \
-        INNER JOIN Fileset on Job.FilesetID=Fileset.FilesetID \
+        INNER JOIN Client ON Job.ClientId=Client.ClientId \
+        LEFT OUTER JOIN Pool ON Job.PoolID=Pool.PoolID \
+        LEFT OUTER JOIN Fileset ON Job.FilesetID=Fileset.FilesetID \
         WHERE (strftime('%s', EndTime) >= strftime('%s', 'now', '-" + time + " hours', 'localtime') \
         OR JobStatus IN ('R','C')) \
         AND Client.Name LIKE '" + client + "' \
@@ -1999,13 +1999,13 @@ if include_pnv_jobs:
         # Query for the Previous/New/Verified jobs in the pnv_jobids_lst
         # --------------------------------------------------------------
         if dbtype == 'pgsql':
-            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, Pool.Name AS Pool, \
-                Fileset.Fileset AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, \
+            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, coalesce(Pool.Name, 'N/A') AS Pool, \
+                coalesce(Fileset.Fileset, 'N/A') AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, \
                 EndTime, PriorJobId, AGE(EndTime, StartTime) AS RunTime \
                 FROM Job \
-                INNER JOIN Client on Job.ClientID=Client.ClientID \
-                INNER JOIN Pool on Job.PoolID=Pool.PoolID \
-                INNER JOIN Fileset on Job.FilesetID=Fileset.FilesetID \
+                INNER JOIN Client ON Job.ClientID=Client.ClientID \
+                LEFT OUTER JOIN Pool ON Job.PoolID=Pool.PoolID \
+                LEFT OUTER JOIN Fileset ON Job.FilesetID=Fileset.FilesetID \
                 WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ")";
         elif dbtype in ('mysql', 'maria'):
             query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, CAST(Job.name as CHAR(50)) AS jobname, \
@@ -2013,18 +2013,18 @@ if include_pnv_jobs:
                 joberrors, CAST(type as CHAR(1)) AS type, CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
                 starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime \
                 FROM Job \
-                INNER JOIN Client on Job.clientid=Client.clientid \
-                INNER JOIN Pool on Job.poolid=Pool.poolid \
-                INNER JOIN FileSet on Job.filesetid=FileSet.filesetid \
+                INNER JOIN Client ON Job.clientid=Client.clientid \
+                LEFT OUTER JOIN Pool ON Job.poolid=Pool.poolid \
+                LEFT OUTER JOIN FileSet ON Job.filesetid=FileSet.filesetid \
                 WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ");"
         elif dbtype == 'sqlite':
             query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, Pool.Name AS Pool, \
                 Fileset.Fileset AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
                 PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime \
                 FROM Job \
-                INNER JOIN Client on Job.ClientID=Client.ClientID \
-                INNER JOIN Pool on Job.PoolID=Pool.PoolID \
-                INNER JOIN Fileset on Job.FilesetID=Fileset.FilesetID \
+                INNER JOIN Client ON Job.ClientID=Client.ClientID \
+                LEFT OUTER JOIN Pool ON Job.PoolID=Pool.PoolID \
+                LEFT OUTER JOIN Fileset ON Job.FilesetID=Fileset.FilesetID \
                 WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ")";
         pnv_jobrows = db_query(query_str, 'previous, new, and verified jobs outside of "-t hours" range')
 
@@ -2205,14 +2205,14 @@ if flagrescheduled:
     if dbtype in ('pgsql', 'sqlite'):
         query_str = "SELECT Job.JobId \
             FROM Job \
-            INNER JOIN Log on Job.JobId=Log.JobId \
+            INNER JOIN Log ON Job.JobId=Log.JobId \
             WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
             AND LogText LIKE '%Rescheduled Job%' \
             ORDER BY Job.JobId " + sortorder + ";"
     elif dbtype in ('mysql', 'maria'):
         query_str = "SELECT Job.jobid \
             FROM Job \
-            INNER JOIN Log on Job.jobid=Log.jobid \
+            INNER JOIN Log ON Job.jobid=Log.jobid \
             WHERE Job.JobId IN ('" + "','".join(map(str, alljobids)) + "') \
             AND logtext LIKE '%Rescheduled Job%' \
             ORDER BY Job.jobid " + sortorder + ";"
@@ -2446,7 +2446,7 @@ for jobrow in filteredjobsrows:
         if colname == 'jobid':
             msg += html_format_cell(str(jobrow['jobid']), col = 'jobid', star = '*' if starbadjobids and jobrow['jobstatus'] in bad_job_set else '')
         elif colname == 'jobname':
-            # TODO: See related TODO on or near line 725
+            # TODO: See related TODO on or near line 686
             # There is no Job summary with Prev Backup JobId: and New Backup JobId: for Running or
             # Created, not yet running Copy/Migration control, nor Verify JobId: for Verify jobs.
             # Currently the two dictionaries pn_jobids_dict and v_jobids_dict are built by using re.sub

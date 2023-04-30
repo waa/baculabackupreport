@@ -264,12 +264,10 @@ jobtablealwaysfailrowstyle = 'background-color: %s;' % alwaysfailcolor
 jobtablealwaysfailcellstyle = 'text-align: center; background-color: %s;' % alwaysfailcolor
 jobtablevirusfoundcellstyle = 'text-align: center; background-color: %s;' % virusfoundcolor
 jobtablevirusconnerrcellstyle = 'text-align: center; background-color: %s;' % virusconnerrcolor
-summarytablestyle = 'margin-top: 20px; border-collapse: collapse;'
+summarytablestyle = 'margin-top: 20px; border-collapse: collapse; display: inline-block; float: left; padding-right: 20px;'
 summarytableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (summarytableheadercolor, summarytableheadertxtcolor)
 summarytableheadercellstyle = 'padding: 6px;'
-summarytablerowevenstyle = 'font-weight: bold; background-color: %s; color: %s;' % (summarytablerowevencolor, summarytableroweventxtcolor)
-summarytablerowoddstyle = 'font-weight: bold; background-color: %s; color: %s;' % (summarytablerowoddcolor, summarytablerowoddtxtcolor)
-summarytablecellstyle = 'padding: 5px;'
+summarytablecellstyle = 'font-weight: bold; padding: 5px;'
 
 # --------------------------------------------------
 # Nothing should need to be modified below this line
@@ -292,7 +290,7 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '2.13'
+version = '2.14'
 reldate = 'April 29, 2023'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
@@ -1714,14 +1712,14 @@ if len(ctrl_jobids) != 0:
 # -----------------------------------------------------------------
 if summary_and_rates != 'none' and (create_job_summary_table or create_success_rates_table or chk_pool_use):
     job_summary_table = success_rates_table = pool_table = ''
-    summary_and_rates_table = '<table style="border-collapse: collapse;">' \
-                            + '<tr style="vertical-align: top; horizontal-align: left;">' \
+    summary_and_rates_table = '<table>' \
+                            + '<tr style="background: none; vertical-align: top; horizontal-align: left;">' \
                             + '<td>'
 
     # Begin the Job Summary table
     # ---------------------------
     if create_job_summary_table:
-        job_summary_table = '<table style="border-collapse: collapse; display: inline-block; float: left; padding-right: 20px; ' + summarytablestyle + '">' \
+        job_summary_table = '<table style="' + summarytablestyle + '">' \
                           + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
                           + summarytableheadercellstyle + '">Summary (' + time + ' hours)</th></tr>'
 
@@ -1800,13 +1798,11 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
 
         # Fill the Job Summary table with the label/data pairs and end the HTML table
         # ---------------------------------------------------------------------------
-        counter = 0
         for value in job_summary_table_data:
-            job_summary_table += '<tr style="' + (summarytablerowevenstyle if counter % 2 == 0 else summarytablerowoddstyle) + '">' \
+            job_summary_table += '<tr>' \
                               + '<td style="' + summarytablecellstyle + 'text-align: left; padding-right: 40px;">' + value['label'] + '</td>' \
                               + '<td style="' + summarytablecellstyle + 'text-align: right; padding-left: 40px;">' + value['data'] + '</td>' \
                               + '</tr>\n'
-            counter += 1
         job_summary_table += '</table>'
 
     # Begin the Success Rates table
@@ -1859,13 +1855,11 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
 
         # Fill the Success Rate table with the label/data pairs and end the HTML table(s)
         # -------------------------------------------------------------------------------
-        counter = 1
         for value in success_rates_table_data:
-            success_rates_table += '<tr style="' + (summarytablerowevenstyle if counter % 2 == 0 else summarytablerowoddstyle) + '">' \
+            success_rates_table += '<tr>' \
                                + '<td style="' + summarytablecellstyle + 'text-align: left; padding-right: 40px;">' + value['label'] + '</td>' \
                                + '<td style="' + summarytablecellstyle + 'text-align: right; padding-left: 40px;">' + value['data'] + '</td>' \
                                + '</tr>\n'
-            counter += 1
         success_rates_table += '</table>'
 
     # Test for pools numvols/maxvols to see if we are 80-89%, 90-95%, 95%+ and
@@ -2333,10 +2327,6 @@ else:
 # ------------------------------------------------
 msg = ''
 warning_banners = ''
-# html_header = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' \
-#             + '<style>body {font-family:' + fontfamily + '; font-size:' + fontsize + ';} td {font-size:' \
-#             + fontsizejobinfo + ';} pre {font-size:' + fontsizesumlog + ';}</style></head><body>\n'
-
 html_header = '<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' \
             + '<style>' + css_str + '</style></head><body>\n'
 
@@ -2409,7 +2399,6 @@ msg += '</tr>\n'
 # cols2show_lst list in the order they are defined
 # but first set some variables for special cases
 # -------------------------------------------------
-# counter = 0
 for jobrow in filteredjobsrows:
     # Set the will_not_descend variable, then check for
     # "Will not descend", but only for good Backup jobs

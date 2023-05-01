@@ -290,8 +290,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '2.15'
-reldate = 'April 29, 2023'
+version = '2.16'
+reldate = 'May 01, 2023'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
@@ -1503,7 +1503,8 @@ if dbtype == 'pgsql':
         ORDER BY jobid " + sortorder + ";"
 elif dbtype in ('mysql', 'maria'):
     query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, CAST(Job.name as CHAR(50)) AS jobname, \
-        CAST(Pool.name as CHAR(50)) AS pool, CAST(FileSet.fileset as CHAR(50)) AS fileset, CAST(jobstatus as CHAR(1)) AS jobstatus, \
+        coalesce(CAST(Pool.name as CHAR(50)), 'N/A') AS pool, coalesce(CAST(FileSet.fileset as CHAR(50)), 'N/A') AS fileset, \
+        CAST(jobstatus as CHAR(1)) AS jobstatus, \
         joberrors, CAST(type as CHAR(1)) AS type, CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
         starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime \
         FROM Job \
@@ -1518,8 +1519,8 @@ elif dbtype in ('mysql', 'maria'):
         AND jobstatus IN ('" + "','".join(jobstatusset) + "') \
         ORDER BY jobid " + sortorder + ";"
 elif dbtype == 'sqlite':
-    query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, Pool.Name AS Pool, \
-        Fileset.Fileset AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
+    query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, coalesce(Pool.Name, 'N/A') AS Pool, \
+        coalesce(Fileset.Fileset, 'N/A') AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
         PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime \
         FROM Job \
         INNER JOIN Client ON Job.ClientId=Client.ClientId \
@@ -1999,8 +2000,10 @@ if include_pnv_jobs:
         # Query for the Previous/New/Verified jobs in the pnv_jobids_lst
         # --------------------------------------------------------------
         if dbtype == 'pgsql':
-            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, coalesce(Pool.Name, 'N/A') AS Pool, \
-                coalesce(Fileset.Fileset, 'N/A') AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, \
+            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
+                coalesce(Pool.Name, 'N/A') AS Pool, \
+                coalesce(Fileset.Fileset, 'N/A') AS Fileset, \
+                JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, \
                 EndTime, PriorJobId, AGE(EndTime, StartTime) AS RunTime \
                 FROM Job \
                 INNER JOIN Client ON Job.ClientID=Client.ClientID \
@@ -2008,18 +2011,24 @@ if include_pnv_jobs:
                 LEFT OUTER JOIN Fileset ON Job.FilesetID=Fileset.FilesetID \
                 WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ")";
         elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, CAST(Job.name as CHAR(50)) AS jobname, \
-                CAST(Pool.name as CHAR(50)) AS pool, CAST(FileSet.fileset as CHAR(50)) AS fileset, CAST(jobstatus as CHAR(1)) AS jobstatus, \
-                joberrors, CAST(type as CHAR(1)) AS type, CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
-                starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime \
+            query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
+                CAST(Job.name as CHAR(50)) AS jobname, \
+                coalesce(CAST(Pool.name as CHAR(50)), 'N/A') AS pool, \
+                coalesce(CAST(FileSet.fileset as CHAR(50)), 'N/A') AS fileset, \
+                CAST(jobstatus as CHAR(1)) AS jobstatus, \
+                joberrors, CAST(type as CHAR(1)) AS type, CAST(level as CHAR(1)) AS level, \
+                jobfiles, jobbytes, starttime, endtime, priorjobid, \
+                TIMEDIFF (endtime, starttime) as runtime \
                 FROM Job \
                 INNER JOIN Client ON Job.clientid=Client.clientid \
                 LEFT OUTER JOIN Pool ON Job.poolid=Pool.poolid \
                 LEFT OUTER JOIN FileSet ON Job.filesetid=FileSet.filesetid \
                 WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ");"
         elif dbtype == 'sqlite':
-            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, Pool.Name AS Pool, \
-                Fileset.Fileset AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
+            query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, \
+                coalesce(Pool.Name, 'N/A') AS Pool, \
+                coalesce(Fileset.Fileset, 'N/A') AS Fileset, \
+                JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
                 PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime \
                 FROM Job \
                 INNER JOIN Client ON Job.ClientID=Client.ClientID \

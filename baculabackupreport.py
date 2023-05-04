@@ -138,6 +138,13 @@ create_success_rates_table = True
 # ------------------------------------------------------------------------------------------
 needs_media_since_or_for = 'for'  # none = print nothing, for = (for x Days, y Hours, z Minutes), since = (since YYYY-MM-DD HH:MM:SS)
 
+# When printing the Pool and Storage columns do we strip where the Pool or Storage was
+# ultimately was taken from?
+# eg: 'Pool: "Full_Pool1" (From Job resource)' would be simply 'Full_Pool1' if this is set to True
+# eg: 'Storage: "File_Store1" (From Pool resource)' would be simply 'File_Store1' if this is set to True
+# ------------------------------------------------------------------------------------------------------
+strip_p_or_s_from = False
+
 # Additional Job logs and summaries
 # ---------------------------------
 emailvirussummary = True      # Email the viruses summary report as a separate email?
@@ -187,7 +194,7 @@ virusfoundbodyicon = '&#x1F9A0'                 # HEX encoding for emoji in emai
 # Recommended to always include jobid, jobname, status, type, and endtime
 # as these may have special formatting applied by default in certain cases
 # ------------------------------------------------------------------------
-cols2show = 'jobid jobname client fileset pool status joberrors type level jobfiles jobbytes starttime endtime runtime'
+cols2show = 'jobid jobname client fileset storage pool status joberrors type level jobfiles jobbytes starttime endtime runtime'
 
 # waa - 20230427 - I want to add the storage, pool, and fileset to the `cols2show` list. The
 #                  problem is that the Director's Storage and SD's device used is not stored in
@@ -290,8 +297,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname='Bacula Backup Report'
-version = '2.16'
-reldate = 'May 01, 2023'
+version = '2.17'
+reldate = 'May 03, 2023'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
@@ -306,7 +313,7 @@ valid_needs_media_since_or_for_lst = ['since', 'for', 'none']
 valid_col_lst = ['jobid', 'jobname', 'client', 'status',
                  'joberrors', 'type', 'level', 'jobfiles',
                  'jobbytes', 'starttime', 'endtime',
-                 'runtime', 'pool', 'fileset']
+                 'runtime', 'pool', 'fileset', 'storage']
 
 # Lists of strings to determine if a job is waiting on media, and if new media has been found/mounted
 # ---------------------------------------------------------------------------------------------------
@@ -1176,6 +1183,56 @@ def secs_to_days_hours_mins(secs):
            + ('s' if min > 1 else '') \
            + (str(secs) + ' Seconds' if day == 0 and hour == 0 and min == 0 else '')
 
+def get_pool_or_storage(res_type):
+    'Given "p" or "s" resource type, return Pool(s) or Storage(s) used in a Job'
+    # For the following type of Jobs, we can get the Pool(s) and Storage(s) from the Job
+    # Summary if the Job is complete. For Running Jobs of these types, we would need to
+    # scrape the joblog to try to get the Pool(s), and Storage(s) used. For other types of
+    # Jobs, no 'Pool:' nor 'Storage:' lines are ever added to the Job Summary text so for
+    # them we would always need to scrape the joblog for these.
+    # ------------------------------------------------------------------------------------
+    if jobrow['type'] in ('B', 'c', 'C', 'g'):
+        if dbtype in ('pgsql', 'sqlite'):
+            query_str = "SELECT logtext FROM log WHERE jobid = " \
+                      + str(jobrow['jobid']) + " AND logtext LIKE '%Termination:%';"
+        elif dbtype in ('mysql', 'maria'):
+            query_str = "SELECT CAST(logtext as CHAR(1000)) AS logtext FROM Log WHERE jobid = " \
+                      + str(jobrow['jobid']) + " AND logtext LIKE '%Termination:%';"
+        summary = db_query(query_str, 'joblog summary block for "Pool" or "Storage"', 'one')
+        # If summary is empty due to Job still running, or (for example) the
+        # Director crashes or was killed with Jobs running, return 'N/A'
+        # ------------------------------------------------------------------
+        if summary == None:
+            return 'N/A'
+        else:
+            if dbtype in ('pgsql', 'sqlite'):
+                text = summary[0]
+            elif dbtype in ('mysql', 'maria'):
+                text = summary['logtext']
+            if jobrow['type'] in ('B', 'C'):
+                if res_type == 'p':
+                    p_or_s = re.sub('.*Pool: +(.+?)\n.*', '\\1', text, flags = re.DOTALL)
+                else:
+                    p_or_s = re.sub('.*Storage: +(.+?)\n.*', '\\1', text, flags = re.DOTALL)
+            elif jobrow['type'] in ('c', 'g'):
+                if res_type == 'p':
+                    p_or_s = re.sub('.*Read Pool: +(.+?)\n.*', 'Read: \\1', text, flags = re.DOTALL) + '<br>' \
+                           + re.sub('.*Write Pool: +(.+?)\n.*', 'Write: \\1', text, flags = re.DOTALL)
+                else:
+                    p_or_s = re.sub('.*Read Storage: +(.+?)\n.*', 'Read: \\1', text, flags = re.DOTALL) + '<br>' \
+                           + re.sub('.*Write Storage: +(.+?)\n.*', 'Write: \\1', text, flags = re.DOTALL)
+            p_or_s = re.sub('"', '', p_or_s)
+            if strip_p_or_s_from:
+                p_or_s = re.sub('\((.+?)\)', '', p_or_s, re.DOTALL)
+    else:
+        # waa - 20230503 TOTO
+        # placeholder... Here will should try to scrape the joblog for the Read/Write Pool(s)
+        # or Storage(s) for Jobs that are not 'B', 'c', 'C', 'g'. Or, maybe we even do this for
+        # Jobs Jobs that have no summary, such as Running or Created. For now, we just return 'N/A'
+        # -----------------------------------------------------------------------------------------
+        p_or_s = 'N/A'
+    return p_or_s
+
 # Assign docopt doc string variable
 # ---------------------------------
 args = docopt(doc_opt_str, version='\n' + progname + ' - v' + version + '\n' + reldate + '\n')
@@ -1239,7 +1296,8 @@ col_hdr_dict = {
     'endtime':   '<th style="' + jobtableheadercellstyle + '">End Time</th>',
     'runtime':   '<th style="' + jobtableheadercellstyle + '">Run Time</th>',
     'pool':      '<th style="' + jobtableheadercellstyle + '">Pool</th>',
-    'fileset':   '<th style="' + jobtableheadercellstyle + '">Fileset</th>'
+    'fileset':   '<th style="' + jobtableheadercellstyle + '">Fileset</th>',
+    'storage':   '<th style="' + jobtableheadercellstyle + '">Storage</th>'
     }
 
 # Set the gui variable to shorten
@@ -2509,10 +2567,12 @@ for jobrow in filteredjobsrows:
             msg += html_format_cell(str(jobrow['starttime']), col = 'starttime')
         elif colname == 'endtime':
             msg += html_format_cell(str(jobrow['endtime']), col = 'endtime')
-        elif colname == 'pool':
-            msg += html_format_cell(jobrow['pool'], col = 'pool')
         elif colname == 'fileset':
-            msg += html_format_cell(jobrow['fileset'], col = 'fileset')
+            msg += html_format_cell(jobrow['fileset'])
+        elif colname == 'pool':
+            msg += html_format_cell(get_pool_or_storage('p'))
+        elif colname == 'storage':
+            msg += html_format_cell(get_pool_or_storage('s'))
         elif colname == 'runtime':
             if dbtype == 'sqlite':
                 if jobrow['jobstatus'] in ('R', 'C'):

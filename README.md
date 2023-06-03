@@ -13,7 +13,7 @@ Usage:
     baculabackupreport.py -v | --version
 
 Options:
-    -C, --config <config>        Configuration file - See the 'example.ini' file included in repository
+    -C, --config <config>        Configuration file - See the 'baculabackupreport.ini' file included in repository
     -S, --section <section>      Section in configuration file [default: baculabackupreport]
     -e, --email <email>          Email address to send job report to
     -s, --server <server>        Name of the Bacula Server [default: Bacula]

@@ -200,7 +200,7 @@ cols2show = 'jobid jobname client fileset storage pool status joberrors type lev
 #                  problem is that the Director's Storage and SD's device used is not stored in
 #                  the Job table! This information is only in the log table. The SD device used
 #                  is in the log lines which will need to be queried and parsed, and the Director's
-#                  Storage resource used is in both the log lines and in the Summary. But for the 
+#                  Storage resource used is in both the log lines and in the Summary. But for the
 #                  Director's Storage there is not a 100% guaranteed way to get it from the logs
 #                  because the Director and the FD log very similar messages:
 #
@@ -259,7 +259,7 @@ fontsize_addtional_texts = '10px'                     # Font size of (will not d
 
 # HTML styles
 # -----------
-# 20230429 - Still working to replace all inline styles with internal
+# 20230429 - Still working to replace all inline css with internal
 #            css to reduce line length of the job rows in the report.
 # -------------------------------------------------------------------
 jobtablestyle = 'width: 100%; border-collapse: collapse;'
@@ -296,9 +296,14 @@ from configparser import ConfigParser, BasicInterpolation
 
 # Set some variables
 # ------------------
-progname='Bacula Backup Report'
-version = '2.17'
-reldate = 'May 03, 2023'
+progname = 'Bacula Backup Report'
+version = '2.18'
+reldate = 'May 06, 2023'
+progauthor = 'Bill Arlofski'
+authoremail = 'waa@revpol.com'
+scriptname = 'baculabackupreport.py'
+prog_info_txt = progname + ' - v' + version + ' - ' + scriptname \
+                + '\nBy: ' + progauthor + ' ' + authoremail + ' (c) ' + reldate + '\n\n'
 valid_webgui_lst = ['bweb', 'baculum']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
@@ -320,9 +325,9 @@ valid_col_lst = ['jobid', 'jobname', 'client', 'status',
 needs_mount_txt_lst = ['Please mount', 'Please use the "label" command']
 got_new_vol_txt_lst = ['New volume', 'Ready to append', 'Labeled new Volume', 'Wrote label to ', 'all previous data lost']
 
-# This variable is so that we can reliably convert the True/False strings
-# from the config file into real booleans to be used is later tests.
-# -----------------------------------------------------------------------
+# This list is so that we can reliably convert the True/False strings
+# from the config file into real booleans to be used in later tests.
+# -------------------------------------------------------------------
 cfg_file_true_false_lst = ['urlifyalljobs', 'boldjobname', 'boldstatus', 'showcopiedto',
                            'print_subject', 'print_sent', 'flagrescheduled', 'show_db_stats',
                            'include_pnv_jobs', 'warn_on_will_not_descend', 'warn_on_zero_inc',
@@ -368,7 +373,7 @@ Usage:
     baculabackupreport.py -v | --version
 
 Options:
-    -C, --config <config>        Configuration file - See the 'example.ini' file included in repository
+    -C, --config <config>        Configuration file - See the 'baculabackupreport.ini' file included in repository
     -S, --section <section>      Section in configuration file [default: baculabackupreport]
     -e, --email <email>          Email address to send job report to
     -s, --server <server>        Name of the Bacula Server [default: Bacula]
@@ -409,6 +414,8 @@ Notes:
 # the rendering of the HTML in an email client in strange and wonderous ways.
 # https://www.w3schools.com/css/css_table_style.asp
 # ------------------------------------------------------------------------------
+# f-strings require Python version 3.6 or above
+# ---------------------------------------------
 css_str = f"""
 pre {{font-size: {fontsizesumlog};}}
 body {{font-family: {fontfamily}; font-size: {fontsize};}}
@@ -416,7 +423,6 @@ th {{background-color: {jobtableheadercolor}; color: {jobtableheadertxtcolor};}}
 td {{text-align: center; font-size: {fontsizejobinfo}; padding: {jobtablecellpadding};}}
 tr:nth-child(even) {{background-color: {jobtablerowevencolor}; color: {jobtableroweventxtcolor};}}
 tr:nth-child(odd) {{background-color: {jobtablerowoddcolor}; color: {jobtablerowoddtxtcolor};}}
-
 .proginfo {{font-size: 8px;}}
 .bannerwarnings {{display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;}}
 .alwaysfail-bannerwarning {{background-color: {alwaysfailcolor};}}
@@ -428,8 +434,9 @@ tr:nth-child(odd) {{background-color: {jobtablerowoddcolor}; color: {jobtablerow
 # Now for some functions
 # ----------------------
 def usage():
-    'Show the instructions.'
+    'Show the instructions and program information.'
     print(doc_opt_str)
+    print(prog_info_txt)
     sys.exit(1)
 
 def cli_vs_env_vs_config_vs_default_vars(short_cli, cli_env_cfg):
@@ -699,9 +706,10 @@ def copied_ids(jobid):
         if pn_jobids_dict[t][0] == str(jobid):
             if jobrow['type'] == 'B' or (jobrow['type'] == 'M' and pn_jobids_dict[t][1] != migrated_id(jobid)):
                 if pn_jobids_dict[t][1] != '0':
-                    # This ^^ prevents ['0'] from being returned, causing "Copied to 0" in report
-                    # This happens when a Copy job finds a Backup/Migration job to copy, but
-                    # reports "there no files in the job to copy"
+                    # This ^^ prevents ['0'] from being returned, causing "Copied to 0"
+                    # in report This happens when a Copy job finds a Backup/Migration
+                    # job to copy, but reports "there no files in the job to copy"
+                    # -----------------------------------------------------------------
                     copied_jobids.append(pn_jobids_dict[t][1])
     if len(copied_jobids) == 0:
         return '0'
@@ -1100,14 +1108,15 @@ def humanbytes(B):
        return '{0:.2f} PB'.format(B/PB)
 
 def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport):
-    'Send the email'
+    'Send the email.'
     # Thank you to Aleksandr Varnin for this short and simple to implement solution
     # https://blog.mailtrap.io/sending-emails-in-python-tutorial-with-code-examples
     # -----------------------------------------------------------------------------
     # f-strings require Python version 3.6 or above
-    # message = f"""Content-Type: text/html\nMIME-Version: 1.0\nTo: {email}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}"""
-    # ------------------------------------------------------------------------------
-    message = "Content-Type: text/html\nMIME-Version: 1.0\nTo: %s\nFrom: %s\nSubject: %s\n\n%s" % (to, fromemail, subject, msg)
+    if len(filteredjobsrows) > 0:
+        message = f"""Content-Type: text/html\nMIME-Version: 1.0\nTo: {to}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}"""
+    else:
+        message = f"""Content-Type: text/plain\nMIME-Version: 1.0\nTo: {to}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}"""
     try:
         with smtplib.SMTP(smtpserver, smtpport) as server:
             if smtpuser != '' and smtppass != '':
@@ -1127,7 +1136,7 @@ def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtp
         sys.exit(1)
 
 def chk_will_not_descend():
-    'Return True if "Will not descend" warnings are in job log, else return False - ignore warnings about dirs in "will_not_descend_ignore_lst"'
+    'Return True if "Will not descend" warnings are in job log, else return False - ignore warnings about dirs in "will_not_descend_ignore_lst".'
     global num_will_not_descend_jobs
     query_str = "SELECT logtext FROM Log WHERE jobid=" + str(jobrow['jobid']) + " AND logtext LIKE '%Will not descend%';"
     will_not_descend_qry = db_query(query_str, 'jobs with \'Will not descend\' warnings')
@@ -1141,7 +1150,7 @@ def chk_will_not_descend():
         return False
 
 def calc_pool_use(name, num, max):
-    'Add {poolName: (numvols, maxvols, % used)} to warn_pool_dict if >= 80%'
+    'Add {poolName: (numvols, maxvols, % used)} to warn_pool_dict if >= 80%.'
     if num == 0 or max == 0:
         return
     else:
@@ -1151,23 +1160,23 @@ def calc_pool_use(name, num, max):
         return
 
 def gen_rand_str():
-    'Return a pseudo-random string to append to the body of the email to thwart ProtonMail deduplication algorithm during testing'
+    'Return a pseudo-random string to append to the body of the email to thwart ProtonMail deduplication algorithm during testing.'
     import random
     from base64 import b64encode
     rand_int = random.randint(1, 100)
     return b64encode(os.urandom(rand_int)).decode('utf-8')
 
 def prog_info():
-    'Return the program information along with the pseudo-random string and the closing HTML tags'
+    'Return the program information along with the pseudo-random string and the closing HTML tags.'
     return '<div class="proginfo">' \
            + progname + ' - v' + version \
            + ' - <a href="https://github.com/waa/"' \
-           + ' target="_blank">baculabackupreport.py</a>' \
-           + '<br>By: Bill Arlofski waa@revpol.com (c) ' \
+           + ' target="_blank">' + scriptname + '</a>' \
+           + '<br>By: ' + progauthor + ' ' + authoremail + ' (c) ' \
            + reldate + '<!-- ' + gen_rand_str() + ' --></div></body></html>'
 
 def secs_to_days_hours_mins(secs):
-    'Given a number of seconds, convert to string representing days, hours, minutes'
+    'Given a number of seconds, convert to string representing days, hours, minutes.'
     # Thanks to https://www.w3resource.com/python-exercises/python-basic-exercise-65.php
     # ----------------------------------------------------------------------------------
     day = secs // (24 * 3600)
@@ -1184,13 +1193,13 @@ def secs_to_days_hours_mins(secs):
            + (str(secs) + ' Seconds' if day == 0 and hour == 0 and min == 0 else '')
 
 def get_pool_or_storage(res_type):
-    'Given "p" or "s" resource type, return Pool(s) or Storage(s) used in a Job'
-    # For the following type of Jobs, we can get the Pool(s) and Storage(s) from the Job
+    'Given "p" or "s" resource type, return Pool(s) or Storage(s) used in a Job.'
+    # For 'B', 'c', 'C', 'g' Jobs, we can get the Pool(s) and Storage(s) from the Job
     # Summary if the Job is complete. For Running Jobs of these types, we would need to
-    # scrape the joblog to try to get the Pool(s), and Storage(s) used. For other types of
+    # scrape the joblog to try to get the Pool(s) and Storage(s) used. For other types of
     # Jobs, no 'Pool:' nor 'Storage:' lines are ever added to the Job Summary text so for
     # them we would always need to scrape the joblog for these.
-    # ------------------------------------------------------------------------------------
+    # -----------------------------------------------------------------------------------
     if jobrow['type'] in ('B', 'c', 'C', 'g'):
         if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT logtext FROM log WHERE jobid = " \
@@ -1225,11 +1234,11 @@ def get_pool_or_storage(res_type):
             if strip_p_or_s_from:
                 p_or_s = re.sub('\((.+?)\)', '', p_or_s, re.DOTALL)
     else:
-        # waa - 20230503 TOTO
-        # placeholder... Here will should try to scrape the joblog for the Read/Write Pool(s)
+        # waa - 20230503 TODO
+        # placeholder... Here we should try to scrape the joblog for the Read/Write Pool(s)
         # or Storage(s) for Jobs that are not 'B', 'c', 'C', 'g'. Or, maybe we even do this for
-        # Jobs Jobs that have no summary, such as Running or Created. For now, we just return 'N/A'
-        # -----------------------------------------------------------------------------------------
+        # Jobs that have no summary, such as Running or Created. For now, we just return 'N/A'
+        # -------------------------------------------------------------------------------------
         p_or_s = 'N/A'
     return p_or_s
 
@@ -1622,7 +1631,7 @@ if numfilteredjobs == 0:
             + ', and ' + jobstatusstr
     if addsubjecticon:
         subject = set_subject_icon() + ' ' + subject
-    msg = 'These are not the droids you are looking for.'
+    msg = 'These are not the droids you are looking for.\n\n' + prog_info_txt
     if print_subject:
         print(re.sub('=.*=\)? (.*)$', '\\1', '- Job Report Subject: ' + subject))
     send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)

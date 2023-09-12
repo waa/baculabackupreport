@@ -300,7 +300,7 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.19'
+version = '2.20'
 reldate = 'September 11, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
@@ -331,12 +331,12 @@ got_new_vol_txt_lst = ['New volume', 'Ready to append', 'Labeled new Volume', 'W
 # This list is so that we can reliably convert the True/False strings
 # from the config file into real booleans to be used in later tests.
 # -------------------------------------------------------------------
-cfg_file_true_false_lst = ['urlifyalljobs', 'boldjobname', 'boldstatus', 'showcopiedto',
-                           'print_subject', 'print_sent', 'flagrescheduled', 'show_db_stats',
-                           'include_pnv_jobs', 'warn_on_will_not_descend', 'warn_on_zero_inc',
-                           'chk_pool_use', 'create_job_summary_table', 'db_version', 'restore_stats',
-                           'copied_stats', 'migrated_stats', 'verified_stats', 'create_success_rates_table',
-                           'emailvirussummary', 'addsubjecticon', 'addsubjectrunningorcreated', 'colorstatusbg']
+cfg_file_true_false_lst = ['addsubjecticon', 'addsubjectrunningorcreated', 'boldjobname', 'boldstatus',
+                           'chk_pool_use', 'colorstatusbg', 'copied_stats', 'create_job_summary_table',
+                           'create_success_rates_table', 'db_version', 'do_not_email_on_all_ok',
+                           'emailvirussummary', 'flagrescheduled', 'include_pnv_jobs', 'migrated_stats',
+                           'print_sent', 'print_subject', 'restore_stats', 'showcopiedto', 'show_db_stats',
+                           'urlifyalljobs', 'verified_stats', 'warn_on_will_not_descend', 'warn_on_zero_inc']
 
 # Dictionary for the success rate intervals
 # -----------------------------------------
@@ -1675,6 +1675,14 @@ vrfy_jobids = [str(r['jobid']) for r in filteredjobsrows if r['type'] == 'V']
 # -------------------------------------------------------
 numbadjobs = len(badjobids)
 
+if do_not_email_on_all_ok and numbadjobs == 0:
+    # Per Github issue request #9: If all jobs are OK, do
+    # not send any email, and simply exit with returncode 0
+    # -----------------------------------------------------
+    print('- The \'do_not_email_on_all_ok\' variable is True, and all jobs completed \'OK\', not sending email report.')
+    print('  - Exiting with returncode 0')
+    sys.exit(0)
+
 # This next one is special. It is only used for the AV tests
 # ----------------------------------------------------------
 vrfy_data_jobids = [str(r['jobid']) for r in filteredjobsrows if r['type'] == 'V' and r['level'] == 'A']
@@ -2345,7 +2353,7 @@ if 'virus_dict' in globals() and checkforvirus and len(virus_set) != 0:
     + str(num_virus_clients) + ' ' + ('Client' if num_virus_clients == 1 else 'Clients') + ' (' \
     + str(num_virus_files) + ' ' + ('File ' if num_virus_files == 1 else 'Files ') + 'Infected)'
     if print_subject:
-        print('Virus Report Subject: ' + re.sub('=.*=\)? (.*)$', '\\1', virusemailsubject))
+        print('- Virus Report Subject: ' + re.sub('=.*=\)? (.*)$', '\\1', virusemailsubject))
     if emailvirussummary:
         send_email(avemail, fromemail, virusemailsubject, virussummaries, smtpuser, smtppass, smtpserver, smtpport)
 

@@ -1,7 +1,10 @@
 #!/usr/bin/python3
 #
 # ---------------------------------------------------------------------------
-# - 20210426 - baculabackupreport.py v1.0 - Initial release
+# - 20210426 - baculabackupreport.py - Date of initial release
+#                                    - Run ./baculabackupreport.py -v
+#                                      to see latest release date and
+#                                      version of script
 # ---------------------------------------------------------------------------
 #
 # This is is my first foray into Python. Please be nice :)
@@ -33,7 +36,7 @@
 # ---------------------------------------------------------------------------
 # BSD 2-Clause License
 #
-# Copyright (c) 2021-2022, William A. Arlofski waa@revpol.com
+# Copyright (c) 2021-2023, William A. Arlofski waa@revpol.com
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -297,8 +300,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.18'
-reldate = 'May 06, 2023'
+version = '2.19'
+reldate = 'September 11, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'

@@ -127,6 +127,7 @@ summary_and_rates = 'bottom'  # Print a Summary and Success Rates block? (top, b
 # Create the Job Summary table?
 # -----------------------------
 create_job_summary_table = True  # Create a Job Summary table in the Summary and Success Rates block?
+bacula_version = True            # Print the Bacula version?
 db_version = True                # Print the database version?
 restore_stats = True             # Print Restore Files/Bytes?
 copied_stats = True              # Print Copied Files/Bytes?
@@ -300,8 +301,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.20'
-reldate = 'September 11, 2023'
+version = '2.21'
+reldate = 'November 02, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -331,8 +332,8 @@ got_new_vol_txt_lst = ['New volume', 'Ready to append', 'Labeled new Volume', 'W
 # This list is so that we can reliably convert the True/False strings
 # from the config file into real booleans to be used in later tests.
 # -------------------------------------------------------------------
-cfg_file_true_false_lst = ['addsubjecticon', 'addsubjectrunningorcreated', 'boldjobname', 'boldstatus',
-                           'chk_pool_use', 'colorstatusbg', 'copied_stats', 'create_job_summary_table',
+cfg_file_true_false_lst = ['addsubjecticon', 'addsubjectrunningorcreated', 'bacula_version', 'boldjobname',
+                           'boldstatus', 'chk_pool_use', 'colorstatusbg', 'copied_stats', 'create_job_summary_table',
                            'create_success_rates_table', 'db_version', 'do_not_email_on_all_ok',
                            'emailvirussummary', 'flagrescheduled', 'include_pnv_jobs', 'migrated_stats',
                            'print_sent', 'print_subject', 'restore_stats', 'showcopiedto', 'show_db_stats',
@@ -1783,7 +1784,7 @@ if len(ctrl_jobids) != 0:
                 total_migrated_bytes += int(bytes)
 
 # Include the Summary and Success Rates block in the job report?
-# We need to build the Job Summary table now to prevent any
+# We need to build the Summary table now to prevent any
 # Copy/Migrate/Verify jobs that are older than "-t hours" which
 # might get pulled into the filteredjobsrows list from having their
 # files/bytes included in the optional stats: restored, copied,
@@ -1818,12 +1819,12 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
             {'label': 'Total Backup Files', 'data': '{:,}'.format(total_backup_files)},
             {'label': 'Total Backup Bytes', 'data': humanbytes(total_backup_bytes)}]
 
-        # Do we include the database version in the Job Summary table?
-        # ------------------------------------------------------------
+        # Do we include the database version in the Summary table?
+        # --------------------------------------------------------
         if db_version:
             if dbtype == 'pgsql':
-                query_str = "SHOW server_version;"
                 db_type_str = 'PostgreSQL'
+                query_str = "SHOW server_version;"
             elif dbtype in ('mysql', 'maria'):
                 db_type_str = 'MySQL/MariaDB'
                 query_str = "SELECT VERSION();"
@@ -1837,6 +1838,17 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
             else:
                 db_ver = db_ver_row[0]
             job_summary_table_data.insert(0, {'label': db_type_str + ' Version', 'data': str(db_ver)})
+
+        # Do we include the Bacula version in the Summary table?
+        # ------------------------------------------------------
+        if bacula_version:
+            if dbtype in ('pgsql', 'sqlite'):
+                query_str = "SELECT logtext FROM log WHERE logtext LIKE '%Termination:%' ORDER BY time DESC LIMIT 1;"
+            elif dbtype in ('mysql', 'maria'):
+                query_str = "SELECT CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE logtext LIKE '%Termination:%' ORDER BY time DESC LIMIT 1;"
+            bacula_ver_row = db_query(query_str, 'Bacula version', 'one')
+            bacula_ver = re.sub('^.* (\d{2}\.\d{1,2}\.\d{1,2}) \(\d{2}\w{3}\d{2}\):\n.*', '\\1', bacula_ver_row['logtext'], flags = re.DOTALL)
+            job_summary_table_data.insert(0, {'label': 'Bacula Version', 'data': bacula_ver})
 
         # - Not everyone runs Copy, Migration, Verify jobs
         # - Restores are (or should be) infrequent
@@ -1875,8 +1887,8 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
             job_summary_table_data.append({'label': 'Total Verify Files', 'data': '{:,}'.format(total_verify_files)})
             job_summary_table_data.append({'label': 'Total Verify Bytes', 'data': humanbytes(total_verify_bytes)})
 
-        # Fill the Job Summary table with the label/data pairs and end the HTML table
-        # ---------------------------------------------------------------------------
+        # Fill the Summary table with the label/data pairs and end the HTML table
+        # -----------------------------------------------------------------------
         for value in job_summary_table_data:
             job_summary_table += '<tr>' \
                               + '<td style="' + summarytablecellstyle + 'text-align: left; padding-right: 40px;">' + value['label'] + '</td>' \

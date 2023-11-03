@@ -104,6 +104,7 @@ virusfoundtext = 'Virus detected'      # Some unique text that your AV software 
                                        # log when a virus is detected. ONLY ClamAV is supported at this time!
 verified_job_name_col = 'name'         # What column should the job name of verified jobs be displayed? (name, type, both, none)
 copied_migrated_job_name_col = 'name'  # What column should the job name of Copied/Migrated jobs be displayed? (name, type, both, none)
+print_client_version = True            # Print the Client version under the Client name in the Job table?
 
 # Warn about 'OK' jobs when "Will not descend" is reported in logs?
 # -----------------------------------------------------------------
@@ -301,7 +302,7 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.21'
+version = '2.22'
 reldate = 'November 02, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
@@ -1046,6 +1047,13 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
             else:
                 pass
 
+    # If print_client_version is True, print the Client's version
+    # in a smaller font under the Client's name in the Job table
+    # -----------------------------------------------------------
+    if col == 'client' and print_client_version and 'client_versions_dict' in globals():
+        content = content + '<br><span style="font-size: ' + fontsize_addtional_texts + ';">' \
+                + ('(' + client_versions_dict[content] + ')' if client_versions_dict[content] != '' else 'N/A') + '</span>'
+
     # Some specific modifications for Running or Created Jobs,
     # or special Jobs (Copy/Migration/Admin/etc) where no real
     # client is used, or when the Job is still running, there
@@ -1684,6 +1692,20 @@ if do_not_email_on_all_ok and numbadjobs == 0:
     print('  - Exiting with returncode 0')
     sys.exit(0)
 
+# If we print the Client's version uder its name in the Job
+# table we need to query the Client table to get the name
+# and uname then add them to the client_versions_dict dictionary
+# --------------------------------------------------------------
+if print_client_version:
+    client_versions_dict = {}
+    if dbtype in ('pgsql', 'sqlite'):
+        query_str = "SELECT name, uname FROM client;"
+    else:
+        query_str = "SELECT CAST(name as CHAR(255)) AS name, CAST(uname as CHAR(255)) AS uname FROM Client;"
+    client_version_rows = db_query(query_str, 'Client versions')
+    for row in client_version_rows:
+        client_versions_dict[row['name']] = re.sub('(\d+\.\d+\.\d+) .*', '\\1', row['uname'])
+
 # This next one is special. It is only used for the AV tests
 # ----------------------------------------------------------
 vrfy_data_jobids = [str(r['jobid']) for r in filteredjobsrows if r['type'] == 'V' and r['level'] == 'A']
@@ -1839,8 +1861,8 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
                 db_ver = db_ver_row[0]
             job_summary_table_data.insert(0, {'label': db_type_str + ' Version', 'data': str(db_ver)})
 
-        # Do we include the Bacula version in the Summary table?
-        # ------------------------------------------------------
+        # Do we include the Bacula Director version in the Summary table?
+        # ---------------------------------------------------------------
         if bacula_version:
             if dbtype in ('pgsql', 'sqlite'):
                 query_str = "SELECT logtext FROM log WHERE logtext LIKE '%Termination:%' ORDER BY time DESC LIMIT 1;"
@@ -1848,7 +1870,7 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
                 query_str = "SELECT CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE logtext LIKE '%Termination:%' ORDER BY time DESC LIMIT 1;"
             bacula_ver_row = db_query(query_str, 'Bacula version', 'one')
             bacula_ver = re.sub('^.* (\d{2}\.\d{1,2}\.\d{1,2}) \(\d{2}\w{3}\d{2}\):\n.*', '\\1', bacula_ver_row['logtext'], flags = re.DOTALL)
-            job_summary_table_data.insert(0, {'label': 'Bacula Version', 'data': bacula_ver})
+            job_summary_table_data.insert(0, {'label': 'Bacula Director Version', 'data': bacula_ver})
 
         # - Not everyone runs Copy, Migration, Verify jobs
         # - Restores are (or should be) infrequent

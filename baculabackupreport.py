@@ -219,6 +219,10 @@ cols2show = 'jobid jobname client fileset storage pool status joberrors type lev
 # ---------------------------------------------------------------
 will_not_descend_ignore_lst = ['/dev', '/misc', '/net', '/proc', '/run', '/srv', '/sys']
 
+# Should we short-circuit everything and send no email when all jobs are OK?
+# --------------------------------------------------------------------------
+do_not_email_on_all_ok = False
+
 # Set the column to colorize for jobs that are always failing
 # -----------------------------------------------------------
 alwaysfailcolumn = 'jobname'    # Column to colorize for "always failing jobs" (column name, row, none)
@@ -302,8 +306,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.22'
-reldate = 'November 02, 2023'
+version = '2.23'
+reldate = 'November 07, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -1692,10 +1696,11 @@ if do_not_email_on_all_ok and numbadjobs == 0:
     print('  - Exiting with returncode 0')
     sys.exit(0)
 
-# If we print the Client's version uder its name in the Job
-# table we need to query the Client table to get the name
-# and uname then add them to the client_versions_dict dictionary
-# --------------------------------------------------------------
+# If 'print_client_version' is True, we print the Client's
+# version under its name in the Job table. We need to
+# query the Client table to get the name and uname then
+# add them to the client_versions_dict dictionary
+# --------------------------------------------------------
 if print_client_version:
     client_versions_dict = {}
     if dbtype in ('pgsql', 'sqlite'):

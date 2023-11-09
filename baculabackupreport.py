@@ -306,8 +306,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.23'
-reldate = 'November 07, 2023'
+version = '2.24'
+reldate = 'November 08, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -1869,10 +1869,16 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
         # Do we include the Bacula Director version in the Summary table?
         # ---------------------------------------------------------------
         if bacula_version:
+            # We need to query the log table for the last *Backup* Job summary
+            # block because the first line in the Job summary block is different
+            # for different job types! Backup vs Copy vs Migration Admin vs
+            # Verify vs Restore. This makes it impossible top define a Python
+            # re.sub to catch all job types.
+            #-------------------------------------------------------------------
             if dbtype in ('pgsql', 'sqlite'):
-                query_str = "SELECT logtext FROM log WHERE logtext LIKE '%Termination:%' ORDER BY time DESC LIMIT 1;"
+                query_str = "SELECT logtext FROM log WHERE logtext LIKE '%Termination:%Backup%' ORDER BY time DESC LIMIT 1;"
             elif dbtype in ('mysql', 'maria'):
-                query_str = "SELECT CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE logtext LIKE '%Termination:%' ORDER BY time DESC LIMIT 1;"
+                query_str = "SELECT CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE logtext LIKE '%Termination:% Backup%' ORDER BY time DESC LIMIT 1;"
             bacula_ver_row = db_query(query_str, 'Bacula version', 'one')
             bacula_ver = re.sub('^.* (\d{2}\.\d{1,2}\.\d{1,2}) \(\d{2}\w{3}\d{2}\):\n.*', '\\1', bacula_ver_row['logtext'], flags = re.DOTALL)
             job_summary_table_data.insert(0, {'label': 'Bacula Director Version', 'data': bacula_ver})

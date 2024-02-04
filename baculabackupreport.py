@@ -111,6 +111,13 @@ print_client_version = True            # Print the Client version under the Clie
 warn_on_will_not_descend = True                       # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported in logs?
 ignore_warn_on_will_not_descend_jobs = 'Job_1 Job_2'  # Case-sensitive list of job names to ignore for 'warn_on_will_not_descend' test
 
+# Warn about jobs that have been seen in the catalog, but
+# have not had a successful run in 'last_good_run_days' days
+# ----------------------------------------------------------
+warn_on_last_good_run = True                               # Do we warn about jobs that have not run successfully in 'last_good_run_days' days?
+last_good_run_days = 31                                    # Longest amount of days a job can be missed from running successfully
+last_good_run_skip_lst = ['Job1', 'Job2', 'CDRoms-ToAoE']  # Jobs to ignore when processing this 'warn_on_last_good_run' feature
+
 # Warn about 'OK' Diff/Inc jobs with zero files and/or bytes
 # ----------------------------------------------------------
 warn_on_zero_inc = False                      # Should 'OK' Inc/Diff jobs be set to 'OK/Warnings' when they backup zero files and/or bytes?
@@ -128,7 +135,7 @@ summary_and_rates = 'bottom'  # Print a Summary and Success Rates block? (top, b
 # Create the Job Summary table?
 # -----------------------------
 create_job_summary_table = True  # Create a Job Summary table in the Summary and Success Rates block?
-bacula_version = True            # Print the Bacula version?
+bacula_dir_version = True        # Print the Bacula Director version?
 db_version = True                # Print the database version?
 restore_stats = True             # Print Restore Files/Bytes?
 copied_stats = True              # Print Copied Files/Bytes?
@@ -139,12 +146,16 @@ verified_stats = True            # Print Verified Files/Bytes?
 # -----------------------------
 create_success_rates_table = True
 
+# Create the Client Version < Director table?
+# -------------------------------------------
+create_client_ver_lt_dir_table = True  # Create the Client Version < Director table"
+
 # Show how long a job has been been waiting on media under 'Needs Media' in the Status field
 # ------------------------------------------------------------------------------------------
 needs_media_since_or_for = 'for'  # none = print nothing, for = (for x Days, y Hours, z Minutes), since = (since YYYY-MM-DD HH:MM:SS)
 
-# When printing the Pool and Storage columns do we strip where the Pool or Storage was
-# ultimately was taken from?
+# When printing the Pool and Storage columns do we strip where the Pool or Storage
+# used was ultimately taken from?
 # eg: 'Pool: "Full_Pool1" (From Job resource)' would be simply 'Full_Pool1' if this is set to True
 # eg: 'Storage: "File_Store1" (From Pool resource)' would be simply 'File_Store1' if this is set to True
 # ------------------------------------------------------------------------------------------------------
@@ -201,7 +212,7 @@ virusfoundbodyicon = '&#x1F9A0'                 # HEX encoding for emoji in emai
 # ------------------------------------------------------------------------
 cols2show = 'jobid jobname client fileset storage pool status joberrors type level jobfiles jobbytes starttime endtime runtime'
 
-# waa - 20230427 - I want to add the storage, pool, and fileset to the `cols2show` list. The
+# waa - 20230427 - I want to add the storage, pool, and fileset to the 'cols2show' list. The
 #                  problem is that the Director's Storage and SD's device used is not stored in
 #                  the Job table! This information is only in the log table. The SD device used
 #                  is in the log lines which will need to be queried and parsed, and the Director's
@@ -298,6 +309,7 @@ import smtplib
 from docopt import docopt
 from socket import gaierror
 from datetime import datetime
+from natsort import natsorted
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -306,8 +318,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.24'
-reldate = 'November 08, 2023'
+version = '2.25'
+reldate = 'February 03, 2024'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -337,12 +349,12 @@ got_new_vol_txt_lst = ['New volume', 'Ready to append', 'Labeled new Volume', 'W
 # This list is so that we can reliably convert the True/False strings
 # from the config file into real booleans to be used in later tests.
 # -------------------------------------------------------------------
-cfg_file_true_false_lst = ['addsubjecticon', 'addsubjectrunningorcreated', 'bacula_version', 'boldjobname',
+cfg_file_true_false_lst = ['addsubjecticon', 'addsubjectrunningorcreated', 'bacula_dir_version', 'boldjobname',
                            'boldstatus', 'chk_pool_use', 'colorstatusbg', 'copied_stats', 'create_job_summary_table',
-                           'create_success_rates_table', 'db_version', 'do_not_email_on_all_ok',
+                           'create_success_rates_table', 'create_client_ver_lt_dir_table', 'db_version', 'do_not_email_on_all_ok',
                            'emailvirussummary', 'flagrescheduled', 'include_pnv_jobs', 'migrated_stats',
                            'print_sent', 'print_subject', 'restore_stats', 'showcopiedto', 'show_db_stats',
-                           'urlifyalljobs', 'verified_stats', 'warn_on_will_not_descend', 'warn_on_zero_inc']
+                           'urlifyalljobs', 'verified_stats', 'warn_on_last_good_run', 'warn_on_will_not_descend', 'warn_on_zero_inc']
 
 # Dictionary for the success rate intervals
 # -----------------------------------------
@@ -442,6 +454,10 @@ tr:nth-child(odd) {{background-color: {jobtablerowoddcolor}; color: {jobtablerow
 
 # Now for some functions
 # ----------------------
+def now():
+    'Return the current date/time in human readable format.'
+    return datetime.today()
+
 def usage():
     'Show the instructions and program information.'
     print(doc_opt_str)
@@ -557,7 +573,7 @@ def db_connect():
         cur = conn.cursor(dictionary=True)
     elif dbtype == 'sqlite':
         try:
-            conn = sqlite3.connect(dbname)
+            conn = sqlite3.connect(dbname, detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
         except sqlite3.OperationalError as err:
             chk_db_exceptions(err)
         conn.row_factory = sqlite3.Row
@@ -716,7 +732,7 @@ def copied_ids(jobid):
             if jobrow['type'] == 'B' or (jobrow['type'] == 'M' and pn_jobids_dict[t][1] != migrated_id(jobid)):
                 if pn_jobids_dict[t][1] != '0':
                     # This ^^ prevents ['0'] from being returned, causing "Copied to 0"
-                    # in report This happens when a Copy job finds a Backup/Migration
+                    # in report. This happens when a Copy job finds a Backup/Migration
                     # job to copy, but reports "there no files in the job to copy"
                     # -----------------------------------------------------------------
                     copied_jobids.append(pn_jobids_dict[t][1])
@@ -789,62 +805,62 @@ def translate_job_type(jobtype, jobid, priorjobid):
     if jobtype == 'c':
         if jobrow['jobstatus'] in ('C', 'R'):
             return 'Copy Ctrl:' \
-                + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
-                + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
-                if copied_migrated_job_name_col in ('type', 'both') else '')
+                   + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
+                   + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
+                   if copied_migrated_job_name_col in ('type', 'both') else '')
         if jobrow['jobstatus'] in bad_job_set:
             return 'Copy Ctrl: Failed' \
-                + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
-                + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
-                if copied_migrated_job_name_col in ('type', 'both') else '')
+                   + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
+                   + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
+                   if copied_migrated_job_name_col in ('type', 'both') else '')
         if pn_jobids_dict[str(jobid)][1] == '0':
             if pn_jobids_dict[str(jobid)][0] != '0':
                 return 'Copy Ctrl: ' \
-                    + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][0]) \
-                    + ' (No files to copy)' \
-                    + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
-                    + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
-                    if copied_migrated_job_name_col in ('type', 'both') else '')
+                       + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][0]) \
+                       + ' (No files to copy)' \
+                       + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
+                       + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
+                       if copied_migrated_job_name_col in ('type', 'both') else '')
             else:
                 return 'Copy Ctrl: No jobs to copy'
         else:
             return 'Copy Ctrl:\n' \
-                + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][0]) \
-                + '->' \
-                + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][1]) \
-                + ('<br><span style="font-size: ' + fontsize_addtional_texts \
-                + ';">(' + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
-                if copied_migrated_job_name_col in ('type', 'both') else '')
+                   + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][0]) \
+                   + '->' \
+                   + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][1]) \
+                   + ('<br><span style="font-size: ' + fontsize_addtional_texts \
+                   + ';">(' + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
+                   if copied_migrated_job_name_col in ('type', 'both') else '')
 
     if jobtype == 'g':
         if jobrow['jobstatus'] in ('C', 'R'):
             return 'Migration Ctrl:' \
-                + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
-                + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
-                if copied_migrated_job_name_col in ('type', 'both') else '')
+                   + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
+                   + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
+                   if copied_migrated_job_name_col in ('type', 'both') else '')
         if jobrow['jobstatus'] in bad_job_set:
             return 'Migration Ctrl: Failed' \
-                + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
-                + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
-                if copied_migrated_job_name_col in ('type', 'both') else '')
+                   + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
+                   + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
+                   if copied_migrated_job_name_col in ('type', 'both') else '')
         if pn_jobids_dict[str(jobid)][1] == '0':
             if pn_jobids_dict[str(jobid)][0] != '0':
                 return 'Migration Ctrl: ' \
-                    + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][0]) \
-                    + ' (No data to migrate)' \
-                    + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
-                    + get_copied_migrated_job_name(jobrow['jobid']) + ')<span>' \
-                    if copied_migrated_job_name_col in ('type', 'both') else '')
+                       + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][0]) \
+                       + ' (No data to migrate)' \
+                       + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
+                       + get_copied_migrated_job_name(jobrow['jobid']) + ')<span>' \
+                       if copied_migrated_job_name_col in ('type', 'both') else '')
             else:
                 return 'Migration Ctrl: No jobs to migrate'
         else:
             return 'Migration Ctrl:\n' \
-                + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][0]) \
-                + '->' \
-                + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][1]) \
-                + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
-                + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
-                if copied_migrated_job_name_col in ('type', 'both') else '')
+                   + (urlify_jobid(pn_jobids_dict[str(jobid)][0]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][0]) \
+                   + '->' \
+                   + (urlify_jobid(pn_jobids_dict[str(jobid)][1]) if gui and urlifyalljobs else pn_jobids_dict[str(jobid)][1]) \
+                   + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
+                   + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
+                   if copied_migrated_job_name_col in ('type', 'both') else '')
 
     if jobtype == 'V':
         # TODO: I want to be able to use this simple 'if' test, but can't until I fix the TODO below
@@ -876,8 +892,8 @@ def translate_job_type(jobtype, jobid, priorjobid):
                    + (urlify_jobid(v_jobids_dict[str(jobid)]) if gui and urlifyalljobs else v_jobids_dict[str(jobid)]) \
                    + virus_found_str \
                    + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' + (get_verify_client_info(jobrow['jobid'])[2] \
-                      if get_verify_client_info(jobrow['jobid'])[2] != '0' \
-                      else 'Job not in catalog') + ')</span>' \
+                   if get_verify_client_info(jobrow['jobid'])[2] != '0' \
+                   else 'Job not in catalog') + ')</span>' \
                    if verified_job_name_col in ('type', 'both') else '')
 
     # Catchall for the last two Job types
@@ -886,11 +902,6 @@ def translate_job_type(jobtype, jobid, priorjobid):
 
 def translate_job_status(jobstatus, joberrors):
     'jobstatus is stored in the catalog as a single character, replace with words.'
-    # return {'A': 'Canceled', 'C': 'Created', 'D': 'Verify Diffs',
-    #         'E': 'Errors', 'f': 'Failed', 'I': 'Incomplete',
-    #         'T': (('OK', 'OK/Warnings')[joberrors > 0 or (warn_on_zero_inc and zero_inc)], \
-    #                'OK/Warnings<br>(will not descend)')[warn_on_will_not_descend and will_not_descend],
-    #         'R': ('Running', 'Needs Media')[job_needs_opr]}[jobstatus]
     if jobstatus == 'A':
         return 'Canceled'
     elif jobstatus == 'C':
@@ -1273,7 +1284,8 @@ if args['--config'] != None:
     else:
         try:
             config = ConfigParser(inline_comment_prefixes=('# ', ';'), interpolation=BasicInterpolation())
-            print('- Reading configuration overrides from config file \'' + config_file + '\', section \'DEFAULT\' (if exists), and section \'' + config_section + '\'')
+            print('- Reading configuration overrides from config file \'' \
+                  + config_file + '\', section \'DEFAULT\' (if exists), and section \'' + config_section + '\'')
             config.read(config_file)
             # Create 'config_dict' dictionary from config file
             # ------------------------------------------------
@@ -1688,6 +1700,10 @@ vrfy_jobids = [str(r['jobid']) for r in filteredjobsrows if r['type'] == 'V']
 # -------------------------------------------------------
 numbadjobs = len(badjobids)
 
+# This next one is special. It is only used for the AV tests
+# ----------------------------------------------------------
+vrfy_data_jobids = [str(r['jobid']) for r in filteredjobsrows if r['type'] == 'V' and r['level'] == 'A']
+
 if do_not_email_on_all_ok and numbadjobs == 0:
     # Per Github issue request #9: If all jobs are OK, do
     # not send any email, and simply exit with returncode 0
@@ -1699,7 +1715,7 @@ if do_not_email_on_all_ok and numbadjobs == 0:
 # If 'print_client_version' is True, we print the Client's
 # version under its name in the Job table. We need to
 # query the Client table to get the name and uname then
-# add them to the client_versions_dict dictionary
+# add them to the client_versions_dict dictionary.
 # --------------------------------------------------------
 if print_client_version:
     client_versions_dict = {}
@@ -1711,9 +1727,14 @@ if print_client_version:
     for row in client_version_rows:
         client_versions_dict[row['name']] = re.sub('(\d+\.\d+\.\d+) .*', '\\1', row['uname'])
 
-# This next one is special. It is only used for the AV tests
-# ----------------------------------------------------------
-vrfy_data_jobids = [str(r['jobid']) for r in filteredjobsrows if r['type'] == 'V' and r['level'] == 'A']
+# I want to sort the client_versions_dict dictionary by numeric Client version for the
+# client_ver_older_than_dir table.
+# Thanks to Mark on stackoverflow.com for this tip! https://stackoverflow.com/a/2258273
+# Thanks to lrsp on stackoverflow.com for this tip! https://stackoverflow.com/a/50494717
+# --------------------------------------------------------------------------------------
+# sorted_client_versions_lst = natsorted(client_versions_dict.items(), key=lambda x: x[1])
+# print(type(sorted_client_versions_lst))
+# print(sorted_client_versions_lst)
 
 # Get a list of jobs that have always failed for the
 # past 'days' days so that we can display a column
@@ -1738,6 +1759,54 @@ bad_days_jobs = [r['jobname'] for r in alldaysjobrows if r['jobstatus'] not in (
 unique_bad_days_jobs = {r['jobname'] for r in alldaysjobrows if r['jobstatus'] not in ('T', 'R', 'C')}
 always_fail_jobs = set(unique_bad_days_jobs.difference(good_days_jobs)).intersection(alljobnames)
 
+# Query the DB for all jobs in the catalog. Then use dict comprehension
+# to add/overwrite each jobname/time into a dictionary with the jobname
+# as the key and the end time as the value.
+# The last {'Job': (jobid, 'time', daysago)} k/v pair added/overwritten
+# into the dictionary will be the last time that job has been
+# successfully run.
+# Then we do a little date math later to show jobs that have not been
+# successfully run for 'last_good_run_days'.
+# ---------------------------------------------------------------------
+if warn_on_last_good_run:
+    warn_last_good_run_dict = {}
+    if dbtype == 'pgsql':
+        query_str = "SELECT JobId, Name, EndTime \
+            FROM Job WHERE Type = 'B' AND JobStatus IN ('T', 'W') ORDER BY JobId ASC;"
+    elif dbtype in ('mysql', 'maria'):
+        query_str = "SELECT jobid, CAST(name as CHAR(50)) AS name, endtime \
+            FROM Job WHERE Type = 'B' AND jobstatus IN ('T', 'W') ORDER BY jobid ASC;"
+    elif dbtype == 'sqlite':
+        query_str = "SELECT JobId, Name, EndTime '[timestamp]' \
+            FROM Job WHERE Type = 'B' AND JobStatus IN ('T', 'W') ORDER BY JobId ASC;"
+    alldbjobsrows = db_query(query_str, 'all jobs in catalog for warn_on_last_good_run feature')
+
+    # Create the 'last_time_run_dict' dictionary
+    # Each time a jobname is found, it will create a new key: value pair in the
+    # dictionary, overwriting the key: value pair if the jobname (key) exists
+    # leaving the last time a job has run successfully and its time in the dictionary
+    # -------------------------------------------------------------------------------
+    # Seems I cannot do dict comprehension with column names for SQLite3. I get the
+    # following error:
+    #      last_time_run_dict = {r['name']: r['endtime'] for r in alldbjobsrows}
+    #                                       ~^^^^^^^^^^^
+    #      IndexError: No item with that key
+    # -------------------------------------------------------------------------------
+    if dbtype == 'sqlite':
+        last_time_run_dict = {r[1]: (r[0], r[2]) for r in alldbjobsrows}
+    else:
+        last_time_run_dict = {r['name']: (r['jobid'], r['endtime']) for r in alldbjobsrows}
+
+    # Create new dictionary of Jobs that have not successfully run in 'last_good_run_days' days
+    # -----------------------------------------------------------------------------------------
+    for name, info in last_time_run_dict.items():
+        delta = now() - info[1]
+        if name not in last_good_run_skip_lst and delta.days >= last_good_run_days:
+            # If last good run of a job was >= 'last_good_run_days',
+            # add to 'warn_last_good_run_dict'
+            # ------------------------------------------------------
+            warn_last_good_run_dict[name] = (info[0], info[1], delta.days)
+
 # Now, check each "always failing" job against the
 # threshold and remove each job from the always_fail_jobs
 # set that has failed less times than the threshold
@@ -1750,7 +1819,7 @@ if int(always_fail_jobs_threshold) > 1:
 # For each Copy/Migration Control Job (c, g), get the Job summary
 # text from the log table.
 # TODO:
-# Even though we have a full list of all control jobids `ctrl_jobids`,
+# Even though we have a full list of all control jobids 'ctrl_jobids',
 # This DB query will only return rows for completed jobs, not running
 # jobs because running jobs do not have a Summary!
 # Now, after realizing this, I want to show the Name of the Job that
@@ -1815,10 +1884,16 @@ if len(ctrl_jobids) != 0:
 # Copy/Migrate/Verify jobs that are older than "-t hours" which
 # might get pulled into the filteredjobsrows list from having their
 # files/bytes included in the optional stats: restored, copied,
-# verified, migrated files/bytes
+# verified, migrated files/bytes.
+# Note: waa - 20231110 - This table block of additional tables has
+# grown to include several other new tables over time.
 # -----------------------------------------------------------------
-if summary_and_rates != 'none' and (create_job_summary_table or create_success_rates_table or chk_pool_use):
-    job_summary_table = success_rates_table = pool_table = ''
+if summary_and_rates != 'none' and (create_job_summary_table \
+                        or create_success_rates_table \
+                        or warn_on_last_good_run \
+                        or create_client_ver_lt_dir_table \
+                        or chk_pool_use):
+    job_summary_table = success_rates_table = warn_on_last_good_table = client_ver_lt_dir_table = pool_table = ''
     summary_and_rates_table = '<table>' \
                             + '<tr style="background: none; vertical-align: top; horizontal-align: left;">' \
                             + '<td>'
@@ -1868,17 +1943,17 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
 
         # Do we include the Bacula Director version in the Summary table?
         # ---------------------------------------------------------------
-        if bacula_version:
+        if bacula_dir_version:
             # We need to query the log table for the last *Backup* Job summary
             # block because the first line in the Job summary block is different
             # for different job types! Backup vs Copy vs Migration Admin vs
-            # Verify vs Restore. This makes it impossible top define a Python
-            # re.sub to catch all job types.
+            # Verify vs Restore, Community vs Enterprise. This makes it
+            # impossible top define a Python re.sub to catch all job types.
             #-------------------------------------------------------------------
             if dbtype in ('pgsql', 'sqlite'):
                 query_str = "SELECT logtext FROM log WHERE logtext LIKE '%Termination:%Backup%' ORDER BY time DESC LIMIT 1;"
             elif dbtype in ('mysql', 'maria'):
-                query_str = "SELECT CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE logtext LIKE '%Termination:% Backup%' ORDER BY time DESC LIMIT 1;"
+                query_str = "SELECT CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE logtext LIKE '%Termination:%Backup%' ORDER BY time DESC LIMIT 1;"
             bacula_ver_row = db_query(query_str, 'Bacula version', 'one')
             bacula_ver = re.sub('^.* (\d{2}\.\d{1,2}\.\d{1,2}) \(\d{2}\w{3}\d{2}\):\n.*', '\\1', bacula_ver_row['logtext'], flags = re.DOTALL)
             job_summary_table_data.insert(0, {'label': 'Bacula Director Version', 'data': bacula_ver})
@@ -1981,10 +2056,42 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
         # -------------------------------------------------------------------------------
         for value in success_rates_table_data:
             success_rates_table += '<tr>' \
-                               + '<td style="' + summarytablecellstyle + 'text-align: left; padding-right: 40px;">' + value['label'] + '</td>' \
-                               + '<td style="' + summarytablecellstyle + 'text-align: right; padding-left: 40px;">' + value['data'] + '</td>' \
-                               + '</tr>\n'
+                                + '<td style="' + summarytablecellstyle + 'text-align: left; padding-right: 40px;">' + value['label'] + '</td>' \
+                                + '<td style="' + summarytablecellstyle + 'text-align: right; padding-left: 40px;">' + value['data'] + '</td>' \
+                                + '</tr>\n'
         success_rates_table += '</table>'
+
+    # Do we create the client_ver_lt_dir_table table?
+    # -----------------------------------------------
+    # if create_client_ver_lt_dir_table:
+    #     client_ver_lt_dir_table = '<table style="' + summarytablestyle + '">' \
+    #                       + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
+    #                       + summarytableheadercellstyle + '">Client Version is < Director</th></tr>'
+
+    # Do we create the 'warn_on_last_good_run' table?
+    # -----------------------------------------------
+    if warn_on_last_good_run and len(warn_last_good_run_dict) > 0:
+        warn_on_last_good_table = '<table style="' + summarytablestyle + '">' \
+                                + '<tr style="' + summarytableheaderstyle + '"><th colspan="4" style="' \
+                                + summarytableheadercellstyle + '">Jobs last good run >= ' + str(last_good_run_days) + ' days</th></tr>' \
+                                + '<tr><th>Job Id</th><th>Job Name</th><th>End Time</th><th>Days Ago</th></tr>'
+
+        for k in warn_last_good_run_dict:
+            warn_on_last_good_table += '<tr>' \
+                                    + '<td style="' + summarytablecellstyle \
+                                    + 'text-align: center; padding-left: 10px; padding-right: 10px;">' \
+                                    + urlify_jobid(warn_last_good_run_dict[k][0]) + '</td>' \
+                                    + '<td style="' + summarytablecellstyle \
+                                    + 'text-align: center; padding-left: 10px; padding-right: 10px;">' \
+                                    + k + '</td>' \
+                                    + '<td style="' + summarytablecellstyle \
+                                    + 'text-align: center; padding-left: 10px; padding-right: 10px;">' \
+                                    + str(warn_last_good_run_dict[k][1]) + '</td>' \
+                                    + '<td style="' + summarytablecellstyle \
+                                    + 'text-align: center; padding-left: 10px; padding-right: 10px;">' \
+                                    + str('{:,}'.format(warn_last_good_run_dict[k][2])) + '</td>' \
+                                    + '</tr>\n'
+        warn_on_last_good_table += '</table>'
 
     # Test for pools numvols/maxvols to see if we are 80-89%, 90-95%, 95%+ and
     # set a banner with color and information warning of pool occupations
@@ -2042,7 +2149,7 @@ if summary_and_rates != 'none' and (create_job_summary_table or create_success_r
 
     # Insert the Job Summary, Success Rates, and Pool Table and close the outer table
     # -------------------------------------------------------------------------------
-    summary_and_rates_table += job_summary_table + success_rates_table + pool_table + '</td></tr></table>'
+    summary_and_rates_table += job_summary_table + success_rates_table + warn_on_last_good_table + pool_table + '</td></tr></table>'
 
 # For each Verify Job (V), get the
 # Job summary text from the log table
@@ -2584,10 +2691,10 @@ for jobrow in filteredjobsrows:
             # Currently the two dictionaries pn_jobids_dict and v_jobids_dict are built by using re.sub
             # against these Job Summaries. To get the Job Name for one of these type of running Jobs, I
             # will need to have a query which looks for this line in running Copy/Migration Jobs:
-            # `bacula-dir JobId 46852: Copying using JobId=46839 Job=Catalog.2022-04-10_02.45.00_24`
+            # 'bacula-dir JobId 46852: Copying using JobId=46839 Job=Catalog.2022-04-10_02.45.00_24'
             #
             # and this line in running Verify Jobs:
-            # `bacula-dir JobId 46843: Verifying against JobId=46839 Job=Catalog.2022-04-10_02.45.00_24`
+            # 'bacula-dir JobId 46843: Verifying against JobId=46839 Job=Catalog.2022-04-10_02.45.00_24'
             #
             # ...and then add them to the correct dictionary. A value of '0' will be used for Created,
             # not yet running Copy/Migration/Verify jobs
@@ -2675,6 +2782,17 @@ if warn_on_will_not_descend and num_will_not_descend_jobs != 0:
                     + ('s' if num_will_not_descend_jobs > 1 else '') + ' with zero errors' \
                     + ' which had \'Will not descend\' warnings. ' + ('Its' if num_will_not_descend_jobs == 1 else 'Their') \
                     + ' Status has been changed to \'OK/Warnings\'</p><br>\n'
+
+# Highlight jobs that have not successfully completed in 'last_good_run_days'?
+# ----------------------------------------------------------------------------
+if warn_on_last_good_run and len(warn_last_good_run_dict) != 0:
+    warning_banners += '<p class="bannerwarnings">' \
+                    + '- There ' + ('is ' if len(warn_last_good_run_dict) == 1 else 'are ') \
+                    + str(len(warn_last_good_run_dict)) + ' job' \
+                    + ('s' if len(warn_last_good_run_dict) > 1 else '') + ' which ' \
+                    + ('has' if len(warn_last_good_run_dict) == 1 else 'have') \
+                    + ' not successfully completed in more than the \'last_good_run_days\' setting of ' \
+                    + str(last_good_run_days) + ' days' + '</p><br>\n'
 
 # Highlight 'OK' Differential and Incremental jobs that backed up zero files/bytes?
 # ---------------------------------------------------------------------------------
@@ -2785,4 +2903,4 @@ elif summary_and_rates == 'both':
 msg += (virussummaries if appendvirussummaries else '') + jobsummaries + badjoblogs + prog_info()
 send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
 
-# vim: expandtab tabstop=4 softtabstop=4 shiftwidth=4
+# vim: expandtab tabstop=4 softtabstop=4 shiftwidth=4 :

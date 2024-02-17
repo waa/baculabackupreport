@@ -318,8 +318,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.25'
-reldate = 'February 03, 2024'
+version = '2.26'
+reldate = 'February 16, 2024'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -344,7 +344,8 @@ valid_col_lst = ['jobid', 'jobname', 'client', 'status',
 # Lists of strings to determine if a job is waiting on media, and if new media has been found/mounted
 # ---------------------------------------------------------------------------------------------------
 needs_mount_txt_lst = ['Please mount', 'Please use the "label" command']
-got_new_vol_txt_lst = ['New volume', 'Ready to append', 'Labeled new Volume', 'Wrote label to ', 'all previous data lost']
+got_new_vol_txt_lst = ['New volume', 'Ready to append', 'Ready to read', 'Forward spacing Volume', 
+                       'Labeled new Volume', 'Wrote label to ', 'all previous data lost']
 
 # This list is so that we can reliably convert the True/False strings
 # from the config file into real booleans to be used in later tests.

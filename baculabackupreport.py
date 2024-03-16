@@ -2076,12 +2076,11 @@ if summary_and_rates != 'none' and (create_job_summary_table \
                                 + '<tr style="' + summarytableheaderstyle + '"><th colspan="4" style="' \
                                 + summarytableheadercellstyle + '">Jobs last good run >= ' + str(last_good_run_days) + ' days</th></tr>' \
                                 + '<tr><th>Job Id</th><th>Job Name</th><th>End Time</th><th>Days Ago</th></tr>'
-
         for k in warn_last_good_run_dict:
             warn_on_last_good_table += '<tr>' \
                                     + '<td style="' + summarytablecellstyle \
                                     + 'text-align: center; padding-left: 10px; padding-right: 10px;">' \
-                                    + urlify_jobid(warn_last_good_run_dict[k][0]) + '</td>' \
+                                    + urlify_jobid(str(warn_last_good_run_dict[k][0])) + '</td>' \
                                     + '<td style="' + summarytablecellstyle \
                                     + 'text-align: center; padding-left: 10px; padding-right: 10px;">' \
                                     + k + '</td>' \

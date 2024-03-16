@@ -318,8 +318,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.26'
-reldate = 'February 16, 2024'
+version = '2.27'
+reldate = 'March 15, 2024'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -1233,7 +1233,7 @@ def get_pool_or_storage(res_type):
             query_str = "SELECT logtext FROM log WHERE jobid = " \
                       + str(jobrow['jobid']) + " AND logtext LIKE '%Termination:%';"
         elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT CAST(logtext as CHAR(1000)) AS logtext FROM Log WHERE jobid = " \
+            query_str = "SELECT CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE jobid = " \
                       + str(jobrow['jobid']) + " AND logtext LIKE '%Termination:%';"
         summary = db_query(query_str, 'joblog summary block for "Pool" or "Storage"', 'one')
         # If summary is empty due to Job still running, or (for example) the
@@ -1839,7 +1839,7 @@ if len(ctrl_jobids) != 0:
             WHERE jobid IN (" + ','.join(ctrl_jobids) + ") \
             AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
     elif dbtype in ('mysql', 'maria'):
-        query_str = "SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
+        query_str = "SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext \
             FROM Log WHERE jobid IN (" + ','.join(ctrl_jobids) + ") \
             AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
     cji_rows = db_query(query_str, 'control job information')
@@ -2163,7 +2163,7 @@ if len(vrfy_jobids) != 0:
             FROM log WHERE jobid IN (" + ','.join(vrfy_jobids) + ") \
             AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
     elif dbtype in ('mysql', 'maria'):
-        query_str = "SELECT jobid, CAST(logtext as CHAR(1000)) AS logtext \
+        query_str = "SELECT jobid, CAST(logtext as CHAR(2000)) AS logtext \
             FROM Log WHERE jobid IN (" + ','.join(vrfy_jobids) + ") \
             AND logtext LIKE '%Termination:%' ORDER BY jobid DESC;"
     vji_rows = db_query(query_str, 'verify job information')
@@ -2306,7 +2306,7 @@ if checkforvirus and len(vrfy_data_jobids) != 0:
             ORDER BY Log.JobId DESC, Time ASC;"
     elif dbtype in ('mysql', 'maria'):
         query_str = "SELECT Job.name as jobname, Log.jobid, CAST(Client.name as CHAR(50)) AS name, \
-            CAST(Log.logtext as CHAR(1000)) AS logtext \
+            CAST(Log.logtext as CHAR(2000)) AS logtext \
             FROM Log \
             INNER JOIN Job ON Log.jobid=Job.jobid \
             INNER JOIN Client ON Job.clientid=Client.clientid \

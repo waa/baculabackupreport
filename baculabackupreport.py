@@ -318,8 +318,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.27'
-reldate = 'March 15, 2024'
+version = '2.28'
+reldate = 'May 02, 2024'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -645,7 +645,7 @@ def get_verify_client_info(vrfy_jobid):
         if row == None or len(row) == 0:
             return '', '', 'No Info'
         else:
-            return '', '', re.sub('.*Verifying against JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row['logtext'], flags=re.DOTALL)
+            return '', '', re.sub(r'.*Verifying against JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row['logtext'], flags=re.DOTALL)
     else:
         if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName \
@@ -691,7 +691,7 @@ def get_copied_migrated_job_name(copy_migrate_jobid):
             # If a JobName was returned from the query
             # return it, otherwise return 'No Info'
             # ----------------------------------------
-            return re.sub('.*[Copying\|Migration] using JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row['logtext'], flags=re.DOTALL)
+            return re.sub(r'.*[Copying\|Migration] using JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row['logtext'], flags=re.DOTALL)
         else:
             # This is for when a Copy/Migration control job is canceled due to:
             # Fatal error: JobId 47454 already running. Duplicate job not allowed.
@@ -1260,7 +1260,7 @@ def get_pool_or_storage(res_type):
                            + re.sub('.*Write Storage: +(.+?)\n.*', 'Write: \\1', text, flags = re.DOTALL)
             p_or_s = re.sub('"', '', p_or_s)
             if strip_p_or_s_from:
-                p_or_s = re.sub('\((.+?)\)', '', p_or_s, re.DOTALL)
+                p_or_s = re.sub(r'\((.+?)\)', '', p_or_s, re.DOTALL)
     else:
         # waa - 20230503 TODO
         # placeholder... Here we should try to scrape the joblog for the Read/Write Pool(s)
@@ -1662,7 +1662,7 @@ if numfilteredjobs == 0:
         subject = set_subject_icon() + ' ' + subject
     msg = 'These are not the droids you are looking for.\n\n' + prog_info_txt
     if print_subject:
-        print(re.sub('=.*=\)? (.*)$', '\\1', '- Job Report Subject: ' + subject))
+        print(re.sub(r'=.*=\)? (.*)$', '\\1', '- Job Report Subject: ' + subject))
     send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
     sys.exit(1)
 else:
@@ -1726,7 +1726,7 @@ if print_client_version:
         query_str = "SELECT CAST(name as CHAR(255)) AS name, CAST(uname as CHAR(255)) AS uname FROM Client;"
     client_version_rows = db_query(query_str, 'Client versions')
     for row in client_version_rows:
-        client_versions_dict[row['name']] = re.sub('(\d+\.\d+\.\d+) .*', '\\1', row['uname'])
+        client_versions_dict[row['name']] = re.sub('(\\d+\\.\\d+\\.\\d+) .*', '\\1', row['uname'])
 
 # I want to sort the client_versions_dict dictionary by numeric Client version for the
 # client_ver_older_than_dir table.
@@ -1956,7 +1956,7 @@ if summary_and_rates != 'none' and (create_job_summary_table \
             elif dbtype in ('mysql', 'maria'):
                 query_str = "SELECT CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE logtext LIKE '%Termination:%Backup%' ORDER BY time DESC LIMIT 1;"
             bacula_ver_row = db_query(query_str, 'Bacula version', 'one')
-            bacula_ver = re.sub('^.* (\d{2}\.\d{1,2}\.\d{1,2}) \(\d{2}\w{3}\d{2}\):\n.*', '\\1', bacula_ver_row['logtext'], flags = re.DOTALL)
+            bacula_ver = re.sub(r'^.* (\d{2}\.\d{1,2}\.\d{1,2}) \(\d{2}\w{3}\d{2}\):\n.*', '\\1', bacula_ver_row['logtext'], flags = re.DOTALL)
             job_summary_table_data.insert(0, {'label': 'Bacula Director Version', 'data': bacula_ver})
 
         # - Not everyone runs Copy, Migration, Verify jobs
@@ -2505,7 +2505,7 @@ if 'virus_dict' in globals() and checkforvirus and len(virus_set) != 0:
     + str(num_virus_clients) + ' ' + ('Client' if num_virus_clients == 1 else 'Clients') + ' (' \
     + str(num_virus_files) + ' ' + ('File ' if num_virus_files == 1 else 'Files ') + 'Infected)'
     if print_subject:
-        print('- Virus Report Subject: ' + re.sub('=.*=\)? (.*)$', '\\1', virusemailsubject))
+        print('- Virus Report Subject: ' + re.sub('=.*=\\)? (.*)$', '\\1', virusemailsubject))
     if emailvirussummary:
         send_email(avemail, fromemail, virusemailsubject, virussummaries, smtpuser, smtppass, smtpserver, smtpport)
 
@@ -2890,7 +2890,7 @@ subject = server + ' - ' + str(numjobs) + ' ' + job + ' in the past ' \
 if addsubjecticon:
     subject = set_subject_icon() + ' ' + subject
 if print_subject:
-    print('- Job Report Subject: ' + re.sub('=.*=\)? (.*)$', '\\1', subject))
+    print('- Job Report Subject: ' + re.sub('=.*=\\)? (.*)$', '\\1', subject))
 
 # Build the final message and send the email
 # ------------------------------------------

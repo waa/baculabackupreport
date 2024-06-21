@@ -105,6 +105,8 @@ virusfoundtext = 'Virus detected'      # Some unique text that your AV software 
 verified_job_name_col = 'name'         # What column should the job name of verified jobs be displayed? (name, type, both, none)
 copied_migrated_job_name_col = 'name'  # What column should the job name of Copied/Migrated jobs be displayed? (name, type, both, none)
 print_client_version = True            # Print the Client version under the Client name in the Job table?
+enc_hdr_type = 'both'                  # What should be displayed in the "Encrypted" header cell? (text, emoji, both)
+enc_cell_type = 'both'                 # What should be displayed in the "Encrypted" cell? (text, emoji, both)
 
 # Warn about 'OK' jobs when "Will not descend" is reported in logs?
 # -----------------------------------------------------------------
@@ -205,6 +207,12 @@ virusfoundbodyicon = '&#x1F9A0'                 # HEX encoding for emoji in emai
 # virusfoundbodyicon = '&#x1F47E'               # HEX encoding for emoji in email body 'space invader' (virus) icon
 # virusfoundbodyicon = '&#x1F480'               # HEX encoding for emoji in email body 'skull' (virus) icon
 # virusfoundbodyicon = '&#x1F4A3'               # HEX encoding for emoji in email body 'bomb' (virus) icon
+
+# Encrypted/Unencrypted emojis
+# ----------------------------
+enc_emoji = '&#x1F510;'     # Emoji for encrypted jobs. 'Locked lock with key' emoji
+# enc_emoji = '&#x1F512;'   # Emoji for encrypted jobs. 'Locked lock without key' emoji
+un_enc_emoji = '&#x1F513;'  # Emoji for unencrypted jobs. 'Unloaded lock' emoji
 
 # Set the columns to display and their order
 # Recommended to always include jobid, jobname, status, type, and endtime
@@ -318,8 +326,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.28'
-reldate = 'May 02, 2024'
+version = '2.29'
+reldate = 'June 20, 2024'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -336,10 +344,9 @@ valid_verified_job_name_col_lst = \
 valid_copied_migrated_job_name_col_lst = ['name', 'type', 'both', 'none']
 valid_summary_location_lst = ['top', 'bottom', 'both', 'none']
 valid_needs_media_since_or_for_lst = ['since', 'for', 'none']
-valid_col_lst = ['jobid', 'jobname', 'client', 'status',
-                 'joberrors', 'type', 'level', 'jobfiles',
-                 'jobbytes', 'starttime', 'endtime',
-                 'runtime', 'pool', 'fileset', 'storage']
+valid_col_lst = [ 'jobid', 'jobname', 'client', 'status', 'joberrors', 'type', 'level', 'jobfiles',
+                  'jobbytes', 'starttime', 'endtime', 'runtime', 'pool', 'fileset', 'storage', 'encrypted']
+valid_enc_hdr_type_lst = valid_enc_cell_type_lst = ['text', 'emoji', 'both']
 
 # Lists of strings to determine if a job is waiting on media, and if new media has been found/mounted
 # ---------------------------------------------------------------------------------------------------
@@ -517,6 +524,10 @@ def print_opt_errors(opt):
         return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_needs_media_since_or_for_lst)
     elif opt == 'cols2show':
         return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_col_lst)
+    elif opt == 'enc_hdr_type':
+        return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_enc_hdr_type_lst)
+    elif opt == 'enc_cell_type':
+        return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_enc_cell_type_lst)
 
 def chk_db_exceptions(err, query=None):
     'Given a DB connection exception or SQL query exception, print some useful information and exit.'
@@ -1270,6 +1281,53 @@ def get_pool_or_storage(res_type):
         p_or_s = 'N/A'
     return p_or_s
 
+def set_hdr_str():
+    'Create the enc_str to be displayed in the Encrypted column title.'
+    # What method do we use to display the encryption cell?
+    # -----------------------------------------------------
+    if enc_hdr_type == 'text':
+        return 'Encrypted'
+    elif enc_hdr_type == 'emoji':
+        return enc_emoji
+    elif enc_hdr_type == 'both':
+        return enc_emoji + ' Encrypted'
+
+def set_enc_str(jobid):
+    'Create the enc_str to be displayed in the Encrypted cell.'
+    # If the job is running or created not yet running, or if the job is one of Admin,
+    # Copy/Migration Control, Restore, or Verify, short circuit any tests and return '----'
+    # -------------------------------------------------------------------------------------
+    if jobrow['jobstatus'] in ('R', 'C') or jobrow['type'] in ('c', 'D', 'g', 'R', 'V'):
+        return '----'
+    # Is the job encrypted?
+    # ---------------------
+    elif jobid in enc_jobids:
+        # Job is encrypted, now find out by whom - FD, SD, or BOTH
+        # --------------------------------------------------------
+        if enc_jobids[jobid] == 1:
+            enc_by = '<b>FD</b>'
+        elif enc_jobids[jobid] == 2:
+            enc_by = '<b>SD</b>'
+        if enc_jobids[jobid] == 3:
+            enc_by = '<b>FD & SD</b>'
+        # What method do we use to display the encryption cell?
+        # -----------------------------------------------------
+        if enc_cell_type == 'text':
+            return 'Encrypted by:<br>' + enc_by
+        elif enc_cell_type == 'emoji':
+            return enc_emoji
+        elif enc_cell_type == 'both':
+            return enc_emoji + ' ' + enc_by
+    else:
+        # Job is not encrypted
+        # --------------------
+        if enc_cell_type == 'text':
+            return 'Unencrypted'
+        elif enc_cell_type == 'emoji':
+            return un_enc_emoji
+        elif enc_cell_type == 'both':
+            return un_enc_emoji + ' Unencrypted'
+
 # Assign docopt doc string variable
 # ---------------------------------
 args = docopt(doc_opt_str, version='\n' + progname + ' - v' + version + '\n' + reldate + '\n')
@@ -1285,7 +1343,7 @@ if args['--config'] != None:
     else:
         try:
             config = ConfigParser(inline_comment_prefixes=('# ', ';'), interpolation=BasicInterpolation())
-            print('- Reading configuration overrides from config file \'' \
+            print('- Reading configuration overrides from config file \''
                   + config_file + '\', section \'DEFAULT\' (if exists), and section \'' + config_section + '\'')
             config.read(config_file)
             # Create 'config_dict' dictionary from config file
@@ -1314,29 +1372,6 @@ if args['--config'] != None:
         # Set the global variable
         # -----------------------
         myvars[k] = config_dict[k]
-
-# Create a dictionary of column name to html strings so
-# that they may be used in any order in the jobs table
-# This must get done after any possible modifications
-# from a config file's overrides.
-# -----------------------------------------------------
-col_hdr_dict = {
-    'jobid':     '<th style="' + jobtableheadercellstyle + '">Job ID</th>',
-    'jobname':   '<th style="' + jobtableheadercellstyle + '">Job Name</th>',
-    'client':    '<th style="' + jobtableheadercellstyle + '">Client</th>',
-    'status':    '<th style="' + jobtableheadercellstyle + '">Status</th>',
-    'joberrors': '<th style="' + jobtableheadercellstyle + '">Errors</th>',
-    'type':      '<th style="' + jobtableheadercellstyle + '">Type</th>',
-    'level':     '<th style="' + jobtableheadercellstyle + '">Level</th>',
-    'jobfiles':  '<th style="' + jobtableheadercellstyle + '">Files</th>',
-    'jobbytes':  '<th style="' + jobtableheadercellstyle + '">Bytes</th>',
-    'starttime': '<th style="' + jobtableheadercellstyle + '">Start Time</th>',
-    'endtime':   '<th style="' + jobtableheadercellstyle + '">End Time</th>',
-    'runtime':   '<th style="' + jobtableheadercellstyle + '">Run Time</th>',
-    'pool':      '<th style="' + jobtableheadercellstyle + '">Pool</th>',
-    'fileset':   '<th style="' + jobtableheadercellstyle + '">Fileset</th>',
-    'storage':   '<th style="' + jobtableheadercellstyle + '">Storage</th>'
-    }
 
 # Set the gui variable to shorten
 # up some if statements later on
@@ -1375,6 +1410,18 @@ if not all(item in valid_col_lst for item in cols2show_lst):
     print(print_opt_errors('cols2show'))
     usage()
 
+# Verify the enc_hdr_type variable is valid
+# -----------------------------------------
+if enc_hdr_type not in valid_enc_hdr_type_lst:
+    print(print_opt_errors('enc_hdr_type'))
+    usage()
+
+# Verify the enc_cell_type variable is valid
+# ------------------------------------------
+if enc_cell_type not in valid_enc_cell_type_lst:
+    print(print_opt_errors('enc_cell_type'))
+    usage()
+
 # Validate the alwaysfailcolumn. This is a special case since it needs to be a valid
 # column name, and it also needs to be in the cols2show_lst list of colums to display
 # -----------------------------------------------------------------------------------
@@ -1411,8 +1458,34 @@ else:
         alwaysfailcolumn_str = 'Pool cell'
     elif alwaysfailcolumn == 'Fileset':
         alwaysfailcolumn_str = 'Fileset cell'
+    elif alwaysfailcolumn == 'Encrypted':
+        alwaysfailcolumn_str = 'Encrypted cell'
     else:
         alwaysfailcolumn_str = alwaysfailcolumn.title() + ' cell'
+
+# Create a dictionary of column name to html strings so
+# that they may be used in any order in the jobs table
+# This must get done after any possible modifications
+# from a config file's overrides.
+# -----------------------------------------------------
+col_hdr_dict = {
+    'jobid':     '<th style="' + jobtableheadercellstyle + '">Job ID</th>',
+    'jobname':   '<th style="' + jobtableheadercellstyle + '">Job Name</th>',
+    'client':    '<th style="' + jobtableheadercellstyle + '">Client</th>',
+    'status':    '<th style="' + jobtableheadercellstyle + '">Status</th>',
+    'joberrors': '<th style="' + jobtableheadercellstyle + '">Errors</th>',
+    'type':      '<th style="' + jobtableheadercellstyle + '">Type</th>',
+    'level':     '<th style="' + jobtableheadercellstyle + '">Level</th>',
+    'jobfiles':  '<th style="' + jobtableheadercellstyle + '">Files</th>',
+    'jobbytes':  '<th style="' + jobtableheadercellstyle + '">Bytes</th>',
+    'starttime': '<th style="' + jobtableheadercellstyle + '">Start Time</th>',
+    'endtime':   '<th style="' + jobtableheadercellstyle + '">End Time</th>',
+    'runtime':   '<th style="' + jobtableheadercellstyle + '">Run Time</th>',
+    'pool':      '<th style="' + jobtableheadercellstyle + '">Pool</th>',
+    'fileset':   '<th style="' + jobtableheadercellstyle + '">Fileset</th>',
+    'storage':   '<th style="' + jobtableheadercellstyle + '">Storage</th>',
+    'encrypted': '<th style="' + jobtableheadercellstyle + '">' + set_hdr_str() + '</th>'
+    }
 
 # Assign/re-assign docopt args[] vars based on cli vs env vs config file vs script defaults
 # -----------------------------------------------------------------------------------------
@@ -1585,7 +1658,7 @@ else:
 if dbtype == 'pgsql':
     query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, coalesce(Pool.Name, 'N/A') AS Pool, \
         coalesce(Fileset.Fileset, 'N/A') AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
-        PriorJobId, AGE(EndTime, StartTime) AS RunTime \
+        PriorJobId, AGE(EndTime, StartTime) AS RunTime, Encrypted \
         FROM Job \
         INNER JOIN Client ON Job.ClientID=Client.ClientID \
         LEFT OUTER JOIN Pool ON Job.PoolID=Pool.PoolID \
@@ -1602,7 +1675,7 @@ elif dbtype in ('mysql', 'maria'):
         coalesce(CAST(Pool.name as CHAR(50)), 'N/A') AS pool, coalesce(CAST(FileSet.fileset as CHAR(50)), 'N/A') AS fileset, \
         CAST(jobstatus as CHAR(1)) AS jobstatus, \
         joberrors, CAST(type as CHAR(1)) AS type, CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
-        starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime \
+        starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime, encrypted \
         FROM Job \
         INNER JOIN Client ON Job.clientid=Client.clientid \
         LEFT OUTER JOIN Pool ON Job.poolid=Pool.poolid \
@@ -1617,7 +1690,7 @@ elif dbtype in ('mysql', 'maria'):
 elif dbtype == 'sqlite':
     query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, coalesce(Pool.Name, 'N/A') AS Pool, \
         coalesce(Fileset.Fileset, 'N/A') AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
-        PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime \
+        PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime, Encrypted \
         FROM Job \
         INNER JOIN Client ON Job.ClientId=Client.ClientId \
         LEFT OUTER JOIN Pool ON Job.PoolID=Pool.PoolID \
@@ -1696,6 +1769,7 @@ runningorcreated = len([r['jobstatus'] for r in filteredjobsrows if r['jobstatus
 queued = len([r['jobstatus'] for r in filteredjobsrows if r['jobstatus'] ==  'C'])
 ctrl_jobids = [str(r['jobid']) for r in filteredjobsrows if r['type'] in ('c', 'g')]
 vrfy_jobids = [str(r['jobid']) for r in filteredjobsrows if r['type'] == 'V']
+enc_jobids = {r['jobid']: r['encrypted'] for r in filteredjobsrows if r['type'] in ('B', 'C') and r['jobstatus'] in ('T', 'e') and r['encrypted'] != 0}
 
 # Used in the Summary table, and also used in the subject
 # -------------------------------------------------------
@@ -2675,6 +2749,12 @@ for jobrow in filteredjobsrows:
     # ---------------------------------------------------------------
     job_needs_opr = True if 'job_needs_opr_dict' in globals() and str(jobrow['jobid']) in job_needs_opr_dict else False
 
+    # If the 'encrypted' column is enabled, build the
+    # 'enc_str' to be printed in the Job's Encrypted cell
+    # ---------------------------------------------------
+    if 'encrypted' in cols2show:
+        enc_str = set_enc_str(jobrow['jobid'])
+
     # Set the job row's default bgcolor
     # ---------------------------------
     if alwaysfailjob and alwaysfailcolumn == 'row':
@@ -2745,6 +2825,8 @@ for jobrow in filteredjobsrows:
             msg += html_format_cell(get_pool_or_storage('p'))
         elif colname == 'storage':
             msg += html_format_cell(get_pool_or_storage('s'))
+        elif colname == 'encrypted':
+            msg += html_format_cell(enc_str)
         elif colname == 'runtime':
             if dbtype == 'sqlite':
                 if jobrow['jobstatus'] in ('R', 'C'):

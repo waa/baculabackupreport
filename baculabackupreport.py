@@ -36,7 +36,7 @@
 # ---------------------------------------------------------------------------
 # BSD 2-Clause License
 #
-# Copyright (c) 2021-2023, William A. Arlofski waa@revpol.com
+# Copyright (c) 2021-2024, William A. Arlofski waa@revpol.com
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -68,7 +68,6 @@
 # instructions. Because the defaults in this script may change and more
 # variables may be added over time, it is highly recommended to make use of
 # the config file for customizing the variable settings.
-#
 # ----------------------------------------------------------------------------
 # External GUI link settings
 # --------------------------
@@ -314,8 +313,10 @@ import os
 import re
 import sys
 import smtplib
+import random
 from docopt import docopt
 from socket import gaierror
+from base64 import b64encode
 from datetime import datetime
 from natsort import natsorted
 from email.mime.text import MIMEText
@@ -1200,8 +1201,6 @@ def calc_pool_use(name, num, max):
 
 def gen_rand_str():
     'Return a pseudo-random string to append to the body of the email to thwart ProtonMail deduplication algorithm during testing.'
-    import random
-    from base64 import b64encode
     rand_int = random.randint(1, 100)
     return b64encode(os.urandom(rand_int)).decode('utf-8')
 
@@ -1294,7 +1293,10 @@ def set_hdr_str():
 
 def set_enc_str(jobid):
     'Create the enc_str to be displayed in the Encrypted cell.'
-    # If the job is running or created not yet running, or if the job is one of Admin,
+    # The 'encrypted' column in the Job table for an encrypted Job is 0 until the end
+    # of the backup job when the Director updates this field to show which Bacula daemon
+    # performed the encryption: 0 (No encryption), 1 (FD), 2 (SD), 3 (Both).
+    # So, if the job is running or created not yet running, or if the job is one of Admin,
     # Copy/Migration Control, Restore, or Verify, short circuit any tests and return '----'
     # -------------------------------------------------------------------------------------
     if jobrow['jobstatus'] in ('R', 'C') or jobrow['type'] in ('c', 'D', 'g', 'R', 'V'):
@@ -1396,18 +1398,8 @@ if needs_media_since_or_for not in valid_needs_media_since_or_for_lst:
 if copied_migrated_job_name_col not in valid_copied_migrated_job_name_col_lst:
     print(print_opt_errors('copied_migrated_job_name_col'))
     usage()
-
 if verified_job_name_col not in valid_verified_job_name_col_lst:
     print(print_opt_errors('verified_job_name_col'))
-    usage()
-
-# Verify that the columns in cols2show are
-# all valid and that the alwaysfailcolumn
-# is also valid before we do anything else
-# ----------------------------------------
-cols2show_lst = cols2show.split()
-if not all(item in valid_col_lst for item in cols2show_lst):
-    print(print_opt_errors('cols2show'))
     usage()
 
 # Verify the enc_hdr_type variable is valid
@@ -1420,6 +1412,13 @@ if enc_hdr_type not in valid_enc_hdr_type_lst:
 # ------------------------------------------
 if enc_cell_type not in valid_enc_cell_type_lst:
     print(print_opt_errors('enc_cell_type'))
+    usage()
+
+# Verify that the columns in cols2show are valid
+# ----------------------------------------------
+cols2show_lst = cols2show.split()
+if not all(item in valid_col_lst for item in cols2show_lst):
+    print(print_opt_errors('cols2show'))
     usage()
 
 # Validate the alwaysfailcolumn. This is a special case since it needs to be a valid
@@ -1456,9 +1455,9 @@ else:
         alwaysfailcolumn_str = 'Run Time cell'
     elif alwaysfailcolumn == 'pool':
         alwaysfailcolumn_str = 'Pool cell'
-    elif alwaysfailcolumn == 'Fileset':
+    elif alwaysfailcolumn == 'fileset':
         alwaysfailcolumn_str = 'Fileset cell'
-    elif alwaysfailcolumn == 'Encrypted':
+    elif alwaysfailcolumn == 'encrypted':
         alwaysfailcolumn_str = 'Encrypted cell'
     else:
         alwaysfailcolumn_str = alwaysfailcolumn.title() + ' cell'

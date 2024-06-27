@@ -312,9 +312,10 @@ summarytablecellstyle = 'font-weight: bold; padding: 5px;'
 import os
 import re
 import sys
-import smtplib
 import random
-from docopt import docopt
+import smtplib
+import argparse
+# from docopt import docopt
 from socket import gaierror
 from base64 import b64encode
 from datetime import datetime
@@ -390,54 +391,39 @@ num_will_not_descend_jobs = 0
 # -----------------------------------------
 num_zero_inc_jobs = 0
 
-# Define the docopt string
-# ------------------------
-doc_opt_str = """
-Usage:
-    baculabackupreport.py [-C <config>] [-S <section>] [-e <email>] [-s <server>] [-t <time>] [-d <days>]
-                          [-f <fromemail>] [-a <avemail>] [-c <client>] [-j <jobname>] [-y <jobtype>] [-x <jobstatus>]
-                          [--dbtype <dbtype>] [--dbhost <dbhost>] [--dbport <dbport>]
-                          [--dbname <dbname>] [--dbuser <dbuser>] [--dbpass <dbpass>]
-                          [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
-    baculabackupreport.py -h | --help
-    baculabackupreport.py -v | --version
-
-Options:
-    -C, --config <config>        Configuration file - See the 'baculabackupreport.ini' file included in repository
-    -S, --section <section>      Section in configuration file [default: baculabackupreport]
-    -e, --email <email>          Email address to send job report to
-    -s, --server <server>        Name of the Bacula Server [default: Bacula]
-    -t, --time <time>            Time to report on in hours [default: 24]
-    -d, --days <days>            Days to check for "always failing jobs" [default: 7]
-    -f, --fromemail <fromemail>  Email address to be set in the From: field of the email
-    -a, --avemail <avemail>      Email address to send separate AV email to. (default is --email)
-    -c, --client <client>        Client to report on using SQL 'LIKE client' [default: %] (all clients)
-    -j, --jobname <jobname>      Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
-    -y, --jobtype <jobtype>      Type of job to report on [default: DBRCcMgV] (all job types)
-    -x, --jobstatus <jobstatus>  Job status to report on [default: aABcCdDeEfFiIjmMpRsStT] (all job statuses)
-                                 Note: 'R'unning and 'C'reated jobs are always included
-    -u, --smtpuser <smtpuser>    SMTP user
-    -p, --smtppass <smtppass>    SMTP password
-
-    --dbtype <dbtype>            Database type [default: pgsql] (pgsql | mysql | maria | sqlite)
-    --dbhost <dbhost>            Database host [default: localhost]
-    --dbport <dbport>            Database port (defaults pgsql 5432, mysql & maria 3306)
-    --dbname <dbname>            Database name [default: bacula] (sqlite default: /opt/bacula/working/bacula.db)
-    --dbuser <dbuser>            Database user [default: bacula]
-    --dbpass <dbpass>            Database password
-    --smtpserver <smtpserver>    SMTP server [default: localhost]
-    --smtpport <smtpport>        SMTP port [default: 25]
-
-    -h, --help                   Print this help message
-    -v, --version                Print the script name and version
-
-Notes:
-  * Edit variables near the top of script to customize output. Recommended: Use a configuration file instead
-  * Only the email variable is required. It must be set on the command line, via an environment variable, or in a config file
-  * Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
-  * Variable assignment precedence is: command line > environment variable > config file > script defaults
-
-"""
+# Define the argparse arguments, descriptions, defaults, etc
+# waa - Something to look into: https://www.reddit.com/r/Python/comments/11hqsbv/i_am_sick_of_writing_argparse_boilerplate_code_so/
+# ---------------------------------------------------------------------------------------------------------------------------------
+parser = argparse.ArgumentParser(prog=scriptname, description='A highly customizable HTML email report for Bacula environments.',
+                                  epilog='Notes: \
+* Edit variables near the top of script to customize output. Recommended: Use a configuration file instead \
+* Only the email variable is required. It must be set on the command line, via an environment variable, or in a config file \
+* Each "--varname" may instead be set using all caps environment variable names like: EMAIL="admin@example.com" \
+* Variable assignment precedence is: command line > environment variable > config file > script defaults')
+parser.add_argument('-v', '--version', help='Print the script version.', version=scriptname + " v" + version, action='version')
+parser.add_argument('-C', '--config', help='Configuration file.', type=argparse.FileType('r'))
+parser.add_argument('-S', '--section', help='Section in configuration file.', default='baculabackupreport')
+parser.add_argument('-e', '--email', help='Email address to send job report to.')
+parser.add_argument('-s', '--server', help='Name of the Bacula Server.', default='Bacula')
+parser.add_argument('-t', '--time', help='Time to report on in hours.', default=24)
+parser.add_argument('-d', '--days', help='Days to check for "always failing jobs.', default=7)
+parser.add_argument('-f', '--fromemail', help='Email address to be set in the From: field of the email. [Default: email]')
+parser.add_argument('-a', '--avemail', help='Email address to send separate AV email to. [Default: email]')
+parser.add_argument('-c', '--client', help='Client to report on using SQL "LIKE client".', default='%')
+parser.add_argument('-j', '--jobname', help='Job name to report on using SQL "LIKE jobname".', default='%')
+parser.add_argument('-y', '--jobtype', help='Type of job to report on.', default='DBRCcMgV')
+parser.add_argument('-x', '--jobstatus', help='Job status to report on. Note: [R]unning and [C]reated jobs are always included', default='aABcCdDeEfFiIjmMpRsStT')
+parser.add_argument('-u', '--smtpuser', help='SMTP user')
+parser.add_argument('-p', '--smtppass', help='SMTP password')
+parser.add_argument('--dbtype', help='Database type. (pgsql | mysql | maria | sqlite)', default='pgsql')
+parser.add_argument('--dbhost', help='Database host.', default='localhost')
+parser.add_argument('--dbport', help='Database port (defaults: pgsql 5432, mysql & maria 3306).')
+parser.add_argument('--dbname', help='Database name. (sqlite default: /opt/bacula/working/bacula.db)', default='bacula')
+parser.add_argument('--dbuser', help='Database user.', default='bacula')
+parser.add_argument('--dbpass', help='Database password.')
+parser.add_argument('--smtpserver', help='SMTP server.', default='localhost')
+parser.add_argument('--smtpport', help='SMTP port.', default='25')
+args = parser.parse_args()
 
 # Internal CSS to reduce the length of the lines in the email report. Lines over
 # 1000 characters are chopped at the 998 character mark per RFC, and this breaks
@@ -469,7 +455,7 @@ def now():
 
 def usage():
     'Show the instructions and program information.'
-    print(doc_opt_str)
+    parser.print_help()
     print(prog_info_txt)
     sys.exit(1)
 
@@ -1330,15 +1316,14 @@ def set_enc_str(jobid):
         elif enc_cell_type == 'both':
             return un_enc_emoji + ' Unencrypted'
 
-# Assign docopt doc string variable
-# ---------------------------------
-args = docopt(doc_opt_str, version='\n' + progname + ' - v' + version + '\n' + reldate + '\n')
-
+# ================
+# BEGIN the script
+# ================
 # Check for and parse the configuration file first
 # ------------------------------------------------
-if args['--config'] != None:
-    config_file = args['--config']
-    config_section = args['--section']
+if args.config != None:
+    config_file = args.config
+    config_section = args.section
     if not os.path.exists(config_file) or not os.access(config_file, os.R_OK):
         print(print_opt_errors('config'))
         usage()
@@ -1488,22 +1473,25 @@ col_hdr_dict = {
 
 # Assign/re-assign docopt args[] vars based on cli vs env vs config file vs script defaults
 # -----------------------------------------------------------------------------------------
-for cli_tup in [
-    ('-t', 'time'), ('-d', 'days'),
-    ('-e', 'email'), ('-a', 'avemail'),
-    ('-c', 'client'), ('-s', 'server'),
-    ('-j', 'jobname'), ('-y', 'jobtype'),
-    ('-x', 'jobstatus'), ('-u', 'smtpuser'),
-    ('-p', 'smtppass'), ('-f', 'fromemail'),
-    (None, 'smtpport'), (None, 'smtpserver'),
-    (None, 'dbtype'), (None, 'dbport'),
-    (None, 'dbhost'), (None, 'dbname'),
-    (None, 'dbuser'), (None, 'dbpass')]:
-    # This right here is ugly, and scary. The 'long_cli' variable gets created
-    # as a global() variable on-the-fly in the cli_vs_env_vs_config_vs_default_vars
-    # function, then we use it here as the docopt dictionary key to set the args[] variable
-    # -------------------------------------------------------------------------------------
-    args[long_cli] = cli_vs_env_vs_config_vs_default_vars(cli_tup[0], cli_tup[1])
+# for cli_tup in [
+#     ('-t', 'time'), ('-d', 'days'),
+#     ('-e', 'email'), ('-a', 'avemail'),
+#     ('-c', 'client'), ('-s', 'server'),
+#     ('-j', 'jobname'), ('-y', 'jobtype'),
+#     ('-x', 'jobstatus'), ('-u', 'smtpuser'),
+#     ('-p', 'smtppass'), ('-f', 'fromemail'),
+#     (None, 'smtpport'), (None, 'smtpserver'),
+#     (None, 'dbtype'), (None, 'dbport'),
+#     (None, 'dbhost'), (None, 'dbname'),
+#     (None, 'dbuser'), (None, 'dbpass')]:
+#     # This right here is ugly, and scary. The 'long_cli' variable gets created
+#     # as a global() variable on-the-fly in the cli_vs_env_vs_config_vs_default_vars
+#     # function, then we use it here as the docopt dictionary key to set the args[] variable
+#     # -------------------------------------------------------------------------------------
+#     args[long_cli] = cli_vs_env_vs_config_vs_default_vars(cli_tup[0], cli_tup[1])
+
+print(args)
+sys.exit()
 
 # Set the default ports for the different databases if not set on command line
 # Set the default database file if sqlite is used, and not set on command line

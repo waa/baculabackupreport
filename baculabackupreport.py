@@ -315,7 +315,6 @@ import sys
 import random
 import smtplib
 import argparse
-# from docopt import docopt
 from socket import gaierror
 from base64 import b64encode
 from datetime import datetime
@@ -349,6 +348,13 @@ valid_needs_media_since_or_for_lst = ['since', 'for', 'none']
 valid_col_lst = [ 'jobid', 'jobname', 'client', 'status', 'joberrors', 'type', 'level', 'jobfiles',
                   'jobbytes', 'starttime', 'endtime', 'runtime', 'pool', 'fileset', 'storage', 'encrypted']
 valid_enc_hdr_type_lst = valid_enc_cell_type_lst = ['text', 'emoji', 'both']
+
+
+# These variable need to be defined in globals()
+# ----------------------------------------------
+avemail = client = dbhost = dbname = dbtype = dbport = dbuser \
+        = dbpass = fromemail = jobname = jobtype = jobstatus \
+        = smtpserver = smtpuser = smtppass = smtpport = None
 
 # Lists of strings to determine if a job is waiting on media, and if new media has been found/mounted
 # ---------------------------------------------------------------------------------------------------
@@ -405,8 +411,8 @@ parser.add_argument('-C', '--config', help='Configuration file.', type=argparse.
 parser.add_argument('-S', '--section', help='Section in configuration file.', default='baculabackupreport')
 parser.add_argument('-e', '--email', help='Email address to send job report to.')
 parser.add_argument('-s', '--server', help='Name of the Bacula Server.', default='Bacula')
-parser.add_argument('-t', '--time', help='Time to report on in hours.', default=24)
-parser.add_argument('-d', '--days', help='Days to check for "always failing jobs.', default=7)
+parser.add_argument('-t', '--time', help='Time to report on in hours.', default='24')
+parser.add_argument('-d', '--days', help='Days to check for "always failing jobs.', default='7')
 parser.add_argument('-f', '--fromemail', help='Email address to be set in the From: field of the email. [Default: email]')
 parser.add_argument('-a', '--avemail', help='Email address to send separate AV email to. [Default: email]')
 parser.add_argument('-c', '--client', help='Client to report on using SQL "LIKE client".', default='%')
@@ -415,7 +421,7 @@ parser.add_argument('-y', '--jobtype', help='Type of job to report on.', default
 parser.add_argument('-x', '--jobstatus', help='Job status to report on. Note: [R]unning and [C]reated jobs are always included', default='aABcCdDeEfFiIjmMpRsStT')
 parser.add_argument('-u', '--smtpuser', help='SMTP user')
 parser.add_argument('-p', '--smtppass', help='SMTP password')
-parser.add_argument('--dbtype', help='Database type. (pgsql | mysql | maria | sqlite)', default='pgsql')
+parser.add_argument('--dbtype', help='Database type. (pgsql | mysql | maria | sqlite)', choices=valid_db_lst, default='pgsql')
 parser.add_argument('--dbhost', help='Database host.', default='localhost')
 parser.add_argument('--dbport', help='Database port (defaults: pgsql 5432, mysql & maria 3306).')
 parser.add_argument('--dbname', help='Database name. (sqlite default: /opt/bacula/working/bacula.db)', default='bacula')
@@ -424,6 +430,15 @@ parser.add_argument('--dbpass', help='Database password.')
 parser.add_argument('--smtpserver', help='SMTP server.', default='localhost')
 parser.add_argument('--smtpport', help='SMTP port.', default='25')
 args = parser.parse_args()
+
+# vars_dict =vars(args)
+# print(vars_dict)
+# print(vars_dict['config'].name)
+# print(vars_dict['time'])
+# xxx = 'time'
+# vars_dict[xxx] = 27
+# print(vars_dict['time'])
+# sys.exit()
 
 # Internal CSS to reduce the length of the lines in the email report. Lines over
 # 1000 characters are chopped at the 998 character mark per RFC, and this breaks
@@ -455,31 +470,33 @@ def now():
 
 def usage():
     'Show the instructions and program information.'
+    print('\n')
     parser.print_help()
     print(prog_info_txt)
     sys.exit(1)
 
-def cli_vs_env_vs_config_vs_default_vars(short_cli, cli_env_cfg):
+def cli_vs_env_vs_config_vs_default_vars(short_cli, long_cli):
+    # print('In function, cli: ' + str(short_cli) + ', ' + str(long_cli))
     'Assign/re-assign args[] vars based on if they came from cli, env, config file, or defaults.'
-    # The 'cli_env_cfg' variable is multipurpose. It is just the lowercase name of the variable.
-    # It will have '--' prepended to it to test for the long_cli version. Its uppercase version
-    # will be checked against the os.environ variable and its lowercase version will be checked
-    # against the config_dict variable. For the short_cli (-t), long_cli (--time), and no
-    # matches, we return the long_cli version (--time) to work with the argv['--long_cli'] that
-    # is being assigned from the calling line.
+    #  The 'cli_env_cfg' variable is multipurpose. It is just the lowercase name of the variable.
+    #  It will have '--' prepended to it to test for the long_cli version. Its uppercase version
+    #  will be checked against the os.environ variable and its lowercase version will be checked
+    #  against the config_dict variable. For the short_cli (-t), long_cli (--time), and no
+    #  matches, we return the long_cli version (--time) to work with the argv['--long_cli'] that
+    #  is being assigned from the calling line.
     # ------------------------------------------------------------------------------------------
-    tmp = 'long_cli'
-    globals()[tmp] = '--' + cli_env_cfg
-    if short_cli != None and short_cli in sys.argv:
-        return args[long_cli]
-    elif long_cli in sys.argv:
-        return args[long_cli]
-    elif cli_env_cfg.upper() in os.environ and os.environ[cli_env_cfg.upper()] != '':
-        return os.environ[cli_env_cfg.upper()]
-    elif 'config_dict' in globals() and cli_env_cfg.lower() in config_dict and config_dict[cli_env_cfg.lower()] != '':
-        return config_dict[cli_env_cfg.lower()]
+    if any(x in sys.argv for x in (short_cli, '--' + str(long_cli))):
+        # print('short_long_cli')
+        return
+    elif long_cli.upper() in os.environ and os.environ[long_cli.upper()] != '':
+        # print('Environment')
+        return os.environ[long_cli.upper()]
+    elif 'config_dict' in globals() and long_cli in config_dict and config_dict[long_cli] != '':
+        # print('Config File')
+        return config_dict[long_cli]
     else:
-        return args[long_cli]
+        # print('agrpase default, or script')
+        return
 
 def print_opt_errors(opt):
     'Print the incorrect variable and the reason it is incorrect.'
@@ -1321,8 +1338,8 @@ def set_enc_str(jobid):
 # ================
 # Check for and parse the configuration file first
 # ------------------------------------------------
-if args.config != None:
-    config_file = args.config
+if args.config.name != None:
+    config_file = args.config.name
     config_section = args.section
     if not os.path.exists(config_file) or not os.access(config_file, os.R_OK):
         print(print_opt_errors('config'))
@@ -1344,7 +1361,7 @@ if args.config != None:
     # its key name into a global variable and assign it the key's dictionary value.
     # https://www.pythonforbeginners.com/basics/convert-string-to-variable-name-in-python
     # -----------------------------------------------------------------------------------
-    myvars = vars()
+    myvars = locals()
     for k, v in config_dict.items():
         if k in cfg_file_true_false_lst:
             # Convert all the True/False strings to booleans on the fly
@@ -1471,101 +1488,97 @@ col_hdr_dict = {
     'encrypted': '<th style="' + jobtableheadercellstyle + '">' + set_hdr_str() + '</th>'
     }
 
-# Assign/re-assign docopt args[] vars based on cli vs env vs config file vs script defaults
+# Assign/re-assign argparse args vars based on cli vs env vs config file vs script defaults
 # -----------------------------------------------------------------------------------------
-# for cli_tup in [
-#     ('-t', 'time'), ('-d', 'days'),
-#     ('-e', 'email'), ('-a', 'avemail'),
-#     ('-c', 'client'), ('-s', 'server'),
-#     ('-j', 'jobname'), ('-y', 'jobtype'),
-#     ('-x', 'jobstatus'), ('-u', 'smtpuser'),
-#     ('-p', 'smtppass'), ('-f', 'fromemail'),
-#     (None, 'smtpport'), (None, 'smtpserver'),
-#     (None, 'dbtype'), (None, 'dbport'),
-#     (None, 'dbhost'), (None, 'dbname'),
-#     (None, 'dbuser'), (None, 'dbpass')]:
-#     # This right here is ugly, and scary. The 'long_cli' variable gets created
-#     # as a global() variable on-the-fly in the cli_vs_env_vs_config_vs_default_vars
-#     # function, then we use it here as the docopt dictionary key to set the args[] variable
-#     # -------------------------------------------------------------------------------------
-#     args[long_cli] = cli_vs_env_vs_config_vs_default_vars(cli_tup[0], cli_tup[1])
-
-print(args)
-sys.exit()
+for cli_tup in [
+    ('-t', 'time'), ('-d', 'days'),
+    ('-e', 'email'), ('-a', 'avemail'),
+    ('-c', 'client'), ('-s', 'server'),
+    ('-j', 'jobname'), ('-y', 'jobtype'),
+    ('-x', 'jobstatus'), ('-u', 'smtpuser'),
+    ('-p', 'smtppass'), ('-f', 'fromemail'),
+    (None, 'smtpport'), (None, 'smtpserver'),
+    (None, 'dbtype'), (None, 'dbport'),
+    (None, 'dbhost'), (None, 'dbname'),
+    (None, 'dbuser'), (None, 'dbpass')]:
+    result = cli_vs_env_vs_config_vs_default_vars(cli_tup[0], cli_tup[1])
+    if result != None:
+        # print('Result: ' + str(result))
+        setattr(args, cli_tup[1], result)
 
 # Set the default ports for the different databases if not set on command line
 # Set the default database file if sqlite is used, and not set on command line
 # ----------------------------------------------------------------------------
-if args['--dbtype'] not in valid_db_lst:
+if args.dbtype not in valid_db_lst:
     print(print_opt_errors('dbtype'))
     usage()
-elif args['--dbtype'] == 'pgsql' and args['--dbport'] == None:
-    args['--dbport'] = '5432'
-elif args['--dbtype'] in ('mysql', 'maria') and args['--dbport'] == None:
-    args['--dbport'] = '3306'
-elif args['--dbtype'] == 'sqlite':
-    args['--dbport'] = '0'
-    if args['--dbname'] == 'bacula':
-        args['--dbname'] = '/opt/bacula/working/bacula.db'
+elif args.dbtype == 'pgsql' and args.dbport == None:
+    args.dbport = '5432'
+elif args.dbtype in ('mysql', 'maria') and args.dbport == None:
+    args.dbport = '3306'
+elif args.dbtype == 'sqlite':
+    args.dbport = '0'
+    if args.dbname == 'bacula':
+        args.dbname = '/opt/bacula/working/bacula.db'
 
 # Do some basic sanity checking on cli, env, and config file variables
 # --------------------------------------------------------------------
-jobtypeset = set(args['--jobtype'])
+jobtypeset = set(args.jobtype)
 if not jobtypeset.issubset(set(all_jobtype_lst)):
     print(print_opt_errors('jobtype'))
     usage()
-jobstatusset = set(args['--jobstatus'])
+jobstatusset = set(args.jobstatus)
 if not jobstatusset.issubset(set(all_jobstatus_lst)):
     print(print_opt_errors('jobstatus'))
     usage()
-if args['--email'] == None:
+if args.email == None:
     print(print_opt_errors('emailnone'))
     usage()
-elif '@' not in args['--email']:
+elif '@' not in args.email:
     print(print_opt_errors('email'))
     usage()
 else:
-    email = args['--email']
-if args['--avemail'] == None:
+    email = args.email
+if args.avemail == None:
     avemail = email
-elif '@' not in args['--avemail']:
+elif '@' not in args.avemail:
     print(print_opt_errors('avemail'))
     usage()
 else:
-    avemail = args['--avemail']
-if args['--fromemail'] == None:
+    avemail = args.avemail
+if args.fromemail == None:
     fromemail = email
-elif '@' not in args['--fromemail']:
+elif '@' not in args.fromemail:
     print(print_opt_errors('fromemail'))
     usage()
 else:
-    fromemail = args['--fromemail']
-if not args['--time'].isnumeric():
+    fromemail = args.fromemail
+if not args.time.isnumeric():
     print(print_opt_errors('time'))
     usage()
 else:
-    time = args['--time']
-if not args['--days'].isnumeric():
+    time = args.time
+if not args.days.isnumeric():
     print(print_opt_errors('days'))
     usage()
 else:
-    days = args['--days']
-if not args['--smtpport'].isnumeric():
+    days = args.days
+if not args.smtpport.isnumeric():
     print(print_opt_errors('smtpport'))
     usage()
 else:
-    smtpport = args['--smtpport']
-if not args['--server']:
+    smtpport = args.smtpport
+if not args.server:
     print(print_opt_errors('server'))
     usage()
 else:
-    server = args['--server']
+    server = args.server
 # dbtype is already tested and
 # verified above, just check
 # and assign the type to import
 # the necessary modules
 # -----------------------------
-dbtype = args['--dbtype']
+dbtype = args.dbtype
 if dbtype == 'pgsql':
     import psycopg2.extras
     from psycopg2 import connect, OperationalError, errorcodes, errors
@@ -1575,36 +1588,41 @@ elif dbtype in ('mysql', 'maria'):
 elif dbtype == 'sqlite':
     import sqlite3
     from datetime import timedelta
-if not args['--dbport'].isnumeric():
+if not args.dbport.isnumeric():
     print(print_opt_errors('dbport'))
     usage()
 else:
-    dbport = args['--dbport']
-if not args['--dbname']:
+    dbport = args.dbport
+if not args.dbname:
     print(print_opt_errors('dbname'))
     usage()
 else:
-    dbname = args['--dbname']
-if not args['--dbhost']:
+    dbname = args.dbname
+if not args.dbhost:
     print(print_opt_errors('dbhost'))
     usage()
 else:
-    dbhost = args['--dbhost']
-if not args['--dbuser']:
+    dbhost = args.dbhost
+if not args.dbuser:
     print(print_opt_errors('dbuser'))
     usage()
 else:
-    dbuser = args['--dbuser']
-if not args['--smtpserver']:
+    dbuser = args.dbuser
+if not args.smtpserver:
     print(print_opt_errors('smtpserver'))
     usage()
 else:
-    smtpserver = args['--smtpserver']
-dbpass = '' if args['--dbpass'] == None else args['--dbpass']
-client = '%' if not args['--client'] else args['--client']
-jobname = '%' if not args['--jobname'] else args['--jobname']
-smtpuser = '' if args['--smtpuser'] == None else args['--smtpuser']
-smtppass = '' if args['--smtppass'] == None else args['--smtppass']
+    smtpserver = args.smtpserver
+dbpass = '' if args.dbpass == None else args.dbpass
+client = '%' if not args.client else args.client
+jobname = '%' if not args.jobname else args.jobname
+smtpuser = '' if args.smtpuser == None else args.smtpuser
+smtppass = '' if args.smtppass == None else args.smtppass
+
+# print('\n\n')
+# print(args)
+# print(config_dict)
+# sys.exit()
 
 # Make the initial connection to the specified
 # database, keep open until all queries are done

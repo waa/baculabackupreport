@@ -219,20 +219,6 @@ un_enc_emoji = '&#x1F513;'  # Emoji for unencrypted jobs. 'Unloaded lock' emoji
 # ------------------------------------------------------------------------
 cols2show = 'jobid jobname client fileset storage pool status joberrors type level jobfiles jobbytes starttime endtime runtime'
 
-# waa - 20230427 - I want to add the storage, pool, and fileset to the 'cols2show' list. The
-#                  problem is that the Director's Storage and SD's device used is not stored in
-#                  the Job table! This information is only in the log table. The SD device used
-#                  is in the log lines which will need to be queried and parsed, and the Director's
-#                  Storage resource used is in both the log lines and in the Summary. But for the
-#                  Director's Storage there is not a 100% guaranteed way to get it from the logs
-#                  because the Director and the FD log very similar messages:
-#
-# Director connecting to Storage (Director logs the name of the Storage resource in double quotes):
-# logtext: bacula-dir JobId 53884: Connected to Storage "speedy-file" at 10.1.1.4:9103 with TLS
-#
-# FD connecting to Storage (FD just logs the IP or FQDN of the storage but not its name):
-# logtext: speedy-fd JobId 53884: Connected to Storage at 10.1.1.4:9103 without encryption
-
 # Directories to always ignore for the "Will not descend" feature
 # ---------------------------------------------------------------
 will_not_descend_ignore_lst = ['/dev', '/misc', '/net', '/proc', '/run', '/srv', '/sys']
@@ -349,13 +335,6 @@ valid_col_lst = [ 'jobid', 'jobname', 'client', 'status', 'joberrors', 'type', '
                   'jobbytes', 'starttime', 'endtime', 'runtime', 'pool', 'fileset', 'storage', 'encrypted']
 valid_enc_hdr_type_lst = valid_enc_cell_type_lst = ['text', 'emoji', 'both']
 
-
-# These variable need to be defined in globals()
-# ----------------------------------------------
-avemail = client = dbhost = dbname = dbtype = dbport = dbuser \
-        = dbpass = fromemail = jobname = jobtype = jobstatus \
-        = smtpserver = smtpuser = smtppass = smtpport = None
-
 # Lists of strings to determine if a job is waiting on media, and if new media has been found/mounted
 # ---------------------------------------------------------------------------------------------------
 needs_mount_txt_lst = ['Please mount', 'Please use the "label" command']
@@ -410,7 +389,7 @@ parser.add_argument('-v', '--version', help='Print the script version.', version
 parser.add_argument('-C', '--config', help='Configuration file.', type=argparse.FileType('r'))
 parser.add_argument('-S', '--section', help='Section in configuration file.', default='baculabackupreport')
 parser.add_argument('-e', '--email', help='Email address to send job report to.')
-parser.add_argument('-s', '--server', help='Name of the Bacula Server.', default='Bacula')
+parser.add_argument('-s', '--server', help='Name of the Bacula Server.', default='Bacula Report')
 parser.add_argument('-t', '--time', help='Time to report on in hours.', default='24')
 parser.add_argument('-d', '--days', help='Days to check for "always failing jobs.', default='7')
 parser.add_argument('-f', '--fromemail', help='Email address to be set in the From: field of the email. [Default: email]')
@@ -419,26 +398,17 @@ parser.add_argument('-c', '--client', help='Client to report on using SQL "LIKE 
 parser.add_argument('-j', '--jobname', help='Job name to report on using SQL "LIKE jobname".', default='%')
 parser.add_argument('-y', '--jobtype', help='Type of job to report on.', default='DBRCcMgV')
 parser.add_argument('-x', '--jobstatus', help='Job status to report on. Note: [R]unning and [C]reated jobs are always included', default='aABcCdDeEfFiIjmMpRsStT')
-parser.add_argument('-u', '--smtpuser', help='SMTP user')
-parser.add_argument('-p', '--smtppass', help='SMTP password')
+parser.add_argument('-u', '--smtpuser', help='SMTP user', default='')
+parser.add_argument('-p', '--smtppass', help='SMTP password', default='')
 parser.add_argument('--dbtype', help='Database type. (pgsql | mysql | maria | sqlite)', choices=valid_db_lst, default='pgsql')
 parser.add_argument('--dbhost', help='Database host.', default='localhost')
 parser.add_argument('--dbport', help='Database port (defaults: pgsql 5432, mysql & maria 3306).')
 parser.add_argument('--dbname', help='Database name. (sqlite default: /opt/bacula/working/bacula.db)', default='bacula')
 parser.add_argument('--dbuser', help='Database user.', default='bacula')
-parser.add_argument('--dbpass', help='Database password.')
+parser.add_argument('--dbpass', help='Database password.', default='')
 parser.add_argument('--smtpserver', help='SMTP server.', default='localhost')
 parser.add_argument('--smtpport', help='SMTP port.', default='25')
 args = parser.parse_args()
-
-# vars_dict =vars(args)
-# print(vars_dict)
-# print(vars_dict['config'].name)
-# print(vars_dict['time'])
-# xxx = 'time'
-# vars_dict[xxx] = 27
-# print(vars_dict['time'])
-# sys.exit()
 
 # Internal CSS to reduce the length of the lines in the email report. Lines over
 # 1000 characters are chopped at the 998 character mark per RFC, and this breaks
@@ -476,26 +446,22 @@ def usage():
     sys.exit(1)
 
 def cli_vs_env_vs_config_vs_default_vars(short_cli, long_cli):
-    # print('In function, cli: ' + str(short_cli) + ', ' + str(long_cli))
-    'Assign/re-assign args[] vars based on if they came from cli, env, config file, or defaults.'
-    #  The 'cli_env_cfg' variable is multipurpose. It is just the lowercase name of the variable.
-    #  It will have '--' prepended to it to test for the long_cli version. Its uppercase version
-    #  will be checked against the os.environ variable and its lowercase version will be checked
-    #  against the config_dict variable. For the short_cli (-t), long_cli (--time), and no
-    #  matches, we return the long_cli version (--time) to work with the argv['--long_cli'] that
-    #  is being assigned from the calling line.
-    # ------------------------------------------------------------------------------------------
+    'Assign/re-assign argparse vars. Order of precedence is cli, env, config file, defaults.'
+    # If we have a short or long form cli, nothing to do, just return
+    # ---------------------------------------------------------------
     if any(x in sys.argv for x in (short_cli, '--' + str(long_cli))):
-        # print('short_long_cli')
         return
+    # If we don't find it on the command line, check environment
+    # ----------------------------------------------------------
     elif long_cli.upper() in os.environ and os.environ[long_cli.upper()] != '':
-        # print('Environment')
         return os.environ[long_cli.upper()]
+    # Next place to check is the config file
+    # --------------------------------------
     elif 'config_dict' in globals() and long_cli in config_dict and config_dict[long_cli] != '':
-        # print('Config File')
         return config_dict[long_cli]
+    # Just return since the variable will be assigned later
+    # -----------------------------------------------------
     else:
-        # print('agrpase default, or script')
         return
 
 def print_opt_errors(opt):
@@ -1338,7 +1304,7 @@ def set_enc_str(jobid):
 # ================
 # Check for and parse the configuration file first
 # ------------------------------------------------
-if args.config.name != None:
+if args.config and args.config.name != None:
     config_file = args.config.name
     config_section = args.section
     if not os.path.exists(config_file) or not os.access(config_file, os.R_OK):
@@ -1488,8 +1454,8 @@ col_hdr_dict = {
     'encrypted': '<th style="' + jobtableheadercellstyle + '">' + set_hdr_str() + '</th>'
     }
 
-# Assign/re-assign argparse args vars based on cli vs env vs config file vs script defaults
-# -----------------------------------------------------------------------------------------
+# Assign/re-assign argparse vars based on cli vs env vs config file vs script defaults
+# ------------------------------------------------------------------------------------
 for cli_tup in [
     ('-t', 'time'), ('-d', 'days'),
     ('-e', 'email'), ('-a', 'avemail'),
@@ -1503,34 +1469,25 @@ for cli_tup in [
     (None, 'dbuser'), (None, 'dbpass')]:
     result = cli_vs_env_vs_config_vs_default_vars(cli_tup[0], cli_tup[1])
     if result != None:
-        # print('Result: ' + str(result))
         setattr(args, cli_tup[1], result)
 
-# Set the default ports for the different databases if not set on command line
-# Set the default database file if sqlite is used, and not set on command line
-# ----------------------------------------------------------------------------
-if args.dbtype not in valid_db_lst:
-    print(print_opt_errors('dbtype'))
-    usage()
-elif args.dbtype == 'pgsql' and args.dbport == None:
-    args.dbport = '5432'
-elif args.dbtype in ('mysql', 'maria') and args.dbport == None:
-    args.dbport = '3306'
-elif args.dbtype == 'sqlite':
-    args.dbport = '0'
-    if args.dbname == 'bacula':
-        args.dbname = '/opt/bacula/working/bacula.db'
+# Directly set variables that will always have a default
+# ------------------------------------------------------
+server = args.server
+dbtype = args.dbtype
+dbhost = args.dbhost
+dbuser = args.dbuser
+dbname = args.dbname
+dbpass = args.dbpass
+client = args.client
+jobname = args.jobname
+smtpserver = args.smtpserver
+smtppass = args.smtppass
+smtpuser = args.smtpuser
 
-# Do some basic sanity checking on cli, env, and config file variables
-# --------------------------------------------------------------------
-jobtypeset = set(args.jobtype)
-if not jobtypeset.issubset(set(all_jobtype_lst)):
-    print(print_opt_errors('jobtype'))
-    usage()
-jobstatusset = set(args.jobstatus)
-if not jobstatusset.issubset(set(all_jobstatus_lst)):
-    print(print_opt_errors('jobstatus'))
-    usage()
+# Do some basic sanity checking on on the rest
+# of the cli, env, and config file variables
+# --------------------------------------------
 if args.email == None:
     print(print_opt_errors('emailnone'))
     usage()
@@ -1539,6 +1496,7 @@ elif '@' not in args.email:
     usage()
 else:
     email = args.email
+
 if args.avemail == None:
     avemail = email
 elif '@' not in args.avemail:
@@ -1546,6 +1504,7 @@ elif '@' not in args.avemail:
     usage()
 else:
     avemail = args.avemail
+
 if args.fromemail == None:
     fromemail = email
 elif '@' not in args.fromemail:
@@ -1553,76 +1512,66 @@ elif '@' not in args.fromemail:
     usage()
 else:
     fromemail = args.fromemail
+
 if not args.time.isnumeric():
     print(print_opt_errors('time'))
     usage()
 else:
     time = args.time
+
 if not args.days.isnumeric():
     print(print_opt_errors('days'))
     usage()
 else:
     days = args.days
+
+jobtypeset = set(args.jobtype)
+if not jobtypeset.issubset(set(all_jobtype_lst)):
+    print(print_opt_errors('jobtype'))
+    usage()
+
+jobstatusset = set(args.jobstatus)
+if not jobstatusset.issubset(set(all_jobstatus_lst)):
+    print(print_opt_errors('jobstatus'))
+    usage()
+
 if not args.smtpport.isnumeric():
     print(print_opt_errors('smtpport'))
     usage()
 else:
     smtpport = args.smtpport
-if not args.server:
-    print(print_opt_errors('server'))
-    usage()
-else:
-    server = args.server
-# dbtype is already tested and
-# verified above, just check
-# and assign the type to import
-# the necessary modules
-# -----------------------------
-dbtype = args.dbtype
-if dbtype == 'pgsql':
-    import psycopg2.extras
-    from psycopg2 import connect, OperationalError, errorcodes, errors
-elif dbtype in ('mysql', 'maria'):
-    import mysql.connector
-    from mysql.connector import errorcode
-elif dbtype == 'sqlite':
-    import sqlite3
-    from datetime import timedelta
-if not args.dbport.isnumeric():
+
+# It is OK for args.dbport to be None
+# because defaults will be assigned next
+# --------------------------------------
+if args.dbport != None and not args.dbport.isnumeric():
     print(print_opt_errors('dbport'))
     usage()
 else:
     dbport = args.dbport
-if not args.dbname:
-    print(print_opt_errors('dbname'))
-    usage()
-else:
-    dbname = args.dbname
-if not args.dbhost:
-    print(print_opt_errors('dbhost'))
-    usage()
-else:
-    dbhost = args.dbhost
-if not args.dbuser:
-    print(print_opt_errors('dbuser'))
-    usage()
-else:
-    dbuser = args.dbuser
-if not args.smtpserver:
-    print(print_opt_errors('smtpserver'))
-    usage()
-else:
-    smtpserver = args.smtpserver
-dbpass = '' if args.dbpass == None else args.dbpass
-client = '%' if not args.client else args.client
-jobname = '%' if not args.jobname else args.jobname
-smtpuser = '' if args.smtpuser == None else args.smtpuser
-smtppass = '' if args.smtppass == None else args.smtppass
 
-# print('\n\n')
-# print(args)
-# print(config_dict)
-# sys.exit()
+# Import the necessary db modules depending on the database specified
+# Set the ports for the different databases if not set on command line
+# Set the default database file if sqlite is used, and not set on command line
+# ----------------------------------------------------------------------------
+if dbtype not in valid_db_lst:
+    print(print_opt_errors('dbtype'))
+    usage()
+elif dbtype == 'pgsql':
+    import psycopg2.extras
+    from psycopg2 import connect, OperationalError, errorcodes, errors
+    dbport = '5432'
+elif dbtype in ('mysql', 'maria'):
+    import mysql.connector
+    from mysql.connector import errorcode
+    if args.dbport == None:
+        dbport = '3306'
+elif dbtype == 'sqlite':
+    import sqlite3
+    from datetime import timedelta
+    dbport = '0'
+    if args.dbname == 'bacula':
+        dbname = '/opt/bacula/working/bacula.db'
 
 # Make the initial connection to the specified
 # database, keep open until all queries are done

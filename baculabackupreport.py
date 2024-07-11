@@ -301,6 +301,7 @@ import sys
 import random
 import smtplib
 import argparse
+import textwrap
 from socket import gaierror
 from base64 import b64encode
 from datetime import datetime
@@ -379,12 +380,15 @@ num_zero_inc_jobs = 0
 # Define the argparse arguments, descriptions, defaults, etc
 # waa - Something to look into: https://www.reddit.com/r/Python/comments/11hqsbv/i_am_sick_of_writing_argparse_boilerplate_code_so/
 # ---------------------------------------------------------------------------------------------------------------------------------
-parser = argparse.ArgumentParser(prog=scriptname, description='A highly customizable HTML email report for Bacula environments.',
-                                  epilog='Notes: \
-* Edit variables near the top of script to customize output. Recommended: Use a configuration file instead \
-* Only the email variable is required. It must be set on the command line, via an environment variable, or in a config file \
-* Each "--varname" may instead be set using all caps environment variable names like: EMAIL="admin@example.com" \
-* Variable assignment precedence is: command line > environment variable > config file > script defaults')
+parser = argparse.ArgumentParser(prog=scriptname,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 description='A highly customizable HTML email report for Bacula environments.',
+                                 epilog=textwrap.dedent('''\
+Notes:
+* Edit variables near the top of script to customize output. Recommended: Use a configuration file instead
+* Only the email variable is required. It must be set on the command line, via an environment variable, or in a config file
+* Each "--varname" may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
+* Variable assignment precedence is: command line > environment variable > config file > script defaults'''))
 parser.add_argument('-v', '--version', help='Print the script version.', version=scriptname + " v" + version, action='version')
 parser.add_argument('-C', '--config', help='Configuration file.', type=argparse.FileType('r'))
 parser.add_argument('-S', '--section', help='Section in configuration file.', default='baculabackupreport')
@@ -442,7 +446,7 @@ def usage():
     'Show the instructions and program information.'
     print('\n')
     parser.print_help()
-    print(prog_info_txt)
+    print('\n' + prog_info_txt)
     sys.exit(1)
 
 def cli_vs_env_vs_config_vs_default_vars(short_cli, long_cli):
@@ -1430,30 +1434,6 @@ else:
     else:
         alwaysfailcolumn_str = alwaysfailcolumn.title() + ' cell'
 
-# Create a dictionary of column name to html strings so
-# that they may be used in any order in the jobs table
-# This must get done after any possible modifications
-# from a config file's overrides.
-# -----------------------------------------------------
-col_hdr_dict = {
-    'jobid':     '<th style="' + jobtableheadercellstyle + '">Job ID</th>',
-    'jobname':   '<th style="' + jobtableheadercellstyle + '">Job Name</th>',
-    'client':    '<th style="' + jobtableheadercellstyle + '">Client</th>',
-    'status':    '<th style="' + jobtableheadercellstyle + '">Status</th>',
-    'joberrors': '<th style="' + jobtableheadercellstyle + '">Errors</th>',
-    'type':      '<th style="' + jobtableheadercellstyle + '">Type</th>',
-    'level':     '<th style="' + jobtableheadercellstyle + '">Level</th>',
-    'jobfiles':  '<th style="' + jobtableheadercellstyle + '">Files</th>',
-    'jobbytes':  '<th style="' + jobtableheadercellstyle + '">Bytes</th>',
-    'starttime': '<th style="' + jobtableheadercellstyle + '">Start Time</th>',
-    'endtime':   '<th style="' + jobtableheadercellstyle + '">End Time</th>',
-    'runtime':   '<th style="' + jobtableheadercellstyle + '">Run Time</th>',
-    'pool':      '<th style="' + jobtableheadercellstyle + '">Pool</th>',
-    'fileset':   '<th style="' + jobtableheadercellstyle + '">Fileset</th>',
-    'storage':   '<th style="' + jobtableheadercellstyle + '">Storage</th>',
-    'encrypted': '<th style="' + jobtableheadercellstyle + '">' + set_hdr_str() + '</th>'
-    }
-
 # Assign/re-assign argparse vars based on cli vs env vs config file vs script defaults
 # ------------------------------------------------------------------------------------
 for cli_tup in [
@@ -1572,6 +1552,30 @@ elif dbtype == 'sqlite':
     dbport = '0'
     if args.dbname == 'bacula':
         dbname = '/opt/bacula/working/bacula.db'
+
+# Create a dictionary of column name to html strings so
+# that they may be used in any order in the jobs table
+# This must get done after any possible modifications
+# from a config file's overrides.
+# -----------------------------------------------------
+col_hdr_dict = {
+    'jobid':     '<th style="' + jobtableheadercellstyle + '">Job ID</th>',
+    'jobname':   '<th style="' + jobtableheadercellstyle + '">Job Name</th>',
+    'client':    '<th style="' + jobtableheadercellstyle + '">Client</th>',
+    'status':    '<th style="' + jobtableheadercellstyle + '">Status</th>',
+    'joberrors': '<th style="' + jobtableheadercellstyle + '">Errors</th>',
+    'type':      '<th style="' + jobtableheadercellstyle + '">Type</th>',
+    'level':     '<th style="' + jobtableheadercellstyle + '">Level</th>',
+    'jobfiles':  '<th style="' + jobtableheadercellstyle + '">Files</th>',
+    'jobbytes':  '<th style="' + jobtableheadercellstyle + '">Bytes</th>',
+    'starttime': '<th style="' + jobtableheadercellstyle + '">Start Time</th>',
+    'endtime':   '<th style="' + jobtableheadercellstyle + '">End Time</th>',
+    'runtime':   '<th style="' + jobtableheadercellstyle + '">Run Time</th>',
+    'pool':      '<th style="' + jobtableheadercellstyle + '">Pool</th>',
+    'fileset':   '<th style="' + jobtableheadercellstyle + '">Fileset</th>',
+    'storage':   '<th style="' + jobtableheadercellstyle + '">Storage</th>',
+    'encrypted': '<th style="' + jobtableheadercellstyle + '">' + set_hdr_str() + '</th>'
+    }
 
 # Make the initial connection to the specified
 # database, keep open until all queries are done

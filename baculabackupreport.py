@@ -72,7 +72,7 @@
 # External GUI link settings
 # --------------------------
 webgui = 'none'        # Which web interface to generate links for? (bweb, baculum, none)
-webguisvc = ''         # Use encrypted connection or not (ie: http or https)
+webguisvc = 'http'     # Use encrypted connection or not (ie: http or https)
 webguihost = ''        # FQDN or IP address of the web gui host
 webguiport = ''        # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
 urlifyalljobs = False  # Should jobids in the Status column for Copied/Migrated/Verified jobs
@@ -292,7 +292,6 @@ summarytablecellstyle = 'font-weight: bold; padding: 5px;'
 # --------------------------------------------------
 # Nothing should need to be modified below this line
 # --------------------------------------------------
-
 # Import the required modules
 # ---------------------------
 import os
@@ -305,7 +304,6 @@ import textwrap
 from socket import gaierror
 from base64 import b64encode
 from datetime import datetime
-from natsort import natsorted
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -321,7 +319,11 @@ authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
 prog_info_txt = progname + ' - v' + version + ' - ' + scriptname \
                 + '\nBy: ' + progauthor + ' ' + authoremail + ' (c) ' + reldate + '\n\n'
+
+# Defined the sets and lists of valid choices
+# -------------------------------------------
 valid_webgui_lst = ['bweb', 'baculum']
+valid_webguisvc_lst = ['http', 'https']
 bad_job_set = {'A', 'D', 'E', 'f', 'I'}
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
 all_jobtype_lst = ['B', 'C', 'c', 'D', 'g', 'M', 'R', 'V']
@@ -421,7 +423,7 @@ args = parser.parse_args()
 # ------------------------------------------------------------------------------
 # f-strings require Python version 3.6 or above
 # ---------------------------------------------
-css_str = f"""
+css_str = f'''
 pre {{font-size: {fontsizesumlog};}}
 body {{font-family: {fontfamily}; font-size: {fontsize};}}
 th {{background-color: {jobtableheadercolor}; color: {jobtableheadertxtcolor};}}
@@ -434,7 +436,7 @@ tr:nth-child(odd) {{background-color: {jobtablerowoddcolor}; color: {jobtablerow
 .virus-bannerwarning {{background-color: {virusfoundcolor};}}
 .virusconn-bannerwarning {{background-color: {virusconnerrcolor};}}
 
-"""
+'''
 
 # Now for some functions
 # ----------------------
@@ -502,6 +504,10 @@ def print_opt_errors(opt):
         return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_enc_hdr_type_lst)
     elif opt == 'enc_cell_type':
         return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_enc_cell_type_lst)
+    elif opt == 'webguisvc':
+        return '\nThe \'' + opt + '\' variable must be one of the following: ' + ', '.join(valid_webguisvc_lst)
+    elif opt in ('webguiport'):
+        return '\nThe \'' + opt + '\' variable must be empty or it must be an integer.'
 
 def chk_db_exceptions(err, query=None):
     'Given a DB connection exception or SQL query exception, print some useful information and exit.'
@@ -1127,9 +1133,9 @@ def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtp
     # -----------------------------------------------------------------------------
     # f-strings require Python version 3.6 or above
     if len(filteredjobsrows) > 0:
-        message = f"""Content-Type: text/html\nMIME-Version: 1.0\nTo: {to}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}"""
+        message = f'''Content-Type: text/html\nMIME-Version: 1.0\nTo: {to}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}'''
     else:
-        message = f"""Content-Type: text/plain\nMIME-Version: 1.0\nTo: {to}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}"""
+        message = f'''Content-Type: text/plain\nMIME-Version: 1.0\nTo: {to}\nFrom: {fromemail}\nSubject: {subject}\n\n{msg}'''
     try:
         with smtplib.SMTP(smtpserver, smtpport) as server:
             if smtpuser != '' and smtppass != '':
@@ -1308,7 +1314,7 @@ def set_enc_str(jobid):
 # ================
 # Check for and parse the configuration file first
 # ------------------------------------------------
-if args.config and args.config.name != None:
+if args.config:
     config_file = args.config.name
     config_section = args.section
     if not os.path.exists(config_file) or not os.access(config_file, os.R_OK):
@@ -1451,8 +1457,9 @@ for cli_tup in [
     if result != None:
         setattr(args, cli_tup[1], result)
 
-# Directly set variables that will always have a default
-# ------------------------------------------------------
+# Directly set variables that will always have an argparse
+# default and/or may have just been overridden above
+# --------------------------------------------------------
 server = args.server
 dbtype = args.dbtype
 dbhost = args.dbhost
@@ -1461,9 +1468,9 @@ dbname = args.dbname
 dbpass = args.dbpass
 client = args.client
 jobname = args.jobname
-smtpserver = args.smtpserver
-smtppass = args.smtppass
 smtpuser = args.smtpuser
+smtppass = args.smtppass
+smtpserver = args.smtpserver
 
 # Do some basic sanity checking on on the rest
 # of the cli, env, and config file variables
@@ -1521,9 +1528,17 @@ if not args.smtpport.isnumeric():
 else:
     smtpport = args.smtpport
 
-# It is OK for args.dbport to be None
-# because defaults will be assigned next
-# --------------------------------------
+if webguisvc not in valid_webguisvc_lst:
+    print(print_opt_errors('webguisvc'))
+    usage()
+
+if webguiport  != '' and not webguiport.isnumeric():
+    print(print_opt_errors('webguiport'))
+    usage()
+
+# It is OK for args.dbport to be None at this
+# time because defaults will be assigned next
+# -------------------------------------------
 if args.dbport != None and not args.dbport.isnumeric():
     print(print_opt_errors('dbport'))
     usage()
@@ -1765,6 +1780,7 @@ if print_client_version:
 # Thanks to Mark on stackoverflow.com for this tip! https://stackoverflow.com/a/2258273
 # Thanks to lrsp on stackoverflow.com for this tip! https://stackoverflow.com/a/50494717
 # --------------------------------------------------------------------------------------
+# from natsort import natsorted
 # sorted_client_versions_lst = natsorted(client_versions_dict.items(), key=lambda x: x[1])
 # print(type(sorted_client_versions_lst))
 # print(sorted_client_versions_lst)

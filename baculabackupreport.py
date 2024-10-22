@@ -110,7 +110,7 @@ enc_cell_type = 'both'                 # What should be displayed in the "Encryp
 # Warn about 'OK' jobs when "Will not descend" is reported in logs?
 # -----------------------------------------------------------------
 warn_on_will_not_descend = True                       # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported in logs?
-ignore_warn_on_will_not_descend_jobs = 'Job_1 Job_2'  # Case-sensitive list of job names to ignore for 'warn_on_will_not_descend' test
+ignore_warn_on_will_not_descend_jobs = 'Job1 Job2'    # Case-sensitive list of job names to ignore for 'warn_on_will_not_descend' test
 
 # Warn about jobs that have been seen in the catalog, but
 # have not had a successful run in 'last_good_run_days' days
@@ -122,12 +122,12 @@ last_good_run_skip_lst = ['Job1', 'Job2', 'CDRoms-ToAoE']  # Jobs to ignore when
 # Warn about 'OK' Diff/Inc jobs with zero files and/or bytes
 # ----------------------------------------------------------
 warn_on_zero_inc = False                      # Should 'OK' Inc/Diff jobs be set to 'OK/Warnings' when they backup zero files and/or bytes?
-ignore_warn_on_zero_inc_jobs = 'Job_2 Job_2'  # Case-sensitive list of job names to ignore for 'warn_on_zero_inc' test
+ignore_warn_on_zero_inc_jobs = 'Job1 Job2'    # Case-sensitive list of job names to ignore for 'warn_on_zero_inc' test
 
 # Warn about pools approaching or surpassing maxvols?
 # ---------------------------------------------------
 chk_pool_use = True                # Check pools for numvols vs maxvols?
-pools_to_ignore = 'Pool_1 Pool_2'  # Case-sesitive list of pools to always ignore for 'chk_pool_use' test
+pools_to_ignore = 'Pool1 Pool2'    # Case-sesitive list of pools to always ignore for 'chk_pool_use' test
 
 # Summary and Success Rates block
 # -------------------------------
@@ -149,7 +149,7 @@ create_success_rates_table = True
 
 # Create the Client Version < Director table?
 # -------------------------------------------
-create_client_ver_lt_dir_table = True  # Create the Client Version < Director table"
+create_client_ver_lt_dir_table = True
 
 # Show how long a job has been been waiting on media under 'Needs Media' in the Status field
 # ------------------------------------------------------------------------------------------
@@ -304,16 +304,16 @@ import textwrap
 from socket import gaierror
 from base64 import b64encode
 from datetime import datetime
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email.mime.multipart import MIMEMultipart
+# from email.mime.text import MIMEText
+# from email.mime.base import MIMEBase
+# from email.mime.multipart import MIMEMultipart
 from configparser import ConfigParser, BasicInterpolation
 
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.30'
-reldate = 'July 15, 2024'
+version = '2.31'
+reldate = 'October 21, 2024'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -1309,6 +1309,13 @@ def set_enc_str(jobid):
         elif enc_cell_type == 'both':
             return un_enc_emoji + ' Unencrypted'
 
+def versiontuple(v):
+    # Thanks kindall
+    # https://stackoverflow.com/questions/11887762/how-do-i-compare-version-numbers-in-python
+    # ---------------------------------------------------------------------------------------
+    'Given a Bacula M.m.p version string, return it so it can be compared numerically.'
+    return tuple(map(int, (v.split("."))))
+
 # ================
 # BEGIN the script
 # ================
@@ -1821,13 +1828,17 @@ if warn_on_last_good_run:
     warn_last_good_run_dict = {}
     if dbtype == 'pgsql':
         query_str = "SELECT JobId, Name, EndTime \
-            FROM Job WHERE Type = 'B' AND JobStatus IN ('T', 'W') ORDER BY JobId ASC;"
+            FROM Job WHERE Type = 'B' ORDER BY JobId ASC;"
     elif dbtype in ('mysql', 'maria'):
         query_str = "SELECT jobid, CAST(name as CHAR(50)) AS name, endtime \
-            FROM Job WHERE Type = 'B' AND jobstatus IN ('T', 'W') ORDER BY jobid ASC;"
+            FROM Job WHERE Type = 'B' ORDER BY jobid ASC;"
     elif dbtype == 'sqlite':
+        # TODO - waa - 20241008 - line 588: DeprecationWarning: The default timestamp converter is deprecated as
+        #                         of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+        #                       - The cause is the '[timestamp]' converter in this next line right here:
+        # -------------------------------------------------------------------------------------------------------
         query_str = "SELECT JobId, Name, EndTime '[timestamp]' \
-            FROM Job WHERE Type = 'B' AND JobStatus IN ('T', 'W') ORDER BY JobId ASC;"
+            FROM Job WHERE Type = 'B' ORDER BY JobId ASC;"
     alldbjobsrows = db_query(query_str, 'all jobs in catalog for warn_on_last_good_run feature')
 
     # Create the 'last_time_run_dict' dictionary
@@ -1942,7 +1953,7 @@ if summary_and_rates != 'none' and (create_job_summary_table \
                         or warn_on_last_good_run \
                         or create_client_ver_lt_dir_table \
                         or chk_pool_use):
-    job_summary_table = success_rates_table = warn_on_last_good_table = client_ver_lt_dir_table = pool_table = ''
+    job_summary_table = success_rates_table = warn_on_last_good_table = pool_table = client_ver_lt_dir_table = ''
     summary_and_rates_table = '<table>' \
                             + '<tr style="background: none; vertical-align: top; horizontal-align: left;">' \
                             + '<td>'
@@ -1997,7 +2008,7 @@ if summary_and_rates != 'none' and (create_job_summary_table \
             # block because the first line in the Job summary block is different
             # for different job types! Backup vs Copy vs Migration Admin vs
             # Verify vs Restore, Community vs Enterprise. This makes it
-            # impossible top define a Python re.sub to catch all job types.
+            # impossible to define a Python re.sub to catch all job types.
             #-------------------------------------------------------------------
             if dbtype in ('pgsql', 'sqlite'):
                 query_str = "SELECT logtext FROM log WHERE logtext LIKE '%Termination:%Backup%' ORDER BY time DESC LIMIT 1;"
@@ -2112,10 +2123,34 @@ if summary_and_rates != 'none' and (create_job_summary_table \
 
     # Do we create the client_ver_lt_dir_table table?
     # -----------------------------------------------
-    # if create_client_ver_lt_dir_table:
-    #     client_ver_lt_dir_table = '<table style="' + summarytablestyle + '">' \
-    #                       + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
-    #                       + summarytableheadercellstyle + '">Client Version is < Director</th></tr>'
+    if create_client_ver_lt_dir_table:
+        client_ver_lt_dir_table_data = []
+        if dbtype in ('pgsql', 'sqlite'):
+            query_str = "SELECT name, uname from Client;"
+        elif dbtype in ('mysql', 'mariadb'):
+            query_str = "SELECT CAST(Client.name as CHAR(255)) AS name, CAST(Client.uname as CHAR(255)) AS uname from Client;"
+        clientversions = db_query(query_str, 'client versions')
+        for row in clientversions:
+            if row['uname'] != '':
+                cli_ver = re.sub('(^.+?) .*', '\\1', row['uname'])
+                if versiontuple(cli_ver) < versiontuple(bacula_ver):
+                    client_ver_lt_dir_table_data.append((row['name'], cli_ver))
+        if len(client_ver_lt_dir_table_data) != 0:
+            client_ver_lt_dir_table = '<table style="' + summarytablestyle + '">' \
+                                    + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
+                                    + summarytableheadercellstyle + '">Client Version < Director</th></tr>' \
+                                    + '<tr><th style="text-align: left; padding-left: 10px; padding-right: 10px;">Client</th>' \
+                                    + '<th style="text-align: right; padding-left: 10px; padding-right: 10px;">Version</th></tr>'
+            for client in client_ver_lt_dir_table_data:
+                client_ver_lt_dir_table += '<tr>' \
+                                        + '<td style="' + summarytablecellstyle \
+                                        + 'text-align: left; padding-left: 10px; padding-right: 10px;">' \
+                                        + client[0] + '</td>' \
+                                        + '<td style="' + summarytablecellstyle \
+                                        + 'text-align: right; padding-left: 10px; padding-right: 10px;">' \
+                                        + client[1] + '</td>' \
+                                        + '</tr>\n'
+        client_ver_lt_dir_table += '</table>'
 
     # Do we create the 'warn_on_last_good_run' table?
     # -----------------------------------------------
@@ -2195,9 +2230,10 @@ if summary_and_rates != 'none' and (create_job_summary_table \
         else:
             pool_table = ''
 
-    # Insert the Job Summary, Success Rates, and Pool Table and close the outer table
-    # -------------------------------------------------------------------------------
-    summary_and_rates_table += job_summary_table + success_rates_table + warn_on_last_good_table + pool_table + '</td></tr></table>'
+    # Insert the Job Summary, Success Rates, Warn on Last Good, Pool, and
+    # Client Version Less Than Director table(s), then close the outer table
+    # ----------------------------------------------------------------------
+    summary_and_rates_table += job_summary_table + success_rates_table + warn_on_last_good_table + pool_table + client_ver_lt_dir_table + '</td></tr></table>'
 
 # For each Verify Job (V), get the
 # Job summary text from the log table
@@ -2225,7 +2261,7 @@ if len(vrfy_jobids) != 0:
 
     # For each row of the returned vji_rows (Vrfy Jobs), add
     # to the v_jobids_dict dict as [VrfyJobid: 'Verified JobId']
-    # ------------------------------------------------------
+    # ----------------------------------------------------------
     v_jobids_dict = {}
     for vji in vji_rows:
         v_jobids_dict[str(vji['jobid'])] = v_job_id(vji)

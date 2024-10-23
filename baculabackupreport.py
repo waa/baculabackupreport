@@ -2192,7 +2192,7 @@ if summary_and_rates != 'none' and (create_job_summary_table \
                     FROM Pool \
                     WHERE Name='" + p_name[0] + "';"
                 pool_info = db_query(query_str, 'pool information for pool ' + p_name[0], 'one')
-                pct = calc_pool_use(p_name[0], pool_info[0], pool_info[1])
+                calc_pool_use(p_name[0], pool_info[0], pool_info[1])
         elif dbtype in ('mysql', 'maria'):
             query_str = "SELECT CAST(Name as CHAR(50)) AS Name \
                 FROM Pool \

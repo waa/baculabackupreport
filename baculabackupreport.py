@@ -2121,37 +2121,6 @@ if summary_and_rates != 'none' and (create_job_summary_table \
                                 + '</tr>\n'
         success_rates_table += '</table>'
 
-    # Do we create the client_ver_lt_dir_table table?
-    # -----------------------------------------------
-    if create_client_ver_lt_dir_table:
-        client_ver_lt_dir_table_data = []
-        if dbtype in ('pgsql', 'sqlite'):
-            query_str = "SELECT name, uname from Client;"
-        elif dbtype in ('mysql', 'mariadb'):
-            query_str = "SELECT CAST(Client.name as CHAR(255)) AS name, CAST(Client.uname as CHAR(255)) AS uname from Client;"
-        clientversions = db_query(query_str, 'client versions')
-        for row in clientversions:
-            if row['uname'] != '':
-                cli_ver = re.sub('(^.+?) .*', '\\1', row['uname'])
-                if versiontuple(cli_ver) < versiontuple(bacula_ver):
-                    client_ver_lt_dir_table_data.append((row['name'], cli_ver))
-        if len(client_ver_lt_dir_table_data) != 0:
-            client_ver_lt_dir_table = '<table style="' + summarytablestyle + '">' \
-                                    + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
-                                    + summarytableheadercellstyle + '">Client Version < Director</th></tr>' \
-                                    + '<tr><th style="text-align: left; padding-left: 10px; padding-right: 10px;">Client</th>' \
-                                    + '<th style="text-align: right; padding-left: 10px; padding-right: 10px;">Version</th></tr>'
-            for client in client_ver_lt_dir_table_data:
-                client_ver_lt_dir_table += '<tr>' \
-                                        + '<td style="' + summarytablecellstyle \
-                                        + 'text-align: left; padding-left: 10px; padding-right: 10px;">' \
-                                        + client[0] + '</td>' \
-                                        + '<td style="' + summarytablecellstyle \
-                                        + 'text-align: right; padding-left: 10px; padding-right: 10px;">' \
-                                        + client[1] + '</td>' \
-                                        + '</tr>\n'
-        client_ver_lt_dir_table += '</table>'
-
     # Do we create the 'warn_on_last_good_run' table?
     # -----------------------------------------------
     if warn_on_last_good_run and len(warn_last_good_run_dict) > 0:
@@ -2227,8 +2196,37 @@ if summary_and_rates != 'none' and (create_job_summary_table \
                            + str(warn_pool_dict[pool][2]) + '%</td>' \
                            + '</tr>\n'
             pool_table += '</table>'
-        else:
-            pool_table = ''
+
+    # Do we create the client_ver_lt_dir_table table?
+    # -----------------------------------------------
+    if create_client_ver_lt_dir_table:
+        client_ver_lt_dir_table_data = []
+        if dbtype in ('pgsql', 'sqlite'):
+            query_str = "SELECT name, uname from Client;"
+        elif dbtype in ('mysql', 'mariadb'):
+            query_str = "SELECT CAST(Client.name as CHAR(255)) AS name, CAST(Client.uname as CHAR(255)) AS uname from Client;"
+        clientversions = db_query(query_str, 'client versions')
+        for row in clientversions:
+            if row['uname'] != '':
+                cli_ver = re.sub('(^.+?) .*', '\\1', row['uname'])
+                if versiontuple(cli_ver) < versiontuple(bacula_ver):
+                    client_ver_lt_dir_table_data.append((row['name'], cli_ver))
+        if len(client_ver_lt_dir_table_data) != 0:
+            client_ver_lt_dir_table = '<table style="' + summarytablestyle + '">' \
+                                    + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
+                                    + summarytableheadercellstyle + '">Client Version < Director</th></tr>' \
+                                    + '<tr><th style="text-align: left; padding-left: 10px; padding-right: 10px;">Client</th>' \
+                                    + '<th style="text-align: right; padding-left: 10px; padding-right: 10px;">Version</th></tr>'
+            for client in client_ver_lt_dir_table_data:
+                client_ver_lt_dir_table += '<tr>' \
+                                        + '<td style="' + summarytablecellstyle \
+                                        + 'text-align: left; padding-left: 10px; padding-right: 10px;">' \
+                                        + client[0] + '</td>' \
+                                        + '<td style="' + summarytablecellstyle \
+                                        + 'text-align: right; padding-left: 10px; padding-right: 10px;">' \
+                                        + client[1] + '</td>' \
+                                        + '</tr>\n'
+        client_ver_lt_dir_table += '</table>'
 
     # Insert the Job Summary, Success Rates, Warn on Last Good, Pool, and
     # Client Version Less Than Director table(s), then close the outer table

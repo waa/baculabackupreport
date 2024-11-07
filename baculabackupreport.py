@@ -312,8 +312,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.31'
-reldate = 'October 21, 2024'
+version = '2.32'
+reldate = 'November 06, 2024'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -1828,10 +1828,10 @@ if warn_on_last_good_run:
     warn_last_good_run_dict = {}
     if dbtype == 'pgsql':
         query_str = "SELECT JobId, Name, EndTime \
-            FROM Job WHERE Type = 'B' ORDER BY JobId ASC;"
+            FROM Job WHERE Type = 'B' AND JobStatus NOT IN ('C', 'R') ORDER BY JobId ASC;"
     elif dbtype in ('mysql', 'maria'):
         query_str = "SELECT jobid, CAST(name as CHAR(50)) AS name, endtime \
-            FROM Job WHERE Type = 'B' ORDER BY jobid ASC;"
+            FROM Job WHERE Type = 'B' AND JobStatus NOT IN ('C', 'R') ORDER BY jobid ASC;"
     elif dbtype == 'sqlite':
         # TODO - waa - 20241008 - line 588: DeprecationWarning: The default timestamp converter is deprecated as
         #                         of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
@@ -2773,7 +2773,7 @@ for jobrow in filteredjobsrows:
         if colname == 'jobid':
             msg += html_format_cell(str(jobrow['jobid']), col = 'jobid', star = '*' if starbadjobids and jobrow['jobstatus'] in bad_job_set else '')
         elif colname == 'jobname':
-            # TODO: See related TODO on or near line 686
+            # TODO: See related TODO on or near line 722
             # There is no Job summary with Prev Backup JobId: and New Backup JobId: for Running or
             # Created, not yet running Copy/Migration control, nor Verify JobId: for Verify jobs.
             # Currently the two dictionaries pn_jobids_dict and v_jobids_dict are built by using re.sub

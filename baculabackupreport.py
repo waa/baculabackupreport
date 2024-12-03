@@ -312,8 +312,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.32'
-reldate = 'November 06, 2024'
+version = '2.33'
+reldate = 'December 02, 2024'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -324,11 +324,11 @@ prog_info_txt = progname + ' - v' + version + ' - ' + scriptname \
 # -------------------------------------------
 valid_webgui_lst = ['bweb', 'baculum']
 valid_webguisvc_lst = ['http', 'https']
-bad_job_set = {'A', 'D', 'E', 'f', 'I'}
+bad_job_lst = ['A', 'D', 'E', 'f', 'I']
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
 all_jobtype_lst = ['B', 'C', 'c', 'D', 'g', 'M', 'R', 'V']
-all_jobstatus_lst = ['a', 'A', 'B', 'c', 'C', 'd', 'D', \
-                     'e', 'E', 'f', 'F', 'i', 'I', 'j', \
+all_jobstatus_lst = ['a', 'A', 'B', 'c', 'C', 'd', 'D',
+                     'e', 'E', 'f', 'F', 'i', 'I', 'j',
                      'm', 'M', 'p', 'R', 's', 'S', 't', 'T']
 valid_verified_job_name_col_lst = \
 valid_copied_migrated_job_name_col_lst = ['name', 'type', 'both', 'none']
@@ -341,7 +341,7 @@ valid_enc_hdr_type_lst = valid_enc_cell_type_lst = ['text', 'emoji', 'both']
 # Lists of strings to determine if a job is waiting on media, and if new media has been found/mounted
 # ---------------------------------------------------------------------------------------------------
 needs_mount_txt_lst = ['Please mount', 'Please use the "label" command']
-got_new_vol_txt_lst = ['New volume', 'Ready to append', 'Ready to read', 'Forward spacing Volume', 
+got_new_vol_txt_lst = ['New volume', 'Ready to append', 'Ready to read', 'Forward spacing Volume',
                        'Labeled new Volume', 'Wrote label to ', 'all previous data lost']
 
 # This list is so that we can reliably convert the True/False strings
@@ -800,7 +800,7 @@ def translate_job_type(jobtype, jobid, priorjobid):
                    + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
                    + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
                    if copied_migrated_job_name_col in ('type', 'both') else '')
-        if jobrow['jobstatus'] in bad_job_set:
+        if jobrow['jobstatus'] in bad_job_lst:
             return 'Copy Ctrl: Failed' \
                    + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
                    + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
@@ -830,7 +830,7 @@ def translate_job_type(jobtype, jobid, priorjobid):
                    + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
                    + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
                    if copied_migrated_job_name_col in ('type', 'both') else '')
-        if jobrow['jobstatus'] in bad_job_set:
+        if jobrow['jobstatus'] in bad_job_lst:
             return 'Migration Ctrl: Failed' \
                    + ('<br><span style="font-size: ' + fontsize_addtional_texts + ';">(' \
                    + get_copied_migrated_job_name(jobrow['jobid']) + ')</span>' \
@@ -993,7 +993,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
                        bgcolor = goodjobcolor
                 else:
                     bgcolor = warnjobcolor
-            elif jobrow['jobstatus'] in bad_job_set:
+            elif jobrow['jobstatus'] in bad_job_lst:
                 bgcolor = badjobcolor
             elif jobrow['jobstatus'] == 'R':
                 bgcolor = runningjobcolor
@@ -1733,7 +1733,7 @@ numgoodrestorejobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == '
 numgoodcopyjobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == 'c' and r['jobstatus'] in ('T', 'e')])
 numgoodmigratejobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == 'g' and r['jobstatus'] in ('T', 'e')])
 numgoodverifyjobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == 'V' and r['jobstatus'] in ('T', 'e')])
-badjobids = [r['jobid'] for r in filteredjobsrows if r['jobstatus'] in bad_job_set]
+badjobids = [r['jobid'] for r in filteredjobsrows if r['jobstatus'] in bad_job_lst]
 numbadbackupjobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == 'B' and r['jobstatus'] not in ('R', 'C', 'T', 'e')])
 numbadrestorejobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == 'R' and r['jobstatus'] not in ('R', 'C', 'T', 'e')])
 numbadcopyjobs = len([r['jobid'] for r in filteredjobsrows if r['type'] == 'c' and r['jobstatus'] not in ('R', 'C', 'T', 'e')])
@@ -2079,7 +2079,7 @@ if summary_and_rates != 'none' and (create_job_summary_table \
                 bad_query_str = "SELECT COUNT(JobId) \
                     FROM Job \
                     WHERE endtime >= (NOW()) - (INTERVAL '" + str(interval_days) + " DAY') \
-                    AND JobStatus IN ('" + "','".join(bad_job_set) + "');"
+                    AND JobStatus IN ('" + "','".join(bad_job_lst) + "');"
             elif dbtype in ('mysql', 'maria'):
                 all_query_str = "SELECT COUNT(jobid) \
                     FROM Job \
@@ -2087,7 +2087,7 @@ if summary_and_rates != 'none' and (create_job_summary_table \
                 bad_query_str = "SELECT COUNT(jobid) \
                     FROM Job \
                     WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + str(interval_days) + " DAY) \
-                    AND jobstatus IN ('" + "','".join(bad_job_set) + "');"
+                    AND jobstatus IN ('" + "','".join(bad_job_lst) + "');"
             elif dbtype == 'sqlite':
                all_query_str = "SELECT COUNT(JobId) \
                     FROM Job \
@@ -2095,7 +2095,7 @@ if summary_and_rates != 'none' and (create_job_summary_table \
                bad_query_str = "SELECT COUNT(JobId) \
                     FROM Job \
                     WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(interval_days) + " days', 'localtime') \
-                    AND JobStatus IN ('" + "','".join(bad_job_set) + "');"
+                    AND JobStatus IN ('" + "','".join(bad_job_lst) + "');"
             allintervaljobs = db_query(all_query_str, 'all jobs in the past ' + str(interval_days) + ' days for success rate caclulations', 'one')
             badintervaljobs = db_query(bad_query_str, 'bad jobs in the past ' + str(interval_days) + ' days for success rate caclulations', 'one')
 
@@ -2771,7 +2771,7 @@ for jobrow in filteredjobsrows:
         msg += '<tr>'
     for colname in cols2show_lst:
         if colname == 'jobid':
-            msg += html_format_cell(str(jobrow['jobid']), col = 'jobid', star = '*' if starbadjobids and jobrow['jobstatus'] in bad_job_set else '')
+            msg += html_format_cell(str(jobrow['jobid']), col = 'jobid', star = '*' if starbadjobids and jobrow['jobstatus'] in bad_job_lst else '')
         elif colname == 'jobname':
             # TODO: See related TODO on or near line 722
             # There is no Job summary with Prev Backup JobId: and New Backup JobId: for Running or

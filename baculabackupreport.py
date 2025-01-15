@@ -312,8 +312,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.33'
-reldate = 'December 02, 2024'
+version = '2.34'
+reldate = 'January 14, 2024'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -592,8 +592,8 @@ def pn_job_id(ctrl_jobid):
     # on the joblog's job summary block of 20+ lines of text and return
     # the Prev Backup JobId and New Backup JobId as prev, new
     # -----------------------------------------------------------------
-    prev = re.sub('.*Prev Backup JobId: +(.+?)\n.*', '\\1', ctrl_jobid['logtext'], flags = re.DOTALL)
-    new = re.sub('.*New Backup JobId: +(.+?)\n.*', '\\1', ctrl_jobid['logtext'], flags = re.DOTALL)
+    prev = re.sub('.*Prev Backup JobId: +(.+?)\n.*', '\\1', ctrl_jobid['logtext'], flags=re.DOTALL)
+    new = re.sub('.*New Backup JobId: +(.+?)\n.*', '\\1', ctrl_jobid['logtext'], flags=re.DOTALL)
     return prev, new
 
 def ctrl_job_files_bytes(cji):
@@ -602,8 +602,8 @@ def ctrl_job_files_bytes(cji):
     # the joblog's job summary block of 20+ lines of text using a search term
     # of "SD Files/Bytes Written:"
     # -----------------------------------------------------------------------
-    files = re.sub('.*SD Files Written: +(.+?)\n.*', '\\1', cji['logtext'], flags = re.DOTALL).replace(',','')
-    bytes = re.sub('.*SD Bytes Written: +(.+?) .*\n.*', '\\1', cji['logtext'], flags = re.DOTALL).replace(',','')
+    files = re.sub('.*SD Files Written: +(.+?)\n.*', '\\1', cji['logtext'], flags=re.DOTALL).replace(',','')
+    bytes = re.sub('.*SD Bytes Written: +(.+?) .*\n.*', '\\1', cji['logtext'], flags=re.DOTALL).replace(',','')
     return files, bytes
 
 def v_job_id(vrfy_jobid):
@@ -612,7 +612,7 @@ def v_job_id(vrfy_jobid):
     # job summary block of 20+ lines of text using a search term of
     # 'Verify JobId:' and return the jobid of the job it verified
     # -------------------------------------------------------------
-    return re.sub('.*Verify JobId: +(.+?)\n.*', '\\1', vrfy_jobid['logtext'], flags = re.DOTALL)
+    return re.sub('.*Verify JobId: +(.+?)\n.*', '\\1', vrfy_jobid['logtext'], flags=re.DOTALL)
 
 def get_verify_client_info(vrfy_jobid):
     'Given a Verify Jobid, return the JobId, Client name, and Job Name of the jobid that was verified.'
@@ -1237,19 +1237,19 @@ def get_pool_or_storage(res_type):
                 text = summary['logtext']
             if jobrow['type'] in ('B', 'C'):
                 if res_type == 'p':
-                    p_or_s = re.sub('.*Pool: +(.+?)\n.*', '\\1', text, flags = re.DOTALL)
+                    p_or_s = re.sub('.*Pool: +(.+?)\n.*', '\\1', text, flags=re.DOTALL)
                 else:
-                    p_or_s = re.sub('.*Storage: +(.+?)\n.*', '\\1', text, flags = re.DOTALL)
+                    p_or_s = re.sub('.*Storage: +(.+?)\n.*', '\\1', text, flags=re.DOTALL)
             elif jobrow['type'] in ('c', 'g'):
                 if res_type == 'p':
-                    p_or_s = re.sub('.*Read Pool: +(.+?)\n.*', 'Read: \\1', text, flags = re.DOTALL) + '<br>' \
-                           + re.sub('.*Write Pool: +(.+?)\n.*', 'Write: \\1', text, flags = re.DOTALL)
+                    p_or_s = re.sub('.*Read Pool: +(.+?)\n.*', 'Read: \\1', text, flags=re.DOTALL) + '<br>' \
+                           + re.sub('.*Write Pool: +(.+?)\n.*', 'Write: \\1', text, flags=re.DOTALL)
                 else:
-                    p_or_s = re.sub('.*Read Storage: +(.+?)\n.*', 'Read: \\1', text, flags = re.DOTALL) + '<br>' \
-                           + re.sub('.*Write Storage: +(.+?)\n.*', 'Write: \\1', text, flags = re.DOTALL)
+                    p_or_s = re.sub('.*Read Storage: +(.+?)\n.*', 'Read: \\1', text, flags=re.DOTALL) + '<br>' \
+                           + re.sub('.*Write Storage: +(.+?)\n.*', 'Write: \\1', text, flags=re.DOTALL)
             p_or_s = re.sub('"', '', p_or_s)
             if strip_p_or_s_from:
-                p_or_s = re.sub(r'\((.+?)\)', '', p_or_s, re.DOTALL)
+                p_or_s = re.sub(r'\((.+?)\)', '', p_or_s, flags=re.DOTALL)
     else:
         # waa - 20230503 TODO
         # placeholder... Here we should try to scrape the joblog for the Read/Write Pool(s)
@@ -2015,7 +2015,7 @@ if summary_and_rates != 'none' and (create_job_summary_table \
             elif dbtype in ('mysql', 'maria'):
                 query_str = "SELECT CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE logtext LIKE '%Termination:%Backup%' ORDER BY time DESC LIMIT 1;"
             bacula_ver_row = db_query(query_str, 'Bacula version', 'one')
-            bacula_ver = re.sub(r'^.* (\d{2}\.\d{1,2}\.\d{1,2}) \(\d{2}\w{3}\d{2}\):\n.*', '\\1', bacula_ver_row['logtext'], flags = re.DOTALL)
+            bacula_ver = re.sub(r'^.* (\d{2}\.\d{1,2}\.\d{1,2}) \(\d{2}\w{3}\d{2}\):\n.*', '\\1', bacula_ver_row['logtext'], flags=re.DOTALL)
             job_summary_table_data.insert(0, {'label': 'Bacula Director Version', 'data': bacula_ver})
 
         # - Not everyone runs Copy, Migration, Verify jobs

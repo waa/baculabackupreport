@@ -312,8 +312,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.34'
-reldate = 'January 14, 2024'
+version = '2.35'
+reldate = 'February 15, 2025'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -1826,6 +1826,10 @@ always_fail_jobs = set(unique_bad_days_jobs.difference(good_days_jobs)).intersec
 # ---------------------------------------------------------------------
 if warn_on_last_good_run:
     warn_last_good_run_dict = {}
+    # Adding `AND JobStatus NOT IN ('C', 'R')` fixed a bug, and should be safe since this query
+    # is only used to create the alldbjobsrows query output which is only used to create the
+    # last_time_run_dict dictionary, which is only used to create the warn_last_good_run_dict dictionary
+    # --------------------------------------------------------------------------------------------------
     if dbtype == 'pgsql':
         query_str = "SELECT JobId, Name, EndTime \
             FROM Job WHERE Type = 'B' AND JobStatus NOT IN ('C', 'R') ORDER BY JobId ASC;"
@@ -1939,6 +1943,28 @@ if len(ctrl_jobids) != 0:
                 total_migrated_files += int(files)
                 total_migrated_bytes += int(bytes)
 
+# Do we include the Bacula Director version in the Summary
+# table or are we creating the client_ver_lt_dir_table?
+# Since the variable 'bacula_ver' is needed for comparisons in
+# the client_ver_lt_dir_table, this section was moved outside of
+# the 'if create_job_summary_table' and and 'if summary_and_rates'
+# sections.
+# Thanks to John Lockard for noticing this and opening issue #16.
+#-----------------------------------------------------------------
+if bacula_dir_version or create_client_ver_lt_dir_table:
+    # We need to query the log table for the last *Backup* Job summary
+    # block because the first line in the Job summary block is different
+    # for different job types! Backup vs Copy vs Migration Admin vs
+    # Verify vs Restore, Community vs Enterprise. This makes it
+    # impossible to define a Python re.sub to catch all job types.
+    #-------------------------------------------------------------------
+    if dbtype in ('pgsql', 'sqlite'):
+        query_str = "SELECT logtext FROM log WHERE logtext LIKE '%Termination:%Backup%' ORDER BY time DESC LIMIT 1;"
+    elif dbtype in ('mysql', 'maria'):
+        query_str = "SELECT CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE logtext LIKE '%Termination:%Backup%' ORDER BY time DESC LIMIT 1;"
+    bacula_ver_row = db_query(query_str, 'Bacula version', 'one')
+    bacula_ver = re.sub(r'^.* (\d{2}\.\d{1,2}\.\d{1,2}) \(\d{2}\w{3}\d{2}\):\n.*', '\\1', bacula_ver_row['logtext'], flags=re.DOTALL)
+
 # Include the Summary and Success Rates block in the job report?
 # We need to build the Summary table now to prevent any
 # Copy/Migrate/Verify jobs that are older than "-t hours" which
@@ -2004,18 +2030,6 @@ if summary_and_rates != 'none' and (create_job_summary_table \
         # Do we include the Bacula Director version in the Summary table?
         # ---------------------------------------------------------------
         if bacula_dir_version:
-            # We need to query the log table for the last *Backup* Job summary
-            # block because the first line in the Job summary block is different
-            # for different job types! Backup vs Copy vs Migration Admin vs
-            # Verify vs Restore, Community vs Enterprise. This makes it
-            # impossible to define a Python re.sub to catch all job types.
-            #-------------------------------------------------------------------
-            if dbtype in ('pgsql', 'sqlite'):
-                query_str = "SELECT logtext FROM log WHERE logtext LIKE '%Termination:%Backup%' ORDER BY time DESC LIMIT 1;"
-            elif dbtype in ('mysql', 'maria'):
-                query_str = "SELECT CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE logtext LIKE '%Termination:%Backup%' ORDER BY time DESC LIMIT 1;"
-            bacula_ver_row = db_query(query_str, 'Bacula version', 'one')
-            bacula_ver = re.sub(r'^.* (\d{2}\.\d{1,2}\.\d{1,2}) \(\d{2}\w{3}\d{2}\):\n.*', '\\1', bacula_ver_row['logtext'], flags=re.DOTALL)
             job_summary_table_data.insert(0, {'label': 'Bacula Director Version', 'data': bacula_ver})
 
         # - Not everyone runs Copy, Migration, Verify jobs

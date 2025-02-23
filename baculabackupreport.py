@@ -1184,7 +1184,6 @@ def chk_failed_cloud_xfers():
     'Return True if cloud xfer errors are in job log, else return False. Also return the number of cloud xfer errors.'
     query_str = "SELECT count(logtext) FROM Log WHERE jobid=" + str(jobrow['jobid']) + " AND logtext LIKE '%part%state=error%';"
     failed_cloud_xfers_qry = db_query(query_str, 'jobs with cloud part xfer errors', 'one')
-    print(failed_cloud_xfers_qry)
     if dbtype in ('mysql', 'maria'):
         num_cloud_part_xfer_errors = failed_cloud_xfers_qry['count(*)']
     else:

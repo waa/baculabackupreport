@@ -36,7 +36,7 @@
 # ---------------------------------------------------------------------------
 # BSD 2-Clause License
 #
-# Copyright (c) 2021-2024, William A. Arlofski waa@revpol.com
+# Copyright (c) 2021-2025, William A. Arlofski waa@revpol.com
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -107,10 +107,14 @@ print_client_version = True            # Print the Client version under the Clie
 enc_hdr_type = 'both'                  # What should be displayed in the "Encrypted" header cell? (text, emoji, both)
 enc_cell_type = 'both'                 # What should be displayed in the "Encrypted" cell? (text, emoji, both)
 
+# Jobs to completely skip in report
+# ---------------------------------
+ignore_jobs_lst = ['Job1', 'Job2']
+
 # Warn about 'OK' jobs when "Will not descend" is reported in logs?
 # -----------------------------------------------------------------
-warn_on_will_not_descend = True                       # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported in logs?
-ignore_warn_on_will_not_descend_jobs = 'Job1 Job2'    # Case-sensitive list of job names to ignore for 'warn_on_will_not_descend' test
+warn_on_will_not_descend = True                     # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported in logs?
+ignore_warn_on_will_not_descend_jobs = 'Job1 Job2'  # Case-sensitive list of job names to ignore for 'warn_on_will_not_descend' test
 
 # Warn about jobs that have been seen in the catalog, but
 # have not had a successful run in 'last_good_run_days' days
@@ -227,6 +231,10 @@ will_not_descend_ignore_lst = ['/dev', '/misc', '/net', '/proc', '/run', '/srv',
 # --------------------------------------------------------------------------
 do_not_email_on_all_ok = False
 
+# Should we warn on cloud volume part transfer errors?
+# ----------------------------------------------------
+warn_on_failed_cloud_xfers = True
+
 # Set the column to colorize for jobs that are always failing
 # -----------------------------------------------------------
 alwaysfailcolumn = 'jobname'    # Column to colorize for "always failing jobs" (column name, row, none)
@@ -304,16 +312,13 @@ import textwrap
 from socket import gaierror
 from base64 import b64encode
 from datetime import datetime
-# from email.mime.text import MIMEText
-# from email.mime.base import MIMEBase
-# from email.mime.multipart import MIMEMultipart
 from configparser import ConfigParser, BasicInterpolation
 
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.35'
-reldate = 'February 15, 2025'
+version = '2.36'
+reldate = 'February 23, 2025'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -352,7 +357,8 @@ cfg_file_true_false_lst = ['addsubjecticon', 'addsubjectrunningorcreated', 'bacu
                            'create_success_rates_table', 'create_client_ver_lt_dir_table', 'db_version', 'do_not_email_on_all_ok',
                            'emailvirussummary', 'flagrescheduled', 'include_pnv_jobs', 'migrated_stats',
                            'print_sent', 'print_subject', 'restore_stats', 'showcopiedto', 'show_db_stats',
-                           'urlifyalljobs', 'verified_stats', 'warn_on_last_good_run', 'warn_on_will_not_descend', 'warn_on_zero_inc']
+                           'urlifyalljobs', 'verified_stats', 'warn_on_failed_cloud_xfers', 'warn_on_last_good_run',
+                           'warn_on_will_not_descend', 'warn_on_zero_inc']
 
 # Dictionary for the success rate intervals
 # -----------------------------------------
@@ -371,13 +377,20 @@ avconnfailtext = 'Unable to connect to antivirus-plugin-service'
 # ---------------------------------------------------------------------------------------------
 total_copied_files = total_copied_bytes = total_migrated_files = total_migrated_bytes = 0
 
-# Initialize the num_will_not_descend_jobs variable
-# -------------------------------------------------
+# Initialize the will_not_descend variables
+# -----------------------------------------
+will_not_descend = False
 num_will_not_descend_jobs = 0
 
-# Initialize the num_zero_inc_jobs variable
-# -----------------------------------------
+# Initialize the zero_inc variables
+# ---------------------------------
+zero_inc = False
 num_zero_inc_jobs = 0
+
+# Initialize the failed_cloud_xfers variables
+# -------------------------------------------
+failed_cloud_xfers = (False, 0)
+num_failed_cloud_xfers_jobs = 0
 
 # Define the argparse arguments, descriptions, defaults, etc
 # waa - Something to look into: https://www.reddit.com/r/Python/comments/11hqsbv/i_am_sick_of_writing_argparse_boilerplate_code_so/
@@ -404,11 +417,11 @@ parser.add_argument('-c', '--client', help='Client to report on using SQL "LIKE 
 parser.add_argument('-j', '--jobname', help='Job name to report on using SQL "LIKE jobname".', default='%')
 parser.add_argument('-y', '--jobtype', help='Type of job to report on.', default='DBRCcMgV')
 parser.add_argument('-x', '--jobstatus', help='Job status to report on. Note: [R]unning and [C]reated jobs are always included', default='aABcCdDeEfFiIjmMpRsStT')
-parser.add_argument('-u', '--smtpuser', help='SMTP user', default='')
-parser.add_argument('-p', '--smtppass', help='SMTP password', default='')
+parser.add_argument('-u', '--smtpuser', help='SMTP user.', default='')
+parser.add_argument('-p', '--smtppass', help='SMTP password.', default='')
 parser.add_argument('--dbtype', help='Database type. (pgsql | mysql | maria | sqlite)', choices=valid_db_lst, default='pgsql')
 parser.add_argument('--dbhost', help='Database host.', default='localhost')
-parser.add_argument('--dbport', help='Database port (defaults: pgsql 5432, mysql & maria 3306).')
+parser.add_argument('--dbport', help='Database port. (defaults: pgsql 5432, mysql & maria 3306)')
 parser.add_argument('--dbname', help='Database name. (sqlite default: /opt/bacula/working/bacula.db)', default='bacula')
 parser.add_argument('--dbuser', help='Database user.', default='bacula')
 parser.add_argument('--dbpass', help='Database password.', default='')
@@ -1156,7 +1169,6 @@ def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtp
 
 def chk_will_not_descend():
     'Return True if "Will not descend" warnings are in job log, else return False - ignore warnings about dirs in "will_not_descend_ignore_lst".'
-    global num_will_not_descend_jobs
     query_str = "SELECT logtext FROM Log WHERE jobid=" + str(jobrow['jobid']) + " AND logtext LIKE '%Will not descend%';"
     will_not_descend_qry = db_query(query_str, 'jobs with \'Will not descend\' warnings')
     if len(will_not_descend_qry) == 0:
@@ -1167,6 +1179,20 @@ def chk_will_not_descend():
                 num_will_not_descend_jobs += 1
                 return True
         return False
+
+def chk_failed_cloud_xfers():
+    'Return True if cloud xfer errors are in job log, else return False. Also return the number of cloud xfer errors.'
+    query_str = "SELECT count(logtext) FROM Log WHERE jobid=" + str(jobrow['jobid']) + " AND logtext LIKE '%part%state=error%';"
+    failed_cloud_xfers_qry = db_query(query_str, 'jobs with cloud part xfer errors', 'one')
+    print(failed_cloud_xfers_qry)
+    if dbtype in ('mysql', 'maria'):
+        num_cloud_part_xfer_errors = failed_cloud_xfers_qry['count(*)']
+    else:
+        num_cloud_part_xfer_errors = failed_cloud_xfers_qry[0]
+    if num_cloud_part_xfer_errors == 0:
+        return False, 0
+    else:
+        return True, num_cloud_part_xfer_errors
 
 def calc_pool_use(name, num, max):
     'Add {poolName: (numvols, maxvols, % used)} to warn_pool_dict if >= 80%.'
@@ -1815,16 +1841,16 @@ bad_days_jobs = [r['jobname'] for r in alldaysjobrows if r['jobstatus'] not in (
 unique_bad_days_jobs = {r['jobname'] for r in alldaysjobrows if r['jobstatus'] not in ('T', 'R', 'C')}
 always_fail_jobs = set(unique_bad_days_jobs.difference(good_days_jobs)).intersection(alljobnames)
 
-# Query the DB for all jobs in the catalog. Then use dict comprehension
-# to add/overwrite each jobname/time into a dictionary with the jobname
-# as the key and the end time as the value.
-# The last {'Job': (jobid, 'time', daysago)} k/v pair added/overwritten
-# into the dictionary will be the last time that job has been
-# successfully run.
-# Then we do a little date math later to show jobs that have not been
-# successfully run for 'last_good_run_days'.
-# ---------------------------------------------------------------------
 if warn_on_last_good_run:
+    # Query the DB for all jobs in the catalog. Then use dict comprehension
+    # to add/overwrite each jobname/time into a dictionary with the jobname
+    # as the key and the end time as the value.
+    # The last {'Job': (jobid, 'time', daysago)} k/v pair added/overwritten
+    # into the dictionary will be the last time that job has been
+    # successfully run.
+    # Then we do a little date math later to show jobs that have not been
+    # successfully run for 'last_good_run_days'.
+    # ---------------------------------------------------------------------
     warn_last_good_run_dict = {}
     # Adding `AND JobStatus NOT IN ('C', 'R')` fixed a bug, and should be safe since this query
     # is only used to create the alldbjobsrows query output which is only used to create the
@@ -1943,15 +1969,15 @@ if len(ctrl_jobids) != 0:
                 total_migrated_files += int(files)
                 total_migrated_bytes += int(bytes)
 
-# Do we include the Bacula Director version in the Summary
-# table or are we creating the client_ver_lt_dir_table?
-# Since the variable 'bacula_ver' is needed for comparisons in
-# the client_ver_lt_dir_table, this section was moved outside of
-# the 'if create_job_summary_table' and and 'if summary_and_rates'
-# sections.
-# Thanks to John Lockard for noticing this and opening issue #16.
-#-----------------------------------------------------------------
 if bacula_dir_version or create_client_ver_lt_dir_table:
+    # Do we include the Bacula Director version in the Summary
+    # table or are we creating the client_ver_lt_dir_table?
+    # Since the variable 'bacula_ver' is needed for comparisons in
+    # the client_ver_lt_dir_table, this section was moved outside of
+    # the 'if create_job_summary_table' and and 'if summary_and_rates'
+    # sections.
+    # Thanks to John Lockard for noticing this and opening issue #16.
+    #-----------------------------------------------------------------
     # We need to query the log table for the last *Backup* Job summary
     # block because the first line in the Job summary block is different
     # for different job types! Backup vs Copy vs Migration Admin vs
@@ -2741,7 +2767,6 @@ for jobrow in filteredjobsrows:
     # Migrated jobs will. Migrated backup jobs have a
     # jobType 'B' so we need to check priorjobid here
     # -------------------------------------------------
-    will_not_descend = False
     if warn_on_will_not_descend \
     and jobrow['type'] == 'B' \
     and jobrow['jobstatus'] == 'T' \
@@ -2753,7 +2778,6 @@ for jobrow in filteredjobsrows:
     # Set the zero_inc variable True if an 'OK' Differential
     # or Incremental backup job backed up zero files/bytes
     # ------------------------------------------------------
-    zero_inc = False
     if warn_on_zero_inc \
     and jobrow['type'] == 'B' \
     and jobrow['jobstatus'] == 'T' \
@@ -2776,6 +2800,19 @@ for jobrow in filteredjobsrows:
     # ---------------------------------------------------
     if 'encrypted' in cols2show:
         enc_str = set_enc_str(jobrow['jobid'])
+
+    # Check to see if this job had any cloud part xfer errors
+    # There is no way to tell if a job used Cloud storage,but
+    # there is no need to query every job's log table, so we
+    # only query the jobs with SD errors since cloud xfer
+    # errors increment this field in the job table
+    # -------------------------------------------------------
+    cloud_xfer_error_job = False
+    if jobrow['joberrors'] > 0 and warn_on_failed_cloud_xfers:
+        failed_cloud_xfers = chk_failed_cloud_xfers()
+        if failed_cloud_xfers[0]:
+            cloud_xfer_error_job = True
+            num_failed_cloud_xfers_jobs += 1
 
     # Set the job row's default bgcolor
     # ---------------------------------
@@ -2828,7 +2865,9 @@ for jobrow in filteredjobsrows:
         elif colname == 'status':
             msg += html_format_cell(translate_job_status(jobrow['jobstatus'], jobrow['joberrors']), col = 'status')
         elif colname == 'joberrors':
-            msg += html_format_cell(str('{:,}'.format(jobrow['joberrors'])), col = 'joberrors')
+            msg += html_format_cell(str('{:,}'.format(jobrow['joberrors'])) + ('<br><span style="font-size: ' \
+                + fontsize_addtional_texts + ';">Cloud xfer errors: ' + str('{:,}'.format(failed_cloud_xfers[1])) + '</span>' \
+                if cloud_xfer_error_job else ''), col = 'joberrors')
         elif colname == 'type':
             msg += html_format_cell(translate_job_type(jobrow['type'], jobrow['jobid'], jobrow['priorjobid']), col = 'type')
         elif colname == 'level':
@@ -2870,13 +2909,21 @@ if (conn):
 # Create the warning_banners
 # --------------------------
 # The 'num_will_not_descend_jobs' and the
-# 'num_zero_inc_jobs variables' are created and
-# updated as we process the job list from the rows
-# of jobs so they are not available until the main
-# jobs table is complete. So the warning banners
-# get created after (here), and then the whole
-# HTML msg gets concatenated.
-# ------------------------------------------------
+# 'num_zero_inc_jobs' variables are updated as
+# we process the job list from the rows of jobs
+# so they are not available until the main jobs
+# table is complete. So the warning banners get
+# created after (here), and then the whole HTML
+# msg gets concatenated.
+# ---------------------------------------------
+# Highlight jobs that have cloud part transfer errors?
+# ----------------------------------------------------
+if warn_on_failed_cloud_xfers and num_failed_cloud_xfers_jobs > 0:
+    warning_banners += '<p class="bannerwarnings">' \
+                    + '- There ' + ('was ' if num_failed_cloud_xfers_jobs == 1 else 'were ') \
+                    + str(num_failed_cloud_xfers_jobs) + ' job' + ('s' if num_failed_cloud_xfers_jobs > 1 else '') \
+                    + ' with cloud part transfer errors</p><br>\n'
+
 # Highlight 'OK' jobs that have 'Will not descend' log entries?
 # -------------------------------------------------------------
 if warn_on_will_not_descend and num_will_not_descend_jobs != 0:

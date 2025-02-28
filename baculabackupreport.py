@@ -317,8 +317,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.36'
-reldate = 'February 23, 2025'
+version = '2.37'
+reldate = 'February 28, 2025'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -1185,7 +1185,7 @@ def chk_failed_cloud_xfers():
     query_str = "SELECT count(logtext) FROM Log WHERE jobid=" + str(jobrow['jobid']) + " AND logtext LIKE '%part%state=error%';"
     failed_cloud_xfers_qry = db_query(query_str, 'jobs with cloud part xfer errors', 'one')
     if dbtype in ('mysql', 'maria'):
-        num_cloud_part_xfer_errors = failed_cloud_xfers_qry['count(*)']
+        num_cloud_part_xfer_errors = failed_cloud_xfers_qry['count(logtext)']
     else:
         num_cloud_part_xfer_errors = failed_cloud_xfers_qry[0]
     if num_cloud_part_xfer_errors == 0:

@@ -107,10 +107,6 @@ print_client_version = True            # Print the Client version under the Clie
 enc_hdr_type = 'both'                  # What should be displayed in the "Encrypted" header cell? (text, emoji, both)
 enc_cell_type = 'both'                 # What should be displayed in the "Encrypted" cell? (text, emoji, both)
 
-# Jobs to completely skip in report
-# ---------------------------------
-ignore_jobs_lst = ['Job1', 'Job2']
-
 # Warn about 'OK' jobs when "Will not descend" is reported in logs?
 # -----------------------------------------------------------------
 warn_on_will_not_descend = True                     # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported in logs?
@@ -317,8 +313,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.37'
-reldate = 'February 28, 2025'
+version = '2.38'
+reldate = 'March 25, 2025'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -792,7 +788,8 @@ def translate_job_type(jobtype, jobid, priorjobid):
         # type 'B' which meet the criteria to be 'eligible' for migration, but have 0 files/bytes
         # The original backup Job's type gets changed from 'B' (Backup) to 'M' (Migrated), even
         # though nothing is migrated and there is no other Backup job that has a priorjobid
-        # which points back to this Migrated job. https://bugs.bacula.org/view.php?id=2619
+        # which points back to this Migrated job.
+        # https://gitlab.bacula.org/bacula-community-edition/bacula-community/-/issues/2619
         # ---------------------------------------------------------------------------------------
         if 'pn_jobids_dict' in globals() and migrated_id(jobid) != '0':
             if copied_ids(jobid) != '0':
@@ -1169,6 +1166,7 @@ def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtp
 
 def chk_will_not_descend():
     'Return True if "Will not descend" warnings are in job log, else return False - ignore warnings about dirs in "will_not_descend_ignore_lst".'
+    global num_will_not_descend_jobs
     query_str = "SELECT logtext FROM Log WHERE jobid=" + str(jobrow['jobid']) + " AND logtext LIKE '%Will not descend%';"
     will_not_descend_qry = db_query(query_str, 'jobs with \'Will not descend\' warnings')
     if len(will_not_descend_qry) == 0:
@@ -2219,8 +2217,8 @@ if summary_and_rates != 'none' and (create_job_summary_table \
         # -------------------------------------
         if len(warn_pool_dict) > 0:
             pool_table = '<table style="border-collapse: collapse; display: inline-block; ' + summarytablestyle + '">' \
-                              + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
-                              + summarytableheadercellstyle + '">Pool Use</th></tr>'
+                       + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
+                       + summarytableheadercellstyle + '">Pool Use</th></tr>'
 
             # Fill the pool table with "Name (numvols/maxvols) ##%" sorted by %, DESC
             # -----------------------------------------------------------------------

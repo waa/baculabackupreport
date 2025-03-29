@@ -335,8 +335,9 @@ valid_verified_job_name_col_lst = \
 valid_copied_migrated_job_name_col_lst = ['name', 'type', 'both', 'none']
 valid_summary_location_lst = ['top', 'bottom', 'both', 'none']
 valid_needs_media_since_or_for_lst = ['since', 'for', 'none']
-valid_col_lst = [ 'jobid', 'jobname', 'client', 'status', 'joberrors', 'type', 'level', 'jobfiles',
-                  'jobbytes', 'starttime', 'endtime', 'runtime', 'pool', 'fileset', 'storage', 'encrypted']
+valid_col_lst = [ 'jobid', 'jobname', 'client', 'status', 'joberrors', 'type',
+                  'level', 'jobfiles', 'jobbytes', 'starttime', 'endtime',
+                  'runtime', 'pool', 'fileset', 'storage', 'encrypted']
 valid_enc_hdr_type_lst = valid_enc_cell_type_lst = ['text', 'emoji', 'both']
 
 # Lists of strings to determine if a job is waiting on media, and if new media has been found/mounted
@@ -483,7 +484,7 @@ def print_opt_errors(opt):
     'Print the incorrect variable and the reason it is incorrect.'
     if opt == 'config':
         return '\nThe config file \'' + config_file + '\' does not exist or is not readable.'
-    if opt == 'section':
+    elif opt == 'section':
         return '\nThe section [' + config_section + '] does not exist in the config file \'' + config_file + '\''
     elif opt in ('server', 'dbname', 'dbhost', 'dbuser', 'smtpserver'):
         return '\nThe \'' + opt + '\' variable must not be empty.'
@@ -592,7 +593,7 @@ def db_query(query_str, query, one_or_all=None):
         else:
             rows = cur.fetchall()
     except Exception as err:
-       chk_db_exceptions(err, query)
+        chk_db_exceptions(err, query)
     return rows
 
 def pn_job_id(ctrl_jobid):
@@ -768,11 +769,11 @@ def translate_job_type(jobtype, jobid, priorjobid):
         # --------------------------------------------------
         if 'pn_jobids_dict' in globals() and len(copied_ids(jobid)) != 0:
             if 'pn_jobids_dict' in globals() and showcopiedto:
-               if copied_ids(jobid) != '0':
-                   return 'Migrated from ' \
-                          + (urlify_jobid(str(priorjobid)) if gui and urlifyalljobs else str(priorjobid)) \
-                          + '<br>Copied to ' \
-                          + copied_ids_str(jobid) + '\n'
+                if copied_ids(jobid) != '0':
+                    return 'Migrated from ' \
+                           + (urlify_jobid(str(priorjobid)) if gui and urlifyalljobs else str(priorjobid)) \
+                           + '<br>Copied to ' \
+                           + copied_ids_str(jobid) + '\n'
         return 'Migrated from ' \
                + (urlify_jobid(str(priorjobid)) if gui and urlifyalljobs else str(priorjobid))
 
@@ -937,12 +938,12 @@ def set_subject_icon():
         subjecticon = nojobsicon
     else:
         if numbadjobs != 0:
-           if len(always_fail_jobs) != 0:
-               subjecticon = alwaysfailjobsicon
-           else:
-               subjecticon = badjobsicon
+            if len(always_fail_jobs) != 0:
+                subjecticon = alwaysfailjobsicon
+            else:
+                subjecticon = badjobsicon
         elif jobswitherrors != 0 or (warn_on_will_not_descend and num_will_not_descend_jobs > 0) or (warn_on_zero_inc and num_zero_inc_jobs > 0):
-           subjecticon = warnjobsicon
+            subjecticon = warnjobsicon
         else:
             subjecticon = goodjobsicon
     if 'num_virus_jobs' in globals() and num_virus_jobs != 0:
@@ -1000,7 +1001,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
                     elif warn_on_zero_inc and zero_inc:
                         bgcolor = warnjobcolor
                     else:
-                       bgcolor = goodjobcolor
+                        bgcolor = goodjobcolor
                 else:
                     bgcolor = warnjobcolor
             elif jobrow['jobstatus'] in bad_job_lst:
@@ -1124,17 +1125,17 @@ def humanbytes(B):
     PB = float(KB ** 5) # 1,125,899,906,842,624
 
     if B < KB:
-       return '{0:.2f}'.format(B,'Bytes' if 0 == B > 1 else 'Byte')
+        return '{0:.2f}'.format(B,'Bytes' if 0 == B > 1 else 'Byte')
     elif KB <= B < MB:
-       return '{0:.2f} KB'.format(B/KB)
+        return '{0:.2f} KB'.format(B/KB)
     elif MB <= B < GB:
-       return '{0:.2f} MB'.format(B/MB)
+        return '{0:.2f} MB'.format(B/MB)
     elif GB <= B < TB:
-       return '{0:.2f} GB'.format(B/GB)
+        return '{0:.2f} GB'.format(B/GB)
     elif TB <= B < PB:
-       return '{0:.2f} TB'.format(B/TB)
+        return '{0:.2f} TB'.format(B/TB)
     elif PB <= B:
-       return '{0:.2f} PB'.format(B/PB)
+        return '{0:.2f} PB'.format(B/PB)
 
 def send_email(to, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport):
     'Send the email.'
@@ -1949,7 +1950,7 @@ if len(ctrl_jobids) != 0:
                 pn_jobids_dict[str(ctrl_jobid)] = ('0', '0')
 
         for cji in cji_rows:
-            pn_jobids_dict[str(cji['jobid'])] = (pn_job_id(cji))
+            pn_jobids_dict[str(cji['jobid'])] = pn_job_id(cji)
         # (**) This is to solve the issue where versions of Bacula
         # community < 13.0 and Bacula Enterprise < 14.0 did not put
         # the jobfiles and jobbytes of Copy/Migrate control jobs
@@ -2126,10 +2127,10 @@ if summary_and_rates != 'none' and (create_job_summary_table \
                     WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + str(interval_days) + " DAY) \
                     AND jobstatus IN ('" + "','".join(bad_job_lst) + "');"
             elif dbtype == 'sqlite':
-               all_query_str = "SELECT COUNT(JobId) \
+                all_query_str = "SELECT COUNT(JobId) \
                     FROM Job \
                     WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(interval_days) + " days', 'localtime');"
-               bad_query_str = "SELECT COUNT(JobId) \
+                bad_query_str = "SELECT COUNT(JobId) \
                     FROM Job \
                     WHERE strftime('%s', EndTime) >= strftime('%s', 'now', '-" + str(interval_days) + " days', 'localtime') \
                     AND JobStatus IN ('" + "','".join(bad_job_lst) + "');"
@@ -2328,19 +2329,19 @@ if include_pnv_jobs:
     if 'v_jobids_dict' in globals() and len(v_jobids_dict) != 0:
         for v_job_id in v_jobids_dict:
             if v_jobids_dict[v_job_id] != '0' \
-                and int(v_jobids_dict[v_job_id]) not in alljobids \
-                and v_jobids_dict[v_job_id] not in pnv_jobids_lst:
-                    pnv_jobids_lst.append(v_jobids_dict[v_job_id])
+            and int(v_jobids_dict[v_job_id]) not in alljobids \
+            and v_jobids_dict[v_job_id] not in pnv_jobids_lst:
+                pnv_jobids_lst.append(v_jobids_dict[v_job_id])
     if 'pn_jobids_dict' in globals() and len(pn_jobids_dict) != 0:
         for ctrl_job_id in pn_jobids_dict:
             if pn_jobids_dict[ctrl_job_id][0] != '0' \
-                and int(pn_jobids_dict[ctrl_job_id][0]) not in alljobids and \
-                pn_jobids_dict[ctrl_job_id][0] not in pnv_jobids_lst:
-                    pnv_jobids_lst.append(pn_jobids_dict[ctrl_job_id][0])
+            and int(pn_jobids_dict[ctrl_job_id][0]) not in alljobids and \
+            pn_jobids_dict[ctrl_job_id][0] not in pnv_jobids_lst:
+                pnv_jobids_lst.append(pn_jobids_dict[ctrl_job_id][0])
             if pn_jobids_dict[ctrl_job_id][1] != '0' \
-                and int(pn_jobids_dict[ctrl_job_id][1]) not in alljobids \
-                and pn_jobids_dict[ctrl_job_id][1] not in pnv_jobids_lst:
-                    pnv_jobids_lst.append(pn_jobids_dict[ctrl_job_id][1])
+            and int(pn_jobids_dict[ctrl_job_id][1]) not in alljobids \
+            and pn_jobids_dict[ctrl_job_id][1] not in pnv_jobids_lst:
+                pnv_jobids_lst.append(pn_jobids_dict[ctrl_job_id][1])
 
     # If the pnv_jobids_lst is not empty, then we get their job
     # rows from the db and append them to filteredjobsrows and sort
@@ -2358,7 +2359,7 @@ if include_pnv_jobs:
                 INNER JOIN Client ON Job.ClientID=Client.ClientID \
                 LEFT OUTER JOIN Pool ON Job.PoolID=Pool.PoolID \
                 LEFT OUTER JOIN Fileset ON Job.FilesetID=Fileset.FilesetID \
-                WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ")";
+                WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ");"
         elif dbtype in ('mysql', 'maria'):
             query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
                 CAST(Job.name as CHAR(50)) AS jobname, \
@@ -2383,7 +2384,7 @@ if include_pnv_jobs:
                 INNER JOIN Client ON Job.ClientID=Client.ClientID \
                 LEFT OUTER JOIN Pool ON Job.PoolID=Pool.PoolID \
                 LEFT OUTER JOIN Fileset ON Job.FilesetID=Fileset.FilesetID \
-                WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ")";
+                WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ");"
         pnv_jobrows = db_query(query_str, 'previous, new, and verified jobs outside of "-t hours" range')
 
         # Append the pnv_jobrows to
@@ -2535,8 +2536,8 @@ if len(runningjobids) != 0:
                         # ----------------------------------------------------------------------------------------
                         for rrjlt in reversed(running_jobs_log_text):
                             if any(txt in rrjlt['logtext'] for txt in needs_mount_txt_lst):
-                               since_time = rrjlt['time']
-                               break
+                                since_time = rrjlt['time']
+                                break
 
                         # Do we print format "(for x Days, y Hours, z Minutes)", or "(since YYYY-MM-DD HH:MM:SS)"?
                         # ----------------------------------------------------------------------------------------
@@ -2870,7 +2871,7 @@ for jobrow in filteredjobsrows:
         elif colname == 'level':
             msg += html_format_cell(translate_job_level(jobrow['level'], jobrow['type']), col = 'level')
         elif colname == 'jobfiles':
-            msg += html_format_cell(str('{:,}'.format(jobrow['jobfiles'])), jobtype = jobrow['type'], col = 'jobfiles') 
+            msg += html_format_cell(str('{:,}'.format(jobrow['jobfiles'])), jobtype = jobrow['type'], col = 'jobfiles')
         elif colname == 'jobbytes':
             msg += html_format_cell(str('{:,}'.format(jobrow['jobbytes'])), jobtype = jobrow['type'], col = 'jobbytes')
         elif colname == 'starttime':
@@ -2899,7 +2900,7 @@ msg += '</table>'
 
 # Close the database cursor and connection
 # ----------------------------------------
-if (conn):
+if conn:
     cur.close()
     conn.close()
 

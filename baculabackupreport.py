@@ -313,8 +313,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.38'
-reldate = 'March 25, 2025'
+version = '2.39'
+reldate = 'March 30, 2025'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -374,15 +374,11 @@ avconnfailtext = 'Unable to connect to antivirus-plugin-service'
 # ---------------------------------------------------------------------------------------------
 total_copied_files = total_copied_bytes = total_migrated_files = total_migrated_bytes = 0
 
-# Initialize the will_not_descend variables
-# -----------------------------------------
-will_not_descend = False
-num_will_not_descend_jobs = 0
-
-# Initialize the zero_inc variables
-# ---------------------------------
-zero_inc = False
+# Initialize the num_zero_inc_jobs and
+# and num_will_not_descend_jobs variables
+# ---------------------------------------
 num_zero_inc_jobs = 0
+num_will_not_descend_jobs = 0
 
 # Initialize the failed_cloud_xfers variables
 # -------------------------------------------
@@ -2765,6 +2761,7 @@ for jobrow in filteredjobsrows:
     # Migrated jobs will. Migrated backup jobs have a
     # jobType 'B' so we need to check priorjobid here
     # -------------------------------------------------
+    will_not_descend = False
     if warn_on_will_not_descend \
     and jobrow['type'] == 'B' \
     and jobrow['jobstatus'] == 'T' \
@@ -2776,6 +2773,7 @@ for jobrow in filteredjobsrows:
     # Set the zero_inc variable True if an 'OK' Differential
     # or Incremental backup job backed up zero files/bytes
     # ------------------------------------------------------
+    zero_inc = False
     if warn_on_zero_inc \
     and jobrow['type'] == 'B' \
     and jobrow['jobstatus'] == 'T' \

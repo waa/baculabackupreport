@@ -530,14 +530,14 @@ def chk_db_exceptions(err, query=None):
     # -----------------------------------------------------------------------------------------------------
     # Print the type of problem, and the dbname and query if called with a query string
     # ---------------------------------------------------------------------------------
-    if query == None:
+    if query is None:
         print('\nProblem connecting to the database.')
     else:
         print('\nProblem communicating with database \'' + dbname + '\' while fetching ' + query + '.')
 
     # Get details about the exception
     # -------------------------------
-    err_type, err_obj, traceback = sys.exc_info()
+    traceback = sys.exc_info()
 
     # Get the line number when exception occured
     # ------------------------------------------
@@ -646,7 +646,7 @@ def get_verify_client_info(vrfy_jobid):
                 AND logtext LIKE '%Verifying against JobId=%' \
                 ORDER BY time DESC LIMIT 1;"
         row = db_query(query_str, 'the Job name (from log table) of a jobid that was verified', 'one')
-        if row == None or len(row) == 0:
+        if row is None or len(row) == 0:
             return '', '', 'No Info'
         else:
             return '', '', re.sub(r'.*Verifying against JobId=.* Job=(.+?)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_.*', '\\1', row['logtext'], flags=re.DOTALL)
@@ -1255,7 +1255,7 @@ def get_pool_or_storage(res_type):
         # If summary is empty due to Job still running, or (for example) the
         # Director crashes or was killed with Jobs running, return 'N/A'
         # ------------------------------------------------------------------
-        if summary == None:
+        if summary is None:
             return 'N/A'
         else:
             if dbtype in ('pgsql', 'sqlite'):
@@ -1494,7 +1494,7 @@ for cli_tup in [
     (None, 'dbhost'), (None, 'dbname'),
     (None, 'dbuser'), (None, 'dbpass')]:
     result = cli_vs_env_vs_config_vs_default_vars(cli_tup[0], cli_tup[1])
-    if result != None:
+    if result is not None:
         setattr(args, cli_tup[1], result)
 
 # Directly set variables that will always have an argparse
@@ -1515,7 +1515,7 @@ smtpserver = args.smtpserver
 # Do some basic sanity checking on on the rest
 # of the cli, env, and config file variables
 # --------------------------------------------
-if args.email == None:
+if args.email is None:
     print(print_opt_errors('emailnone'))
     usage()
 elif '@' not in args.email:
@@ -1524,7 +1524,7 @@ elif '@' not in args.email:
 else:
     email = args.email
 
-if args.avemail == None:
+if args.avemail is None:
     avemail = email
 elif '@' not in args.avemail:
     print(print_opt_errors('avemail'))
@@ -1532,7 +1532,7 @@ elif '@' not in args.avemail:
 else:
     avemail = args.avemail
 
-if args.fromemail == None:
+if args.fromemail is None:
     fromemail = email
 elif '@' not in args.fromemail:
     print(print_opt_errors('fromemail'))
@@ -1579,7 +1579,7 @@ if not jobstatusset.issubset(set(all_jobstatus_lst)):
 # It is OK for args.dbport to be None at this
 # time because defaults will be assigned next
 # -------------------------------------------
-if args.dbport != None and not args.dbport.isnumeric():
+if args.dbport is not None and not args.dbport.isnumeric():
     print(print_opt_errors('dbport'))
     usage()
 else:
@@ -1594,12 +1594,11 @@ if dbtype not in valid_db_lst:
     usage()
 elif dbtype == 'pgsql':
     import psycopg2.extras
-    from psycopg2 import connect, OperationalError, errorcodes, errors
+    from psycopg2 import OperationalError
     dbport = '5432'
 elif dbtype in ('mysql', 'maria'):
     import mysql.connector
-    from mysql.connector import errorcode
-    if args.dbport == None:
+    if args.dbport is None:
         dbport = '3306'
 elif dbtype == 'sqlite':
     import sqlite3
@@ -2798,11 +2797,13 @@ for jobrow in filteredjobsrows:
 
     # If this job is always failing, set the alwaysfailjob variable
     # -------------------------------------------------------------
-    alwaysfailjob = True if len(always_fail_jobs) != 0 and jobrow['jobname'] in always_fail_jobs else False
+    # alwaysfailjob = True if len(always_fail_jobs) != 0 and jobrow['jobname'] in always_fail_jobs else False
+    alwaysfailjob = len(always_fail_jobs) != 0 and jobrow['jobname'] in always_fail_jobs
 
     # If this job is waiting on media, set the job_needs_opr variable
     # ---------------------------------------------------------------
-    job_needs_opr = True if 'job_needs_opr_dict' in globals() and str(jobrow['jobid']) in job_needs_opr_dict else False
+    # job_needs_opr = True if 'job_needs_opr_dict' in globals() and str(jobrow['jobid']) in job_needs_opr_dict else False
+    job_needs_opr = 'job_needs_opr_dict' in globals() and str(jobrow['jobid']) in job_needs_opr_dict
 
     # If the 'encrypted' column is enabled, build the
     # 'enc_str' to be printed in the Job's Encrypted cell
@@ -2862,7 +2863,7 @@ for jobrow in filteredjobsrows:
             elif jobrow['type'] in ('c', 'g') \
             and copied_migrated_job_name_col in ('name', 'both'):
                 cmjobname = get_copied_migrated_job_name(jobrow['jobid'])
-                if cmjobname == None:
+                if cmjobname is None:
                     msg += html_format_cell(jobrow['jobname'], col = 'jobname')
                 else:
                     msg += html_format_cell(jobrow['jobname'] + '<br><span style="font-size: ' \

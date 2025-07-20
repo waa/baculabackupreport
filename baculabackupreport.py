@@ -109,8 +109,9 @@ enc_cell_type = 'both'                 # What should be displayed in the "Encryp
 
 # Warn about 'OK' jobs when "Will not descend" is reported in logs?
 # -----------------------------------------------------------------
-warn_on_will_not_descend = True                     # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported in logs?
-ignore_warn_on_will_not_descend_jobs = 'Job1 Job2'  # Case-sensitive list of job names to ignore for 'warn_on_will_not_descend' test
+warn_on_will_not_descend = True                              # Should 'OK' jobs be set to 'OK/Warnings' when "Will not descend" is reported in logs?
+ignore_warn_on_will_not_descend_jobs_lst = ['Job1', 'Job2']  # Jobs to ignore for 'warn_on_will_not_descend' test
+will_not_descend_ignore_lst = ['/dev', '/misc', '/net', '/proc', '/run', '/srv', '/sys']  # Directories to ignore for 'warn_on_will_not_descend' test
 
 # Warn about jobs that have been seen in the catalog, but
 # have not had a successful run in 'last_good_run_days' days
@@ -121,13 +122,13 @@ last_good_run_skip_lst = ['Job1', 'Job2', 'CDRoms-ToAoE']  # Jobs to ignore when
 
 # Warn about 'OK' Diff/Inc jobs with zero files and/or bytes
 # ----------------------------------------------------------
-warn_on_zero_inc = False                      # Should 'OK' Inc/Diff jobs be set to 'OK/Warnings' when they backup zero files and/or bytes?
-ignore_warn_on_zero_inc_jobs = 'Job1 Job2'    # Case-sensitive list of job names to ignore for 'warn_on_zero_inc' test
+warn_on_zero_inc = True                              # Should 'OK' Inc/Diff jobs be set to 'OK/Warnings' when they backup zero files and/or bytes?
+ignore_warn_on_zero_inc_jobs_lst = ['Job1', 'Job2']  # Case-sensitive list of job names to ignore for 'warn_on_zero_inc' test
 
 # Warn about pools approaching or surpassing maxvols?
 # ---------------------------------------------------
-chk_pool_use = True                # Check pools for numvols vs maxvols?
-pools_to_ignore = 'Pool1 Pool2'    # Case-sesitive list of pools to always ignore for 'chk_pool_use' test
+chk_pool_use = True                       # Check pools for numvols vs maxvols?
+pools_to_ignore_lst = ['Pool1', 'Pool2']  # Case-sesitive list of pools to always ignore for 'chk_pool_use' test
 
 # Summary and Success Rates block
 # -------------------------------
@@ -219,10 +220,6 @@ un_enc_emoji = '&#x1F513;'  # Emoji for unencrypted jobs. 'Unloaded lock' emoji
 # ------------------------------------------------------------------------
 cols2show = 'jobid jobname client fileset storage pool status joberrors type level jobfiles jobbytes starttime endtime runtime'
 
-# Directories to always ignore for the "Will not descend" feature
-# ---------------------------------------------------------------
-will_not_descend_ignore_lst = ['/dev', '/misc', '/net', '/proc', '/run', '/srv', '/sys']
-
 # Should we short-circuit everything and send no email when all jobs are OK?
 # --------------------------------------------------------------------------
 do_not_email_on_all_ok = False
@@ -296,6 +293,10 @@ summarytablecellstyle = 'font-weight: bold; padding: 5px;'
 # --------------------------------------------------
 # Nothing should need to be modified below this line
 # --------------------------------------------------
+# Please open an issue on Github if the statement
+# above proves to be False. :)
+# --------------------------------------------------
+#
 # Import the required modules
 # ---------------------------
 import os
@@ -313,8 +314,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.39'
-reldate = 'March 30, 2025'
+version = '2.40'
+reldate = 'July 20, 2025'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -346,14 +347,20 @@ needs_mount_txt_lst = ['Please mount', 'Please use the "label" command']
 got_new_vol_txt_lst = ['New volume', 'Ready to append', 'Ready to read', 'Forward spacing Volume',
                        'Labeled new Volume', 'Wrote label to ', 'all previous data lost']
 
+# This list is so that we can convert numveric strings set in config file into integers
+# -------------------------------------------------------------------------------------
+cfg_file_int_lst = ['last_good_run_days', 'always_fail_jobs_threshold']
+
 # This list is so that we can reliably convert the True/False strings
 # from the config file into real booleans to be used in later tests.
 # -------------------------------------------------------------------
-cfg_file_true_false_lst = ['addsubjecticon', 'addsubjectrunningorcreated', 'bacula_dir_version', 'boldjobname',
-                           'boldstatus', 'chk_pool_use', 'colorstatusbg', 'copied_stats', 'create_job_summary_table',
-                           'create_success_rates_table', 'create_client_ver_lt_dir_table', 'db_version', 'do_not_email_on_all_ok',
-                           'emailvirussummary', 'flagrescheduled', 'include_pnv_jobs', 'migrated_stats',
-                           'print_sent', 'print_subject', 'restore_stats', 'showcopiedto', 'show_db_stats',
+cfg_file_true_false_lst = ['addsubjecticon', 'addsubjectrunningorcreated', 'appendbadlogs', 'appendjobsummaries',
+                           'appendvirussummaries', 'appendvirussummaries', 'bacula_dir_version', 'boldjobname',
+                           'boldstatus', 'checkforvirus', 'chk_pool_use', 'colorstatusbg', 'copied_stats',
+                           'create_job_summary_table', 'create_success_rates_table', 'create_client_ver_lt_dir_table',
+                           'db_version', 'do_not_email_on_all_ok', 'emailvirussummary', 'flagrescheduled',
+                           'include_pnv_jobs', 'migrated_stats','print_client_version', 'print_sent', 'print_subject',
+                           'restore_stats', 'showcopiedto', 'show_db_stats', 'starbadjobids', 'strip_p_or_s_from',
                            'urlifyalljobs', 'verified_stats', 'warn_on_failed_cloud_xfers', 'warn_on_last_good_run',
                            'warn_on_will_not_descend', 'warn_on_zero_inc']
 
@@ -484,7 +491,7 @@ def print_opt_errors(opt):
         return '\nThe section [' + config_section + '] does not exist in the config file \'' + config_file + '\''
     elif opt in ('server', 'dbname', 'dbhost', 'dbuser', 'smtpserver'):
         return '\nThe \'' + opt + '\' variable must not be empty.'
-    elif opt in ('time', 'days', 'smtpport', 'dbport'):
+    elif opt in ('time', 'days', 'smtpport', 'dbport', 'last_good_run_days', 'always_fail_jobs_threshold'):
         return '\nThe \'' + opt + '\' variable must not be empty and must be an integer.'
     elif opt == 'emailnone':
         return '\nThe \'email\' variable is empty. Make sure it is assigned via cli, env, or config file'
@@ -1170,7 +1177,7 @@ def chk_will_not_descend():
         return False
     else:
         for logtext in will_not_descend_qry:
-            if not any(dir in str(logtext) for dir in will_not_descend_ignore_lst):
+            if not any(dir in str(logtext) for dir in will_not_descend_ignore.split()):
                 num_will_not_descend_jobs += 1
                 return True
         return False
@@ -1376,6 +1383,12 @@ if args.config:
                 config_dict[k] = True
             else:
                 config_dict[k] = False
+        elif k in cfg_file_int_lst:
+            if not config_dict[k].isnumeric():
+                print(print_opt_errors(k))
+                usage()
+            else:
+                config_dict[k] = int(config_dict[k])
         # Set the global variable
         # -----------------------
         myvars[k] = config_dict[k]
@@ -1383,7 +1396,7 @@ if args.config:
 # Set the gui variable to shorten
 # up some if statements later on
 # -------------------------------
-gui = True if webgui in valid_webgui_lst else False
+gui = webgui in valid_webgui_lst
 
 # Verify the summary_and_rates variable is valid
 # ----------------------------------------------
@@ -1527,6 +1540,10 @@ elif '@' not in args.fromemail:
 else:
     fromemail = args.fromemail
 
+if webguisvc not in valid_webguisvc_lst:
+    print(print_opt_errors('webguisvc'))
+    usage()
+
 if not args.time.isnumeric():
     print(print_opt_errors('time'))
     usage()
@@ -1539,6 +1556,16 @@ if not args.days.isnumeric():
 else:
     days = args.days
 
+if not args.smtpport.isnumeric():
+    print(print_opt_errors('smtpport'))
+    usage()
+else:
+    smtpport = args.smtpport
+
+if webguiport != '' and not webguiport.isnumeric():
+    print(print_opt_errors('webguiport'))
+    usage()
+
 jobtypeset = set(args.jobtype)
 if not jobtypeset.issubset(set(all_jobtype_lst)):
     print(print_opt_errors('jobtype'))
@@ -1547,20 +1574,6 @@ if not jobtypeset.issubset(set(all_jobtype_lst)):
 jobstatusset = set(args.jobstatus)
 if not jobstatusset.issubset(set(all_jobstatus_lst)):
     print(print_opt_errors('jobstatus'))
-    usage()
-
-if not args.smtpport.isnumeric():
-    print(print_opt_errors('smtpport'))
-    usage()
-else:
-    smtpport = args.smtpport
-
-if webguisvc not in valid_webguisvc_lst:
-    print(print_opt_errors('webguisvc'))
-    usage()
-
-if webguiport  != '' and not webguiport.isnumeric():
-    print(print_opt_errors('webguiport'))
     usage()
 
 # It is OK for args.dbport to be None at this
@@ -1895,9 +1908,9 @@ if warn_on_last_good_run:
 # threshold and remove each job from the always_fail_jobs
 # set that has failed less times than the threshold
 # -------------------------------------------------------
-if int(always_fail_jobs_threshold) > 1:
+if always_fail_jobs_threshold > 1:
     for x in always_fail_jobs.copy():
-        if bad_days_jobs.count(x) < int(always_fail_jobs_threshold):
+        if bad_days_jobs.count(x) < always_fail_jobs_threshold:
             always_fail_jobs.remove(x)
 
 # For each Copy/Migration Control Job (c, g), get the Job summary
@@ -2187,7 +2200,7 @@ if summary_and_rates != 'none' and (create_job_summary_table \
         if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT Name \
                 FROM Pool \
-                WHERE Name NOT IN ('" + "','".join(pools_to_ignore.split()) + "') \
+                WHERE Name NOT IN ('" + "','".join(pools_to_ignore_lst) + "') \
                 ORDER BY Name ASC;"
             p_names = db_query(query_str, 'pool names')
             for p_name in p_names:
@@ -2199,7 +2212,7 @@ if summary_and_rates != 'none' and (create_job_summary_table \
         elif dbtype in ('mysql', 'maria'):
             query_str = "SELECT CAST(Name as CHAR(50)) AS Name \
                 FROM Pool \
-                WHERE Name NOT IN ('" + "','".join(pools_to_ignore.split()) + "') \
+                WHERE Name NOT IN ('" + "','".join(pools_to_ignore_lst) + "') \
                 ORDER BY Name ASC;"
             p_names = db_query(query_str, 'pool names')
             for p_name in p_names:
@@ -2767,7 +2780,7 @@ for jobrow in filteredjobsrows:
     and jobrow['jobstatus'] == 'T' \
     and jobrow['joberrors'] == 0 \
     and jobrow['priorjobid'] == 0 \
-    and jobrow['jobname'] not in ignore_warn_on_will_not_descend_jobs.split():
+    and jobrow['jobname'] not in ignore_warn_on_will_not_descend_jobs_lst:
         will_not_descend = chk_will_not_descend()
 
     # Set the zero_inc variable True if an 'OK' Differential
@@ -2779,7 +2792,7 @@ for jobrow in filteredjobsrows:
     and jobrow['jobstatus'] == 'T' \
     and jobrow['level'] in ('D', 'I') \
     and (jobrow['jobfiles'] == 0 or jobrow['jobbytes'] == 0) \
-    and jobrow['jobname'] not in ignore_warn_on_zero_inc_jobs.split():
+    and jobrow['jobname'] not in ignore_warn_on_zero_inc_jobs_lst:
         num_zero_inc_jobs += 1
         zero_inc = True
 
@@ -2798,11 +2811,11 @@ for jobrow in filteredjobsrows:
         enc_str = set_enc_str(jobrow['jobid'])
 
     # Check to see if this job had any cloud part xfer errors
-    # There is no way to tell if a job used Cloud storage,but
+    # There is no way to tell if a job used Cloud storage, but
     # there is no need to query every job's log table, so we
     # only query the jobs with SD errors since cloud xfer
     # errors increment this field in the job table
-    # -------------------------------------------------------
+    # --------------------------------------------------------
     cloud_xfer_error_job = False
     if jobrow['joberrors'] > 0 and warn_on_failed_cloud_xfers:
         failed_cloud_xfers = chk_failed_cloud_xfers()

@@ -116,9 +116,9 @@ will_not_descend_ignore_lst = ['/dev', '/misc', '/net', '/proc', '/run', '/srv',
 # Warn about jobs that have been seen in the catalog, but
 # have not had a successful run in 'last_good_run_days' days
 # ----------------------------------------------------------
-warn_on_last_good_run = True                               # Do we warn about jobs that have not run successfully in 'last_good_run_days' days?
-last_good_run_days = 31                                    # Longest amount of days a job can be missed from running successfully
-last_good_run_skip_lst = ['Job1', 'Job2', 'CDRoms-ToAoE']  # Jobs to ignore when processing this 'warn_on_last_good_run' feature
+warn_on_last_good_run = True               # Do we warn about jobs that have not run successfully in 'last_good_run_days' days?
+last_good_run_days = 31                    # Longest amount of days a job can be missed from running successfully
+last_good_run_skip_lst = ['Job1', 'Job2']  # Jobs to ignore when processing this 'warn_on_last_good_run' feature
 
 # Warn about 'OK' Diff/Inc jobs with zero files and/or bytes
 # ----------------------------------------------------------
@@ -314,13 +314,13 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.40'
-reldate = 'July 20, 2025'
+version = '2.41'
+reldate = 'July 29, 2025'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
 prog_info_txt = progname + ' - v' + version + ' - ' + scriptname \
-                + '\nBy: ' + progauthor + ' ' + authoremail + ' (c) ' + reldate + '\n\n'
+              + '\nBy: ' + progauthor + ' ' + authoremail + ' (c) ' + reldate + '\n\n'
 
 # Defined the sets and lists of valid choices
 # -------------------------------------------
@@ -699,7 +699,7 @@ def get_copied_migrated_job_name(copy_migrate_jobid):
         else:
             # This is for when a Copy/Migration control job is canceled due to:
             # Fatal error: JobId 47454 already running. Duplicate job not allowed.
-            # ------------------------------------------------------------------------
+            # --------------------------------------------------------------------
             return 'No Info'
     else:
         # If the jobstatus is not one of the above,
@@ -1177,7 +1177,7 @@ def chk_will_not_descend():
         return False
     else:
         for logtext in will_not_descend_qry:
-            if not any(dir in str(logtext) for dir in will_not_descend_ignore.split()):
+            if not any(dir in str(logtext) for dir in will_not_descend_ignore_lst):
                 num_will_not_descend_jobs += 1
                 return True
         return False
@@ -1959,13 +1959,13 @@ if len(ctrl_jobids) != 0:
 
         for cji in cji_rows:
             pn_jobids_dict[str(cji['jobid'])] = pn_job_id(cji)
-        # (**) This is to solve the issue where versions of Bacula
-        # community < 13.0 and Bacula Enterprise < 14.0 did not put
-        # the jobfiles and jobbytes of Copy/Migrate control jobs
-        # into the catalog. The only other place to find this
-        # information is in the Job's Summary text blob in the
-        # 'SD Files Written:' and 'SD Bytes Written:' lines
-        # ---------------------------------------------------------
+            # (**) This is to solve the issue where versions of Bacula
+            # community < 13.0 and Bacula Enterprise < 14.0 did not put
+            # the jobfiles and jobbytes of Copy/Migrate control jobs
+            # into the catalog. The only other place to find this
+            # information is in the Job's Summary text blob in the
+            # 'SD Files Written:' and 'SD Bytes Written:' lines
+            # ---------------------------------------------------------
             files, bytes = ctrl_job_files_bytes(cji)
             type = [r['type'] for r in filteredjobsrows if r['jobid'] == cji['jobid']]
             if type[0] == 'c':

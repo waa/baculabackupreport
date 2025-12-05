@@ -3,49 +3,57 @@
 - Sends an HTML email report of jobs that have run in the past x hours. Can filter on Client, Job Name, Job Type, and Job Status (-c client-fd, -j jobname, -y jobtype -x jobstatus).
 
 ```
-Usage:
-    baculabackupreport.py [-C <config>] [-S <section>] [-e <email>] [-s <server>] [-t <time>] [-d <days>]
-                          [-f <fromemail>] [-a <avemail>] [-c <client>] [-j <jobname>] [-y <jobtype>] [-x <jobstatus>]
-                          [--dbtype <dbtype>] [--dbhost <dbhost>] [--dbport <dbport>]
-                          [--dbname <dbname>] [--dbuser <dbuser>] [--dbpass <dbpass>]
-                          [--smtpserver <smtpserver>] [--smtpport <smtpport>] [-u <smtpuser>] [-p <smtppass>]
-    baculabackupreport.py -h | --help
-    baculabackupreport.py -v | --version
+usage: baculabackupreport.py [-h] [-v] [-C CONFIG] [-S SECTION] [-e EMAIL] [-s SERVER] [-t TIME] [-d DAYS] [-f FROMEMAIL] [-a AVEMAIL] [-c CLIENT] [-j JOBNAME] [-y JOBTYPE] [-x JOBSTATUS] [-u SMTPUSER]
+[-p SMTPPASS] [-J TAGJOBS] [-T TAGCLIENTS] [--dbtype {pgsql,mysql,maria,sqlite}] [--dbhost DBHOST] [--dbport DBPORT] [--dbname DBNAME] [--dbuser DBUSER] [--dbpass DBPASS]
+[--smtpserver SMTPSERVER] [--smtpport SMTPPORT]
 
-Options:
-    -C, --config <config>        Configuration file - See the 'baculabackupreport.ini' file included in repository
-    -S, --section <section>      Section in configuration file [default: baculabackupreport]
-    -e, --email <email>          Email address to send job report to
-    -s, --server <server>        Name of the Bacula Server [default: Bacula]
-    -t, --time <time>            Time to report on in hours [default: 24]
-    -d, --days <days>            Days to check for "always failing jobs" [default: 7]
-    -f, --fromemail <fromemail>  Email address to be set in the From: field of the email
-    -a, --avemail <avemail>      Email address to send separate AV email to. (default is --email)
-    -c, --client <client>        Client to report on using SQL 'LIKE client' [default: %] (all clients)
-    -j, --jobname <jobname>      Job name to report on using SQL 'LIKE jobname' [default: %] (all jobs)
-    -y, --jobtype <jobtype>      Type of job to report on [default: DBRCcMgV] (all job types)
-    -x, --jobstatus <jobstatus>  Job status to report on [default: aABcCdDeEfFiIjmMpRsStT] (all job statuses)
-                                 Note: 'R'unning and 'C'reated jobs are always included
-    -u, --smtpuser <smtpuser>    SMTP user
-    -p, --smtppass <smtppass>    SMTP password
+A highly customizable HTML email report generator for Bacula environments.
 
-    --dbtype <dbtype>            Database type [default: pgsql] (pgsql | mysql | maria | sqlite)
-    --dbhost <dbhost>            Database host [default: localhost]
-    --dbport <dbport>            Database port (defaults pgsql 5432, mysql & maria 3306)
-    --dbname <dbname>            Database name [default: bacula] (sqlite default: /opt/bacula/working/bacula.db)
-    --dbuser <dbuser>            Database user [default: bacula]
-    --dbpass <dbpass>            Database password
-    --smtpserver <smtpserver>    SMTP server [default: localhost]
-    --smtpport <smtpport>        SMTP port [default: 25]
-
-    -h, --help                   Print this help message
-    -v, --version                Print the script name and version
+options:
+-h, --help            show this help message and exit
+-v, --version         Print the script version.
+-C, --config CONFIG   Configuration file.
+-S, --section SECTION
+                      Section in configuration file.
+-e, --email EMAIL     Email address to send job report to.
+-s, --server SERVER   Name of the Bacula Server.
+-t, --time TIME       Time to report on in hours.
+-d, --days DAYS       Days to check for "always failing jobs.
+-f, --fromemail FROMEMAIL
+                      Email address to be set in the From: field of the email. [Default: email]
+-a, --avemail AVEMAIL
+                      Email address to send separate AV email to. [Default: email]
+-c, --client CLIENT   Client to report on using SQL "LIKE client".
+-j, --jobname JOBNAME
+                      Job name to report on using SQL "LIKE jobname".
+-y, --jobtype JOBTYPE
+                      Type of job to report on.
+-x, --jobstatus JOBSTATUS
+                      Job status to report on. Note: [R]unning and [C]reated jobs are always included
+-u, --smtpuser SMTPUSER
+                      SMTP user.
+-p, --smtppass SMTPPASS
+                      SMTP password.
+-J, --tagjobs TAGJOBS
+                      Space separated set of Job tag(s) to report on. eg: -J "TagJob_0 TagJob_1"
+-T, --tagclients TAGCLIENTS
+                      Space separated set of Client tag(s) to report on. eg: -T "TagClient_0 TagClient_1"
+--dbtype {pgsql,mysql,maria,sqlite}
+                      Database type. (pgsql | mysql | maria | sqlite)
+--dbhost DBHOST       Database host.
+--dbport DBPORT       Database port. (defaults: pgsql 5432, mysql & maria 3306)
+--dbname DBNAME       Database name. (sqlite default: /opt/bacula/working/bacula.db)
+--dbuser DBUSER       Database user.
+--dbpass DBPASS       Database password.
+--smtpserver SMTPSERVER
+                      SMTP server.
+--smtpport SMTPPORT   SMTP port.
 
 Notes:
-  * Edit variables near the top of script to customize output. Recommended: Use a configuration file instead
-  * Only the email variable is required. It must be set on the command line, via an environment variable, or in a config file
-  * Each '--varname' may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
-  * Variable assignment precedence is: command line > environment variable > config file > script defaults
+* Edit variables near the top of script to customize output. Recommended: Use a configuration file instead
+* Only the email variable is required. It must be set on the command line, via an environment variable, or in a config file
+* Each "--varname" may instead be set using all caps environment variable names like: EMAIL="admin@example.com"
+* Variable assignment precedence is: command line > environment variable > config file > script defaults
 ```
 ## Example commands:
 ```

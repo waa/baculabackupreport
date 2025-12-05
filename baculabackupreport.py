@@ -134,6 +134,13 @@ pools_to_ignore_lst = ['Pool1', 'Pool2']  # Case-sesitive list of pools to alway
 # -------------------------------
 summary_and_rates = 'bottom'  # Print a Summary and Success Rates block? (top, bottom, both, none)
 
+# Tags to filter on. Note, I only query the tagjob, and
+# tagclient tables. Unless someone can convince me, I don't
+# see a reason to query the tagmedia and tagobject tables
+# ---------------------------------------------------------
+tag_job_lst = ['JobTag0', 'JobTag1']
+tag_client_lst = ['ClientTag0', 'ClientTag1']
+
 # Create the Job Summary table?
 # -----------------------------
 create_job_summary_table = True  # Create a Job Summary table in the Summary and Success Rates block?
@@ -314,8 +321,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.41'
-reldate = 'July 29, 2025'
+version = '2.42'
+reldate = 'December 04, 2025'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -397,7 +404,7 @@ num_failed_cloud_xfers_jobs = 0
 # ---------------------------------------------------------------------------------------------------------------------------------
 parser = argparse.ArgumentParser(prog=scriptname,
                                  formatter_class=argparse.RawDescriptionHelpFormatter,
-                                 description='A highly customizable HTML email report for Bacula environments.',
+                                 description='A highly customizable HTML email report generator for Bacula environments.',
                                  epilog=textwrap.dedent('''\
 Notes:
 * Edit variables near the top of script to customize output. Recommended: Use a configuration file instead
@@ -419,6 +426,8 @@ parser.add_argument('-y', '--jobtype', help='Type of job to report on.', default
 parser.add_argument('-x', '--jobstatus', help='Job status to report on. Note: [R]unning and [C]reated jobs are always included', default='aABcCdDeEfFiIjmMpRsStT')
 parser.add_argument('-u', '--smtpuser', help='SMTP user.', default='')
 parser.add_argument('-p', '--smtppass', help='SMTP password.', default='')
+parser.add_argument('-T', '--tagclients', help='Space separated set of Client tag(s) to report on. eg: -T "TagClient_0 TagClient_1"', default='')
+parser.add_argument('-J', '--tagjobs', help='Space separated set of Job tag(s) to report on. eg: -J "TagJob_0 TagJob_1"', default='')
 parser.add_argument('--dbtype', help='Database type. (pgsql | mysql | maria | sqlite)', choices=valid_db_lst, default='pgsql')
 parser.add_argument('--dbhost', help='Database host.', default='localhost')
 parser.add_argument('--dbport', help='Database port. (defaults: pgsql 5432, mysql & maria 3306)')
@@ -1489,6 +1498,7 @@ for cli_tup in [
     ('-j', 'jobname'), ('-y', 'jobtype'),
     ('-x', 'jobstatus'), ('-u', 'smtpuser'),
     ('-p', 'smtppass'), ('-f', 'fromemail'),
+    ('-T', 'tagclients'), ('-J', 'tagjobs'),
     (None, 'smtpport'), (None, 'smtpserver'),
     (None, 'dbtype'), (None, 'dbport'),
     (None, 'dbhost'), (None, 'dbname'),
@@ -1575,6 +1585,11 @@ jobstatusset = set(args.jobstatus)
 if not jobstatusset.issubset(set(all_jobstatus_lst)):
     print(print_opt_errors('jobstatus'))
     usage()
+
+# Create the tag_job_lst and tag_client_lst lists
+# -----------------------------------------------
+tag_job_lst = args.tagjobs.split()
+tag_client_lst = args.tagclients.split()
 
 # It is OK for args.dbport to be None at this
 # time because defaults will be assigned next
@@ -1663,27 +1678,28 @@ if dbtype in ('mysql', 'maria'):
 else:
     numjobs = alljobrows[0]
 
-# Create the query_str to send to the db_query() function
-# to query for all matching jobs in the past 'time' hours
-# with all other Job, Status, and Client filters applied
-# -------------------------------------------------------
 if dbtype == 'pgsql':
-    query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, coalesce(Pool.Name, 'N/A') AS Pool, \
+    query_str = "SELECT DISTINCT Job.JobID, Client.Name AS Client, Job.Name AS JobName, coalesce(Pool.Name, 'N/A') AS Pool, \
         coalesce(Fileset.Fileset, 'N/A') AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
         PriorJobId, AGE(EndTime, StartTime) AS RunTime, Encrypted \
         FROM Job \
         INNER JOIN Client ON Job.ClientID=Client.ClientID \
         LEFT OUTER JOIN Pool ON Job.PoolID=Pool.PoolID \
         LEFT OUTER JOIN Fileset ON Job.FilesetID=Fileset.FilesetID \
+        LEFT OUTER JOIN TagJob ON Job.JobID=TagJob.JobID \
+        LEFT OUTER JOIN TagClient ON Job.ClientID=TagClient.ClientID \
         WHERE (EndTime >= CURRENT_TIMESTAMP(2) - cast('" + time + " HOUR' as INTERVAL) \
         OR JobStatus IN ('R', 'C')) \
-        AND Client.Name LIKE '" + client + "' \
-        AND Job.Name LIKE '" + jobname + "' \
-        AND Type IN ('" + "','".join(jobtypeset) + "') \
+        AND Client.Name LIKE '" + client + "'" \
+        + (" AND TagClient.Tag IN ('" + "','".join(tag_client_lst) + "')" if len(tag_client_lst) != 0 else "") \
+        + " AND Job.Name LIKE '" + jobname + "'" \
+        + (" AND TagJob.Tag IN ('" + "','".join(tag_job_lst) + "')" if len(tag_job_lst) != 0 else '') \
+        + " AND Type IN ('" + "','".join(jobtypeset) + "') \
         AND JobStatus IN ('" + "','".join(jobstatusset) + "') \
-        ORDER BY jobid " + sortorder + ";"
+        ORDER BY Job.JobID " + sortorder + ";"
+
 elif dbtype in ('mysql', 'maria'):
-    query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, CAST(Job.name as CHAR(50)) AS jobname, \
+    query_str = "SELECT DISTINCT Job.jobid, CAST(Client.name as CHAR(50)) AS client, CAST(Job.name as CHAR(50)) AS jobname, \
         coalesce(CAST(Pool.name as CHAR(50)), 'N/A') AS pool, coalesce(CAST(FileSet.fileset as CHAR(50)), 'N/A') AS fileset, \
         CAST(jobstatus as CHAR(1)) AS jobstatus, \
         joberrors, CAST(type as CHAR(1)) AS type, CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
@@ -1692,28 +1708,36 @@ elif dbtype in ('mysql', 'maria'):
         INNER JOIN Client ON Job.clientid=Client.clientid \
         LEFT OUTER JOIN Pool ON Job.poolid=Pool.poolid \
         LEFT OUTER JOIN FileSet ON Job.filesetid=FileSet.filesetid \
+        LEFT OUTER JOIN TagJob ON Job.JobID=TagJob.JobID \
+        LEFT OUTER JOIN TagClient ON Job.ClientID=TagClient.ClientID \
         WHERE (endtime >= DATE_ADD(NOW(), INTERVAL -" + time + " HOUR) \
         OR jobstatus IN ('R','C')) \
-        AND Client.Name LIKE '" + client + "' \
-        AND Job.Name LIKE '" + jobname + "' \
-        AND type IN ('" + "','".join(jobtypeset) + "') \
+        AND Client.Name LIKE '" + client + "'" \
+        + (" AND TagClient.Tag IN ('" + "','".join(tag_client_lst) + "')" if len(tag_client_lst) != 0 else "") \
+        + " AND Job.Name LIKE '" + jobname + "'" \
+        + (" AND TagJob.Tag IN ('" + "','".join(tag_job_lst) + "')" if len(tag_job_lst) != 0 else '') \
+        + " AND type IN ('" + "','".join(jobtypeset) + "') \
         AND jobstatus IN ('" + "','".join(jobstatusset) + "') \
-        ORDER BY jobid " + sortorder + ";"
+        ORDER BY Job.JobID " + sortorder + ";"
 elif dbtype == 'sqlite':
-    query_str = "SELECT JobId, Client.Name AS Client, Job.Name AS JobName, coalesce(Pool.Name, 'N/A') AS Pool, \
+    query_str = "SELECT DISTINCT Job.JobId, Client.Name AS Client, Job.Name AS JobName, coalesce(Pool.Name, 'N/A') AS Pool, \
         coalesce(Fileset.Fileset, 'N/A') AS Fileset, JobStatus, JobErrors, Type, Level, JobFiles, JobBytes, StartTime, EndTime, \
         PriorJobId, strftime('%s', EndTime) - strftime('%s', StartTime) AS RunTime, Encrypted \
         FROM Job \
         INNER JOIN Client ON Job.ClientId=Client.ClientId \
         LEFT OUTER JOIN Pool ON Job.PoolID=Pool.PoolID \
         LEFT OUTER JOIN Fileset ON Job.FilesetID=Fileset.FilesetID \
+        LEFT OUTER JOIN TagJob ON Job.JobID=TagJob.JobID \
+        LEFT OUTER JOIN TagClient ON Job.ClientID=TagClient.ClientID \
         WHERE (strftime('%s', EndTime) >= strftime('%s', 'now', '-" + time + " hours', 'localtime') \
         OR JobStatus IN ('R','C')) \
-        AND Client.Name LIKE '" + client + "' \
-        AND Job.Name LIKE '" + jobname + "' \
-        AND Type IN ('" + "','".join(jobtypeset) + "') \
+        AND Client.Name LIKE '" + client + "'" \
+        + (" AND TagClient.Tag IN ('" + "','".join(tag_client_lst) + "')" if len(tag_client_lst) != 0 else "") \
+        + " AND Job.Name LIKE '" + jobname + "'" \
+        + (" AND TagJob.Tag IN ('" + "','".join(tag_job_lst) + "')" if len(tag_job_lst) != 0 else '') \
+        + " AND Type IN ('" + "','".join(jobtypeset) + "') \
         AND JobStatus IN ('" + "','".join(jobstatusset) + "') \
-        ORDER BY JobId " + sortorder + ";"
+        ORDER BY Job.JobId " + sortorder + ";"
 filteredjobsrows = db_query(query_str, 'filtered jobs')
 
 # Assign the numfilteredjobs variable and
@@ -1728,8 +1752,8 @@ numfilteredjobs = len(filteredjobsrows)
 # Silly OCD string manipulations for singular vs. plural
 # ------------------------------------------------------
 hour = 'hour' if time == '1' else 'hours'
-jobstr = 'all jobs' if jobname == '%' else 'jobname \'' + jobname + '\''
-clientstr = 'all clients' if client == '%' else 'client \'' + client + '\''
+jobstr = 'all jobs' + ('*' if len(tag_job_lst) != 0 else '') if jobname == '%' else 'jobname \'' + jobname + '\''
+clientstr = 'all clients' + ('*' if len(tag_client_lst) != 0 else '') if client == '%' else 'client \'' + client + '\''
 jobtypestr = 'all job types' if set(all_jobtype_lst).issubset(jobtypeset) \
              else 'job types: '  + ','.join(jobtypeset) if len(jobtypeset) > 1 \
              else 'job type: ' + ','.join(jobtypeset)
@@ -1745,7 +1769,11 @@ if numfilteredjobs == 0:
             + ', and ' + jobstatusstr
     if addsubjecticon:
         subject = set_subject_icon() + ' ' + subject
-    msg = 'These are not the droids you are looking for.\n\n' + prog_info_txt
+    msg = 'These are not the droids you are looking for.\n' \
+        + ('\nNote: You may be seeing this empty report because:' if len(tag_job_lst) != 0 or len(tag_client_lst) != 0 else '') \
+        + ('\n     * The following TAGJOBS filter' + ('s were' if len(tag_job_lst) > 1 else ' was') + ' specified: ' + ', '.join(tag_job_lst) if len(tag_job_lst) != 0 else '') \
+        + ('\n     * The following TAGCLIENTS filter' + ('s were' if len(tag_client_lst) > 1 else ' was') + ' specified: ' + ', '.join(tag_client_lst) if len(tag_client_lst) != 0 else '') \
+        + '\n\n' + prog_info_txt
     if print_subject:
         print(re.sub(r'=.*=\)? (.*)$', '\\1', '- Job Report Subject: ' + subject))
     send_email(email, fromemail, subject, msg, smtpuser, smtppass, smtpserver, smtpport)
@@ -2926,6 +2954,21 @@ if conn:
 # created after (here), and then the whole HTML
 # msg gets concatenated.
 # ---------------------------------------------
+# Add banner message(s) when '-T TAGCLIENTS' and/or '-J TAGJOBS'
+# filters are used, listing the tags specified
+# --------------------------------------------------------------
+if len(tag_job_lst) != 0 or len(tag_client_lst) != 0:
+    warning_banners += '<p class="bannerwarnings">' \
+                    + 'NOTE: The Job table may show less rows than expected because' + (' a TAGJOBS filter' if len(tag_job_lst) != 0 else '') \
+                    + (' a TAGCLIENTS filter' if len(tag_client_lst) != 0 else '') + (' and' if len(tag_job_lst) != 0 and len(tag_client_lst) != 0 else '') \
+                    + ' was applied.</p><br>\n'
+if len(tag_job_lst) != 0:
+    warning_banners += '<p class="bannerwarnings">' \
+                    + '* The following TAGJOBS filter' + ('s were' if len(tag_job_lst) > 1 else ' was') + ' specified: ' + ', '.join(tag_job_lst) + '</p><br>\n'
+if len(tag_client_lst) != 0:
+    warning_banners += '<p class="bannerwarnings">' \
+                    + '* The following TAGCLIENTS filter' + ('s were' if len(tag_client_lst) > 1 else ' was') + ' specified: ' + ', '.join(tag_client_lst) + '</p><br>\n'
+
 # Highlight jobs that have cloud part transfer errors?
 # ----------------------------------------------------
 if warn_on_failed_cloud_xfers and num_failed_cloud_xfers_jobs > 0:

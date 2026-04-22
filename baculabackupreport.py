@@ -71,10 +71,10 @@
 # ----------------------------------------------------------------------------
 # External GUI link settings
 # --------------------------
-webgui = 'none'        # Which web interface to generate links for? (bweb, baculum, none)
+webgui = 'none'        # Which web interface to generate links for? (bweb, baculum, bacularis, none)
 webguisvc = 'http'     # Use encrypted connection or not (ie: http or https)
 webguihost = ''        # FQDN or IP address of the web gui host
-webguiport = ''        # TCP port the web gui is bound to (Defaults: bweb 9180, baculum 9095)
+webguiport = ''        # TCP port the web gui is bound to (Defaults: bweb 9180, baculum/bacularis 9095)
 urlifyalljobs = False  # Should jobids in the Status column for Copied/Migrated/Verified jobs
                        # be made into URL links too? If set to False, only the jobids in the
                        # jobid column will be made into URL links
@@ -321,17 +321,17 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.42'
-reldate = 'December 04, 2025'
+version = '2.43'
+reldate = 'April 22, 2026'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
 prog_info_txt = progname + ' - v' + version + ' - ' + scriptname \
               + '\nBy: ' + progauthor + ' ' + authoremail + ' (c) ' + reldate + '\n\n'
 
-# Defined the sets and lists of valid choices
-# -------------------------------------------
-valid_webgui_lst = ['bweb', 'baculum']
+# Define the sets and lists of valid choices
+# ------------------------------------------
+valid_webgui_lst = ['bweb', 'baculum', 'bacularis']
 valid_webguisvc_lst = ['http', 'https']
 bad_job_lst = ['A', 'D', 'E', 'f', 'I']
 valid_db_lst = ['pgsql', 'mysql', 'maria', 'sqlite']
@@ -426,8 +426,8 @@ parser.add_argument('-y', '--jobtype', help='Type of job to report on.', default
 parser.add_argument('-x', '--jobstatus', help='Job status to report on. Note: [R]unning and [C]reated jobs are always included', default='aABcCdDeEfFiIjmMpRsStT')
 parser.add_argument('-u', '--smtpuser', help='SMTP user.', default='')
 parser.add_argument('-p', '--smtppass', help='SMTP password.', default='')
-parser.add_argument('-T', '--tagclients', help='Space separated set of Client tag(s) to report on. eg: -T "TagClient_0 TagClient_1"', default='')
 parser.add_argument('-J', '--tagjobs', help='Space separated set of Job tag(s) to report on. eg: -J "TagJob_0 TagJob_1"', default='')
+parser.add_argument('-T', '--tagclients', help='Space separated set of Client tag(s) to report on. eg: -T "TagClient_0 TagClient_1"', default='')
 parser.add_argument('--dbtype', help='Database type. (pgsql | mysql | maria | sqlite)', choices=valid_db_lst, default='pgsql')
 parser.add_argument('--dbhost', help='Database host.', default='localhost')
 parser.add_argument('--dbport', help='Database port. (defaults: pgsql 5432, mysql & maria 3306)')
@@ -980,7 +980,7 @@ def urlify_jobid(content):
         return '<a href="' + webguisvc + '://' + webguihost + ':' \
                + webguiport + '/cgi-bin/bweb/bweb.pl?action=job_zoom&jobid=' \
                + str(content) + '">' + str(content) + '</a>'
-    elif webgui == 'baculum':
+    elif webgui in ('baculum', 'bacularis'):
         return '<a href="' + webguisvc + '://' + webguihost + ':' \
                + webguiport + '/web/job/history/' + str(content) + '">' \
                + str(content) + '</a>'
@@ -1060,9 +1060,10 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
 
         # Make the alwaysfailcolumn a URL link to the Job's history page
         # For BWeb, use the always failing 'days' variable for days of history
-        # For Baculum, link to the 'Job Details' page which has a Job History link
-        # If alwaysfailcolumn is 'row', then the jobname is automatically linked
-        # ------------------------------------------------------------------------
+        # For Baculum and Bacularis, link to the 'Job Details' page which has
+        # a Job History link If alwaysfailcolumn is 'row', then the jobname is
+        # automatically linked
+        # --------------------------------------------------------------------
         if alwaysfailjob and (col == alwaysfailcolumn or (alwaysfailcolumn == 'row' and col == 'jobname')):
             if webgui == 'bweb':
                 age = int(days) * 86400
@@ -1071,7 +1072,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
                 content = '<a href="' + webguisvc + '://' + webguihost + ':' \
                         + webguiport + '/cgi-bin/bweb/bweb.pl?age=' + str(age) \
                         + '&job=' + jobrow['jobname'] + '&action=job">' + content + '</a>'
-            elif webgui == 'baculum':
+            elif webgui in ('baculum', 'bacularis':
                 content = '<a href="' + webguisvc + '://' + webguihost + ':' \
                         + webguiport + '/web/job/' + jobrow['jobname'] + '">' + content + '</a>'
             else:
@@ -1253,7 +1254,14 @@ def get_pool_or_storage(res_type):
     # Jobs, no 'Pool:' nor 'Storage:' lines are ever added to the Job Summary text so for
     # them we would always need to scrape the joblog for these.
     # -----------------------------------------------------------------------------------
-    if jobrow['type'] in ('B', 'c', 'C', 'g'):
+    # waa - 20260410 - There is a problem that for type 'C', there is no way to
+    #                  get the write Storage. Nothing is logged, and in the stub summary,
+    #                  the write 'poolname:' is available, but as of Community version
+    #                  15.0.3 the 'writestorage:' is blank.
+    #                  This looks to be resolved in Bacula Enterprise version 18.2.4 and
+    #                  maybe earlier, so Community version 17.x will have this fixed too.
+    # -----------------------------------------------------------------------------------
+    if jobrow['type'] in ('B', 'c', 'g'):
         if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT logtext FROM log WHERE jobid = " \
                       + str(jobrow['jobid']) + " AND logtext LIKE '%Termination:%';"
@@ -1261,38 +1269,65 @@ def get_pool_or_storage(res_type):
             query_str = "SELECT CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE jobid = " \
                       + str(jobrow['jobid']) + " AND logtext LIKE '%Termination:%';"
         summary = db_query(query_str, 'joblog summary block for "Pool" or "Storage"', 'one')
-        # If summary is empty due to Job still running, or (for example) the
-        # Director crashes or was killed with Jobs running, return 'N/A'
-        # ------------------------------------------------------------------
-        if summary is None:
-            return 'N/A'
-        else:
+    # waa - 20260410
+    # --------------
+    # Copied Jobs are a special case. We need to get the Storage and pool names from the
+    # Storage and Pool tables matching the 'writestorageid' and 'poolid' from the Job table
+    # -------------------------------------------------------------------------------------
+    # waa - 20260410 - I won't be able to use this for all types. Also, I lose the
+    #                  Read/Write Storage and Read/Write Pools for Copy and Migration
+    #                  Control Jobs as well as where the Storage and Pool ultimately came
+    #                  from if I do. :(
+    # -------------------------------------------------------------------------------------
+    elif jobrow['type'] == 'C':
+        if dbtype in ('pgsql', 'sqlite'):
+            query_str = "SELECT Storage.Name, Pool.Name FROM job " \
+                      + "INNER JOIN Storage ON Job.WritestorageID=Storage.StorageID "\
+                      + "INNER JOIN Pool ON Job.PoolID=Pool.PoolID "\
+                      + "WHERE jobid = " + str(jobrow['jobid']) + ";"
+        elif dbtype in ('mysql', 'maria'):
+            query_str = "SELECT storage.name, pool.name FROM job " \
+                      + "INNER JOIN storage on job.writestorageid=storage.storageid " \
+                      + "INNER JOIN pool ON job.poolid=pool.poolid " \
+                      + "WHERE jobid = " + str(jobrow['jobid']) + ";"
+        summary = db_query(query_str, 'job table for "poolid"', 'one')
+    else:
+        return '----'
+    # If summary is empty due to Job still running, or (for example) the
+    # Director crashes or was killed with Jobs running, return '----'
+    # ------------------------------------------------------------------
+    if summary is None:
+        return '----'
+    else:
+        # For Backup, Copy Control, and Migration Control jobs, set the 'text' variable
+        # which will use re.sub() to scrape the Storage or Pool from the Job's summary
+        # otherwise, for Copy Jobs we work with the 'summary' db query results directly
+        # -----------------------------------------------------------------------------
+        if jobrow['type'] in ('B', 'c', 'g'):
             if dbtype in ('pgsql', 'sqlite'):
                 text = summary[0]
             elif dbtype in ('mysql', 'maria'):
                 text = summary['logtext']
-            if jobrow['type'] in ('B', 'C'):
-                if res_type == 'p':
-                    p_or_s = re.sub('.*Pool: +(.+?)\n.*', '\\1', text, flags=re.DOTALL)
-                else:
-                    p_or_s = re.sub('.*Storage: +(.+?)\n.*', '\\1', text, flags=re.DOTALL)
-            elif jobrow['type'] in ('c', 'g'):
-                if res_type == 'p':
-                    p_or_s = re.sub('.*Read Pool: +(.+?)\n.*', 'Read: \\1', text, flags=re.DOTALL) + '<br>' \
-                           + re.sub('.*Write Pool: +(.+?)\n.*', 'Write: \\1', text, flags=re.DOTALL)
-                else:
-                    p_or_s = re.sub('.*Read Storage: +(.+?)\n.*', 'Read: \\1', text, flags=re.DOTALL) + '<br>' \
-                           + re.sub('.*Write Storage: +(.+?)\n.*', 'Write: \\1', text, flags=re.DOTALL)
-            p_or_s = re.sub('"', '', p_or_s)
-            if strip_p_or_s_from:
-                p_or_s = re.sub(r'\((.+?)\)', '', p_or_s, flags=re.DOTALL)
-    else:
-        # waa - 20230503 TODO
-        # placeholder... Here we should try to scrape the joblog for the Read/Write Pool(s)
-        # or Storage(s) for Jobs that are not 'B', 'c', 'C', 'g'. Or, maybe we even do this for
-        # Jobs that have no summary, such as Running or Created. For now, we just return 'N/A'
-        # -------------------------------------------------------------------------------------
-        p_or_s = 'N/A'
+        if jobrow['type'] == 'B':
+            if res_type == 'p':
+                p_or_s = re.sub('.*Pool: +(.+?)\n.*', '\\1', text, flags=re.DOTALL)
+            else:
+                p_or_s = re.sub('.*Storage: +(.+?)\n.*', '\\1', text, flags=re.DOTALL)
+        elif jobrow['type'] == 'C':
+            if res_type == 'p':
+                p_or_s = summary[1]
+            else:
+                p_or_s = summary[0]
+        elif jobrow['type'] in ('c', 'g'):
+            if res_type == 'p':
+                p_or_s = re.sub('.*Read Pool: +(.+?)\n.*', 'Read: \\1', text, flags=re.DOTALL) + '<br>' \
+                       + re.sub('.*Write Pool: +(.+?)\n.*', 'Write: \\1', text, flags=re.DOTALL)
+            else:
+                p_or_s = re.sub('.*Read Storage: +(.+?)\n.*', 'Read: \\1', text, flags=re.DOTALL) + '<br>' \
+                       + re.sub('.*Write Storage: +(.+?)\n.*', 'Write: \\1', text, flags=re.DOTALL)
+        p_or_s = re.sub('"', '', p_or_s)
+        if strip_p_or_s_from:
+            p_or_s = re.sub(r'\((.+?)\)', '', p_or_s, flags=re.DOTALL)
     return p_or_s
 
 def set_hdr_str():

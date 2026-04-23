@@ -321,8 +321,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.43'
-reldate = 'April 22, 2026'
+version = '2.44'
+reldate = 'April 23, 2026'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -1072,7 +1072,7 @@ def html_format_cell(content, bgcolor = '', star = '', col = '', jobtype = ''):
                 content = '<a href="' + webguisvc + '://' + webguihost + ':' \
                         + webguiport + '/cgi-bin/bweb/bweb.pl?age=' + str(age) \
                         + '&job=' + jobrow['jobname'] + '&action=job">' + content + '</a>'
-            elif webgui in ('baculum', 'bacularis':
+            elif webgui in ('baculum', 'bacularis'):
                 content = '<a href="' + webguisvc + '://' + webguihost + ':' \
                         + webguiport + '/web/job/' + jobrow['jobname'] + '">' + content + '</a>'
             else:

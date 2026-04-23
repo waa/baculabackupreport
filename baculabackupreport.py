@@ -321,7 +321,7 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.44'
+version = '2.45'
 reldate = 'April 23, 2026'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
@@ -1286,9 +1286,9 @@ def get_pool_or_storage(res_type):
                       + "INNER JOIN Pool ON Job.PoolID=Pool.PoolID "\
                       + "WHERE jobid = " + str(jobrow['jobid']) + ";"
         elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT storage.name, pool.name FROM job " \
-                      + "INNER JOIN storage on job.writestorageid=storage.storageid " \
-                      + "INNER JOIN pool ON job.poolid=pool.poolid " \
+            query_str = "SELECT CAST(Storage.name as CHAR(127)) AS storage, CAST(Pool.name as CHAR(127)) AS pool FROM Job " \
+                      + "INNER JOIN Storage on Job.Writestorageid=Storage.Storageid " \
+                      + "INNER JOIN Pool ON Job.Poolid=Pool.Poolid " \
                       + "WHERE jobid = " + str(jobrow['jobid']) + ";"
         summary = db_query(query_str, 'job table for "poolid"', 'one')
     else:
@@ -1315,9 +1315,15 @@ def get_pool_or_storage(res_type):
                 p_or_s = re.sub('.*Storage: +(.+?)\n.*', '\\1', text, flags=re.DOTALL)
         elif jobrow['type'] == 'C':
             if res_type == 'p':
-                p_or_s = summary[1]
+                if dbtype in ('pgsql', 'sqlite'):
+                    p_or_s = summary[1]
+                else:
+                    p_or_s = summary['pool']
             else:
-                p_or_s = summary[0]
+                if dbtype in ('pgsql', 'sqlite'):
+                    p_or_s = summary[0]
+                else:
+                   p_or_s = summary['storage']
         elif jobrow['type'] in ('c', 'g'):
             if res_type == 'p':
                 p_or_s = re.sub('.*Read Pool: +(.+?)\n.*', 'Read: \\1', text, flags=re.DOTALL) + '<br>' \

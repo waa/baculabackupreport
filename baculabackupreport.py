@@ -321,8 +321,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.45'
-reldate = 'April 23, 2026'
+version = '2.46'
+reldate = 'April 24, 2026'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -666,8 +666,8 @@ def get_verify_client_info(vrfy_jobid):
                 INNER JOIN Client ON Job.ClientID=Client.ClientID \
                 WHERE JobId='" + v_jobids_dict[str(vrfy_jobid)] + "';"
         elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
-                CAST(Job.name as CHAR(50)) AS jobname \
+            query_str = "SELECT jobid, CAST(Client.name as CHAR(127)) AS client, \
+                CAST(Job.name as CHAR(127)) AS jobname \
                 FROM Job \
                 INNER JOIN Client ON Job.clientid=Client.clientid \
                 WHERE jobid='" + v_jobids_dict[str(vrfy_jobid)] + "';"
@@ -719,7 +719,7 @@ def get_copied_migrated_job_name(copy_migrate_jobid):
                 FROM Job \
                 WHERE JobId='" + pn_jobids_dict[str(copy_migrate_jobid)][0] + "';"
         elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT CAST(Job.name as CHAR(50)) AS jobname \
+            query_str = "SELECT CAST(Job.name as CHAR(127)) AS jobname \
                 FROM Job \
                 WHERE jobid='" + pn_jobids_dict[str(copy_migrate_jobid)][0] + "';"
         row = db_query(query_str, 'the Job name of a jobid (from Job table) that was copied/migrated')
@@ -1248,20 +1248,18 @@ def secs_to_days_hours_mins(secs):
 
 def get_pool_or_storage(res_type):
     'Given "p" or "s" resource type, return Pool(s) or Storage(s) used in a Job.'
-    # For 'B', 'c', 'C', 'g' Jobs, we can get the Pool(s) and Storage(s) from the Job
+    # For 'B', 'c', and 'g' Jobs, we can get the Pool(s) and Storage(s) from the Job
     # Summary if the Job is complete. For Running Jobs of these types, we would need to
     # scrape the joblog to try to get the Pool(s) and Storage(s) used. For other types of
     # Jobs, no 'Pool:' nor 'Storage:' lines are ever added to the Job Summary text so for
     # them we would always need to scrape the joblog for these.
     # -----------------------------------------------------------------------------------
-    # waa - 20260410 - There is a problem that for type 'C', there is no way to
-    #                  get the write Storage. Nothing is logged, and in the stub summary,
-    #                  the write 'poolname:' is available, but as of Community version
-    #                  15.0.3 the 'writestorage:' is blank.
-    #                  This looks to be resolved in Bacula Enterprise version 18.2.4 and
-    #                  maybe earlier, so Community version 17.x will have this fixed too.
-    # -----------------------------------------------------------------------------------
-    if jobrow['type'] in ('B', 'c', 'g'):
+    # waa - 20260424 - Migrated jobs are "type ='B' and priorjobid != 0"
+    #                - Promoted Copied jobs look exactly the same
+    #                - This 'or' clause catches Migrated Jobs, and the "jobrow['type'] == 'C'"
+    #                  clause catches Copied Jobs explicitly, short-circuiting the 'or' clause
+    # ----------------------------------------------------------------------------------------
+    if jobrow['type'] in ('B', 'c', 'g') and jobrow['priorjobid'] == 0:
         if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT logtext FROM log WHERE jobid = " \
                       + str(jobrow['jobid']) + " AND logtext LIKE '%Termination:%';"
@@ -1269,17 +1267,22 @@ def get_pool_or_storage(res_type):
             query_str = "SELECT CAST(logtext as CHAR(2000)) AS logtext FROM Log WHERE jobid = " \
                       + str(jobrow['jobid']) + " AND logtext LIKE '%Termination:%';"
         summary = db_query(query_str, 'joblog summary block for "Pool" or "Storage"', 'one')
-    # waa - 20260410
-    # --------------
-    # Copied Jobs are a special case. We need to get the Storage and pool names from the
-    # Storage and Pool tables matching the 'writestorageid' and 'poolid' from the Job table
-    # -------------------------------------------------------------------------------------
-    # waa - 20260410 - I won't be able to use this for all types. Also, I lose the
-    #                  Read/Write Storage and Read/Write Pools for Copy and Migration
-    #                  Control Jobs as well as where the Storage and Pool ultimately came
-    #                  from if I do. :(
-    # -------------------------------------------------------------------------------------
-    elif jobrow['type'] == 'C':
+    # waa - 20260410 - Copied Jobs are a special case. We need to get the Storage and
+    #                  Pool names from the Storage and Pool tables matching the
+    #                  'writestorageid' and 'poolid' from the Job table
+    #                - There is a problem that for type 'C', there is no way to
+    #                  get the correct write Storage. Nothing is logged, and the
+    #                  'writestorage' for Copied and Migrated Jobs is zero as of
+    #                  Community version 15.0.3.
+    #                - This is resolved in Bacula Enterprise version 18.2.0, and I
+    #                  have confirmed with the developers that Community version 17.x
+    #                  will also have this fix when it is released shortly.
+    #                - I won't be able to use this query for all types because I lose
+    #                  the Read/Write Storage and Read/Write Pool for Copy and
+    #                  Migration Control Jobs as well as where the Storage and Pool
+    #                  ultimately came from if I do. :(
+    # -------------------------------------------------------------------------------
+    elif jobrow['type'] == 'C' or (jobrow['type'] == 'B' and jobrow['priorjobid'] != 0):
         if dbtype in ('pgsql', 'sqlite'):
             query_str = "SELECT Storage.Name, Pool.Name FROM job " \
                       + "INNER JOIN Storage ON Job.WritestorageID=Storage.StorageID "\
@@ -1303,17 +1306,17 @@ def get_pool_or_storage(res_type):
         # which will use re.sub() to scrape the Storage or Pool from the Job's summary
         # otherwise, for Copy Jobs we work with the 'summary' db query results directly
         # -----------------------------------------------------------------------------
-        if jobrow['type'] in ('B', 'c', 'g'):
+        if jobrow['type'] in ('B', 'c', 'g') and jobrow['priorjobid'] == 0:
             if dbtype in ('pgsql', 'sqlite'):
                 text = summary[0]
             elif dbtype in ('mysql', 'maria'):
                 text = summary['logtext']
-        if jobrow['type'] == 'B':
+        if jobrow['type'] == 'B' and jobrow['priorjobid'] == 0:
             if res_type == 'p':
                 p_or_s = re.sub('.*Pool: +(.+?)\n.*', '\\1', text, flags=re.DOTALL)
             else:
                 p_or_s = re.sub('.*Storage: +(.+?)\n.*', '\\1', text, flags=re.DOTALL)
-        elif jobrow['type'] == 'C':
+        elif jobrow['type'] == 'C' or (jobrow['type'] == 'B' and jobrow['priorjobid'] != 0):
             if res_type == 'p':
                 if dbtype in ('pgsql', 'sqlite'):
                     p_or_s = summary[1]
@@ -1740,8 +1743,8 @@ if dbtype == 'pgsql':
         ORDER BY Job.JobID " + sortorder + ";"
 
 elif dbtype in ('mysql', 'maria'):
-    query_str = "SELECT DISTINCT Job.jobid, CAST(Client.name as CHAR(50)) AS client, CAST(Job.name as CHAR(50)) AS jobname, \
-        coalesce(CAST(Pool.name as CHAR(50)), 'N/A') AS pool, coalesce(CAST(FileSet.fileset as CHAR(50)), 'N/A') AS fileset, \
+    query_str = "SELECT DISTINCT Job.jobid, CAST(Client.name as CHAR(127)) AS client, CAST(Job.name as CHAR(127)) AS jobname, \
+        coalesce(CAST(Pool.name as CHAR(127)), 'N/A') AS pool, coalesce(CAST(FileSet.fileset as CHAR(127)), 'N/A') AS fileset, \
         CAST(jobstatus as CHAR(1)) AS jobstatus, \
         joberrors, CAST(type as CHAR(1)) AS type, CAST(level as CHAR(1)) AS level, jobfiles, jobbytes, \
         starttime, endtime, priorjobid, TIMEDIFF (endtime, starttime) as runtime, encrypted \
@@ -1901,7 +1904,7 @@ if dbtype == 'pgsql':
     query_str = "SELECT JobId, Job.Name AS JobName, JobStatus \
         FROM Job WHERE endtime >= (NOW()) - (INTERVAL '" + days + " DAY') ORDER BY JobId DESC;"
 elif dbtype in ('mysql', 'maria'):
-    query_str = "SELECT jobid, CAST(Job.name as CHAR(50)) AS jobname, \
+    query_str = "SELECT jobid, CAST(Job.name as CHAR(127)) AS jobname, \
         CAST(jobstatus as CHAR(1)) AS jobstatus FROM Job \
         WHERE endtime >= DATE_ADD(NOW(), INTERVAL -" + days + " DAY) ORDER BY jobid DESC;"
 elif dbtype == 'sqlite':
@@ -1935,7 +1938,7 @@ if warn_on_last_good_run:
         query_str = "SELECT JobId, Name, EndTime \
             FROM Job WHERE Type = 'B' AND JobStatus NOT IN ('C', 'R') ORDER BY JobId ASC;"
     elif dbtype in ('mysql', 'maria'):
-        query_str = "SELECT jobid, CAST(name as CHAR(50)) AS name, endtime \
+        query_str = "SELECT jobid, CAST(name as CHAR(127)) AS name, endtime \
             FROM Job WHERE Type = 'B' AND JobStatus NOT IN ('C', 'R') ORDER BY jobid ASC;"
     elif dbtype == 'sqlite':
         # TODO - waa - 20241008 - line 588: DeprecationWarning: The default timestamp converter is deprecated as
@@ -2278,7 +2281,7 @@ if summary_and_rates != 'none' and (create_job_summary_table \
                 pool_info = db_query(query_str, 'pool information for pool ' + p_name[0], 'one')
                 calc_pool_use(p_name[0], pool_info[0], pool_info[1])
         elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT CAST(Name as CHAR(50)) AS Name \
+            query_str = "SELECT CAST(Name as CHAR(127)) AS Name \
                 FROM Pool \
                 WHERE Name NOT IN ('" + "','".join(pools_to_ignore_lst) + "') \
                 ORDER BY Name ASC;"
@@ -2438,10 +2441,10 @@ if include_pnv_jobs:
                 LEFT OUTER JOIN Fileset ON Job.FilesetID=Fileset.FilesetID \
                 WHERE JobId IN (" + ','.join(pnv_jobids_lst) + ");"
         elif dbtype in ('mysql', 'maria'):
-            query_str = "SELECT jobid, CAST(Client.name as CHAR(50)) AS client, \
-                CAST(Job.name as CHAR(50)) AS jobname, \
-                coalesce(CAST(Pool.name as CHAR(50)), 'N/A') AS pool, \
-                coalesce(CAST(FileSet.fileset as CHAR(50)), 'N/A') AS fileset, \
+            query_str = "SELECT jobid, CAST(Client.name as CHAR(127)) AS client, \
+                CAST(Job.name as CHAR(127)) AS jobname, \
+                coalesce(CAST(Pool.name as CHAR(127)), 'N/A') AS pool, \
+                coalesce(CAST(FileSet.fileset as CHAR(127)), 'N/A') AS fileset, \
                 CAST(jobstatus as CHAR(1)) AS jobstatus, \
                 joberrors, CAST(type as CHAR(1)) AS type, CAST(level as CHAR(1)) AS level, \
                 jobfiles, jobbytes, starttime, endtime, priorjobid, \
@@ -2501,7 +2504,7 @@ if checkforvirus and len(vrfy_data_jobids) != 0:
             AND (Log.LogText LIKE '%" + virusfoundtext + "%' OR Log.LogText LIKE '%" + avconnfailtext + "%') \
             ORDER BY Log.JobId DESC, Time ASC;"
     elif dbtype in ('mysql', 'maria'):
-        query_str = "SELECT Job.name as jobname, Log.jobid, CAST(Client.name as CHAR(50)) AS name, \
+        query_str = "SELECT CAST(Job.name as CHAR(127)) AS jobname, Log.jobid, CAST(Client.name as CHAR(127)) AS name, \
             CAST(Log.logtext as CHAR(2000)) AS logtext \
             FROM Log \
             INNER JOIN Job ON Log.jobid=Job.jobid \

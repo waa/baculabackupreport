@@ -321,7 +321,7 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.46'
+version = '2.47'
 reldate = 'April 24, 2026'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
@@ -437,28 +437,6 @@ parser.add_argument('--dbpass', help='Database password.', default='')
 parser.add_argument('--smtpserver', help='SMTP server.', default='localhost')
 parser.add_argument('--smtpport', help='SMTP port.', default='25')
 args = parser.parse_args()
-
-# Internal CSS to reduce the length of the lines in the email report. Lines over
-# 1000 characters are chopped at the 998 character mark per RFC, and this breaks
-# the rendering of the HTML in an email client in strange and wonderous ways.
-# https://www.w3schools.com/css/css_table_style.asp
-# ------------------------------------------------------------------------------
-# f-strings require Python version 3.6 or above
-# ---------------------------------------------
-css_str = f'''
-pre {{font-size: {fontsizesumlog};}}
-body {{font-family: {fontfamily}; font-size: {fontsize};}}
-th {{background-color: {jobtableheadercolor}; color: {jobtableheadertxtcolor};}}
-td {{text-align: center; font-size: {fontsizejobinfo}; padding: {jobtablecellpadding};}}
-tr:nth-child(even) {{background-color: {jobtablerowevencolor}; color: {jobtableroweventxtcolor};}}
-tr:nth-child(odd) {{background-color: {jobtablerowoddcolor}; color: {jobtablerowoddtxtcolor};}}
-.proginfo {{font-size: 8px;}}
-.bannerwarnings {{display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;}}
-.alwaysfail-bannerwarning {{background-color: {alwaysfailcolor};}}
-.virus-bannerwarning {{background-color: {virusfoundcolor};}}
-.virusconn-bannerwarning {{background-color: {virusconnerrcolor};}}
-
-'''
 
 # Now for some functions
 # ----------------------
@@ -1445,6 +1423,31 @@ if args.config:
         # Set the global variable
         # -----------------------
         myvars[k] = config_dict[k]
+
+# Internal CSS to reduce the length of the lines in the email report. Lines over
+# 1000 characters are chopped at the 998 character mark per RFC, and this breaks
+# the rendering of the HTML in an email client in strange and wonderous ways.
+# https://www.w3schools.com/css/css_table_style.asp
+# ------------------------------------------------------------------------------
+# f-strings require Python version 3.6 or above
+# ---------------------------------------------
+# waa - 20260424 - This has to go here, after the config file is read so that the
+#                  colors in this css f-string may be overridden in the config file.
+# ----------------------------------------------------------------------------------
+css_str = f'''
+pre {{font-size: {fontsizesumlog};}}
+body {{font-family: {fontfamily}; font-size: {fontsize};}}
+th {{background-color: {jobtableheadercolor}; color: {jobtableheadertxtcolor};}}
+td {{text-align: center; font-size: {fontsizejobinfo}; padding: {jobtablecellpadding};}}
+tr:nth-child(even) {{background-color: {jobtablerowevencolor}; color: {jobtableroweventxtcolor};}}
+tr:nth-child(odd) {{background-color: {jobtablerowoddcolor}; color: {jobtablerowoddtxtcolor};}}
+.proginfo {{font-size: 8px;}}
+.bannerwarnings {{display: inline-block; font-size: 13px; font-weight: bold; padding: 2px; margin: 2px 0;}}
+.alwaysfail-bannerwarning {{background-color: {alwaysfailcolor};}}
+.virus-bannerwarning {{background-color: {virusfoundcolor};}}
+.virusconn-bannerwarning {{background-color: {virusconnerrcolor};}}
+
+'''
 
 # Set the gui variable to shorten
 # up some if statements later on

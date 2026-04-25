@@ -317,7 +317,7 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.47'
+version = '2.48'
 reldate = 'April 24, 2026'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'

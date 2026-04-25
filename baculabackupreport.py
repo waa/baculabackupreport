@@ -155,8 +155,8 @@ verified_stats = True            # Print Verified Files/Bytes?
 # -----------------------------
 create_success_rates_table = True
 
-# Create the Client Version < Director table?
-# -------------------------------------------
+# Create the Client Version != Director table?
+# --------------------------------------------
 create_client_ver_lt_dir_table = True
 
 # Show how long a job has been been waiting on media under 'Needs Media' in the Status field
@@ -284,16 +284,12 @@ fontsize_addtional_texts = '10px'                     # Font size of (will not d
 #            css to reduce line length of the job rows in the report.
 # -------------------------------------------------------------------
 jobtablestyle = 'width: 100%; border-collapse: collapse;'
-dbstatstableheaderstyle = 'width: 35%; border-collapse: collapse;'
-jobtableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (jobtableheadercolor, jobtableheadertxtcolor)
-jobtableheadercellstyle = 'padding: 6px'
 jobtablecellpadding = '5px;'
 jobtablealwaysfailrowstyle = 'background-color: %s;' % alwaysfailcolor
 jobtablealwaysfailcellstyle = 'text-align: center; background-color: %s;' % alwaysfailcolor
 jobtablevirusfoundcellstyle = 'text-align: center; background-color: %s;' % virusfoundcolor
 jobtablevirusconnerrcellstyle = 'text-align: center; background-color: %s;' % virusconnerrcolor
 summarytablestyle = 'margin-top: 20px; border-collapse: collapse; display: inline-block; float: left; padding-right: 20px;'
-summarytableheaderstyle = 'font-size: 12px; text-align: center; background-color: %s; color: %s;' % (summarytableheadercolor, summarytableheadertxtcolor)
 summarytableheadercellstyle = 'padding: 6px;'
 summarytablecellstyle = 'font-weight: bold; padding: 5px;'
 
@@ -1437,7 +1433,6 @@ if args.config:
 css_str = f'''
 pre {{font-size: {fontsizesumlog};}}
 body {{font-family: {fontfamily}; font-size: {fontsize};}}
-th {{background-color: {jobtableheadercolor}; color: {jobtableheadertxtcolor};}}
 td {{text-align: center; font-size: {fontsizejobinfo}; padding: {jobtablecellpadding};}}
 tr:nth-child(even) {{background-color: {jobtablerowevencolor}; color: {jobtableroweventxtcolor};}}
 tr:nth-child(odd) {{background-color: {jobtablerowoddcolor}; color: {jobtablerowoddtxtcolor};}}
@@ -1446,7 +1441,9 @@ tr:nth-child(odd) {{background-color: {jobtablerowoddcolor}; color: {jobtablerow
 .alwaysfail-bannerwarning {{background-color: {alwaysfailcolor};}}
 .virus-bannerwarning {{background-color: {virusfoundcolor};}}
 .virusconn-bannerwarning {{background-color: {virusconnerrcolor};}}
-
+.job-table-header {{font-size: 12px; text-align: center; padding: 6px; background-color: {jobtableheadercolor}; !important; color: {jobtableheadertxtcolor};}}
+.summary-table-header {{font-size: 12px; text-align: center; background-color: {summarytableheadercolor}; color: {summarytableheadertxtcolor};}}
+.db-stats-table-header {{width: 45%; border-collapse: collapse;}}
 '''
 
 # Set the gui variable to shorten
@@ -1675,22 +1672,22 @@ elif dbtype == 'sqlite':
 # from a config file's overrides.
 # -----------------------------------------------------
 col_hdr_dict = {
-    'jobid':     '<th style="' + jobtableheadercellstyle + '">Job ID</th>',
-    'jobname':   '<th style="' + jobtableheadercellstyle + '">Job Name</th>',
-    'client':    '<th style="' + jobtableheadercellstyle + '">Client</th>',
-    'status':    '<th style="' + jobtableheadercellstyle + '">Status</th>',
-    'joberrors': '<th style="' + jobtableheadercellstyle + '">Errors</th>',
-    'type':      '<th style="' + jobtableheadercellstyle + '">Type</th>',
-    'level':     '<th style="' + jobtableheadercellstyle + '">Level</th>',
-    'jobfiles':  '<th style="' + jobtableheadercellstyle + '">Files</th>',
-    'jobbytes':  '<th style="' + jobtableheadercellstyle + '">Bytes</th>',
-    'starttime': '<th style="' + jobtableheadercellstyle + '">Start Time</th>',
-    'endtime':   '<th style="' + jobtableheadercellstyle + '">End Time</th>',
-    'runtime':   '<th style="' + jobtableheadercellstyle + '">Run Time</th>',
-    'pool':      '<th style="' + jobtableheadercellstyle + '">Pool</th>',
-    'fileset':   '<th style="' + jobtableheadercellstyle + '">Fileset</th>',
-    'storage':   '<th style="' + jobtableheadercellstyle + '">Storage</th>',
-    'encrypted': '<th style="' + jobtableheadercellstyle + '">' + set_hdr_str() + '</th>'
+    'jobid':     '<th class="job-table-header">Job ID</th>',
+    'jobname':   '<th class="job-table-header">Job Name</th>',
+    'client':    '<th class="job-table-header">Client</th>',
+    'status':    '<th class="job-table-header">Status</th>',
+    'joberrors': '<th class="job-table-header">Errors</th>',
+    'type':      '<th class="job-table-header">Type</th>',
+    'level':     '<th class="job-table-header">Level</th>',
+    'jobfiles':  '<th class="job-table-header">Files</th>',
+    'jobbytes':  '<th class="job-table-header">Bytes</th>',
+    'starttime': '<th class="job-table-header">Start Time</th>',
+    'endtime':   '<th class="job-table-header">End Time</th>',
+    'runtime':   '<th class="job-table-header">Run Time</th>',
+    'pool':      '<th class="job-table-header">Pool</th>',
+    'fileset':   '<th class="job-table-header">Fileset</th>',
+    'storage':   '<th class="job-table-header">Storage</th>',
+    'encrypted': '<th class="job-table-header">' + set_hdr_str() + '</th>'
     }
 
 # Make the initial connection to the specified
@@ -2095,9 +2092,8 @@ if summary_and_rates != 'none' and (create_job_summary_table \
     # ---------------------------
     if create_job_summary_table:
         job_summary_table = '<table style="' + summarytablestyle + '">' \
-                          + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
+                          + '<tr><th class="summary-table-header" colspan="2" style="' \
                           + summarytableheadercellstyle + '">Summary (' + time + ' hours)</th></tr>'
-
         # Create the list of basic (non optional) information
         # ---------------------------------------------------
         job_summary_table_data = [
@@ -2190,7 +2186,7 @@ if summary_and_rates != 'none' and (create_job_summary_table \
     if create_success_rates_table:
         success_rates_table_data = []
         success_rates_table += '<table style="display: inline-block; float: left; padding-right: 20px; ' + summarytablestyle + '">' \
-                            + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
+                            + '<tr><th class="summary-table-header" colspan="2" style="' \
                             + summarytableheadercellstyle + '">Success Rates (all jobs)</th></tr>'
         for interval_key, interval_days in success_rates_interval_dict.items():
             if dbtype == 'pgsql':
@@ -2246,7 +2242,7 @@ if summary_and_rates != 'none' and (create_job_summary_table \
     # -----------------------------------------------
     if warn_on_last_good_run and len(warn_last_good_run_dict) > 0:
         warn_on_last_good_table = '<table style="' + summarytablestyle + '">' \
-                                + '<tr style="' + summarytableheaderstyle + '"><th colspan="4" style="' \
+                                + '<tr><th class="summary-table-header" colspan="4" style="' \
                                 + summarytableheadercellstyle + '">Jobs last good run >= ' + str(last_good_run_days) + ' days</th></tr>' \
                                 + '<tr><th>Job Id</th><th>Job Name</th><th>End Time</th><th>Days Ago</th></tr>'
         for k in warn_last_good_run_dict:
@@ -2330,12 +2326,12 @@ if summary_and_rates != 'none' and (create_job_summary_table \
         for row in clientversions:
             if row['uname'] != '':
                 cli_ver = re.sub('(^.+?) .*', '\\1', row['uname'])
-                if versiontuple(cli_ver) < versiontuple(bacula_ver):
+                if versiontuple(cli_ver) != versiontuple(bacula_ver):
                     client_ver_lt_dir_table_data.append((row['name'], cli_ver))
         if len(client_ver_lt_dir_table_data) != 0:
             client_ver_lt_dir_table = '<table style="' + summarytablestyle + '">' \
-                                    + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
-                                    + summarytableheadercellstyle + '">Client Version < Director</th></tr>' \
+                                    + '<tr><th class="summary-table-header" colspan="2" style="' \
+                                    + summarytableheadercellstyle + '">Client Version != Director</th></tr>' \
                                     + '<tr><th style="text-align: left; padding-left: 10px; padding-right: 10px;">Client</th>' \
                                     + '<th style="text-align: right; padding-left: 10px; padding-right: 10px;">Version</th></tr>'
             for client in client_ver_lt_dir_table_data:
@@ -2818,21 +2814,22 @@ if show_db_stats:
 
     # Build the catalog statistics table
     # ----------------------------------
-    msg += '<table style="' + jobtablestyle + '"><tr style="' + jobtableheaderstyle + '">\n' \
-        + '<td><table style="' + dbstatstableheaderstyle + '"><tr style="' + jobtableheaderstyle + '">\n' \
-        + '<td align="center"><b>CATALOG TOTALS</b></td>\n' \
-        + '<td align="left"><b>Clients: </b>' + str('{:,}'.format(num_clients)) + '</td>\n' \
-        + '<td align="left"><b>Jobs: </b>' + str('{:,}'.format(num_jobs)) + '</td>\n' \
-        + '<td align="left"><b>Files: </b>' + str('{:,}'.format(num_files)) + '</td>\n' \
-        + '<td align="left"><b>Bytes: </b>' + str(humanbytes(num_bytes)) + '</td>\n' \
-        + '<td align="left"><b>Media: </b>' + str('{:,}'.format(num_vols)) + '</td>\n' \
+    msg += '<table style="' + jobtablestyle + '">\n' \
+        + '<tr>\n' \
+        + '<td class="job-table-header";><table class="db-stats-table-header"><tr>\n' \
+        + '<th class="job-table-header"; align="center"><b>CATALOG TOTALS</b></th>\n' \
+        + '<th class="job-table-header"; align="left"><b>Clients: </b>' + str('{:,}'.format(num_clients)) + '</th>\n' \
+        + '<th class="job-table-header"; align="left"><b>Jobs: </b>' + str('{:,}'.format(num_jobs)) + '</th>\n' \
+        + '<th class="job-table-header"; align="left"><b>Files: </b>' + str('{:,}'.format(num_files)) + '</th>\n' \
+        + '<th class="job-table-header"; align="left"><b>Bytes: </b>' + str(humanbytes(num_bytes)) + '</th>\n' \
+        + '<th class="job-table-header"; align="left"><b>Media: </b>' + str('{:,}'.format(num_vols)) + '</th>\n' \
         + '</tr></table></td></tr></table>\n'
 
 # Create the main job table header from the columns in
 # the cols2show_lst list in the order they are defined
 # ----------------------------------------------------
 msg += '<table style="' + jobtablestyle + '">' \
-    + '<tr style="' + jobtableheaderstyle + '">'
+    + '<tr class="job-table-header">'
 for colname in cols2show_lst:
     msg += col_hdr_dict[colname]
 msg += '</tr>\n'

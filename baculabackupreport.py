@@ -128,6 +128,7 @@ ignore_warn_on_zero_inc_jobs_lst = ['Job1', 'Job2']  # Case-sensitive list of jo
 # Warn about pools approaching or surpassing maxvols?
 # ---------------------------------------------------
 chk_pool_use = True                       # Check pools for numvols vs maxvols?
+chk_pool_use_pct = 80                     # The percent of the MaximumVolumes setting that pools need to reach before warning
 pools_to_ignore_lst = ['Pool1', 'Pool2']  # Case-sesitive list of pools to always ignore for 'chk_pool_use' test
 
 # Summary and Success Rates block
@@ -290,8 +291,8 @@ jobtablealwaysfailcellstyle = 'text-align: center; background-color: %s;' % alwa
 jobtablevirusfoundcellstyle = 'text-align: center; background-color: %s;' % virusfoundcolor
 jobtablevirusconnerrcellstyle = 'text-align: center; background-color: %s;' % virusconnerrcolor
 summarytablestyle = 'margin-top: 20px; border-collapse: collapse; display: inline-block; float: left; padding-right: 20px;'
-summarytableheadercellstyle = 'padding: 6px;'
 summarytablecellstyle = 'font-weight: bold; padding: 5px;'
+summarytableheadercellstyle = 'padding: 6px;'
 
 # --------------------------------------------------
 # Nothing should need to be modified below this line
@@ -317,8 +318,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'Bacula Backup Report'
-version = '2.48'
-reldate = 'April 24, 2026'
+version = '2.49'
+reldate = 'April 25, 2026'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'baculabackupreport.py'
@@ -1180,12 +1181,12 @@ def chk_failed_cloud_xfers():
         return True, num_cloud_part_xfer_errors
 
 def calc_pool_use(name, num, max):
-    'Add {poolName: (numvols, maxvols, % used)} to warn_pool_dict if >= 80%.'
+    'Add {poolName: (numvols, maxvols, % used)} to warn_pool_dict if >= chk_pool_use_pct%.'
     if num == 0 or max == 0:
         return
     else:
         pct = '{:.0f}'.format((num / max) * 100)
-        if int(pct) >= 80:
+        if int(pct) >= int(chk_pool_use_pct):
             warn_pool_dict[name] = (num, max, int(pct))
         return
 
@@ -2297,7 +2298,7 @@ if summary_and_rates != 'none' and (create_job_summary_table \
         # -------------------------------------
         if len(warn_pool_dict) > 0:
             pool_table = '<table style="border-collapse: collapse; display: inline-block; ' + summarytablestyle + '">' \
-                       + '<tr style="' + summarytableheaderstyle + '"><th colspan="2" style="' \
+                       + '<tr><th class="summary-table-header" colspan="2" style="' \
                        + summarytableheadercellstyle + '">Pool Use</th></tr>'
 
             # Fill the pool table with "Name (numvols/maxvols) ##%" sorted by %, DESC
@@ -3050,8 +3051,8 @@ if warn_on_zero_inc and num_zero_inc_jobs != 0:
                     + ('s' if num_zero_inc_jobs > 1 else '') + ' which backed up zero files and/or zero bytes. ' \
                     + ('Its' if num_zero_inc_jobs == 1 else 'Their') + ' Status has been changed to \'OK/Warnings\'</p><br>\n'
 
-# Highlight when pools numvols is 80% or more of the maxvols?
-# -----------------------------------------------------------
+# Highlight when pools numvols is chk_pool_use_pct% or more of the maxvols?
+# -------------------------------------------------------------------------
 if chk_pool_use and ('warn_pool_dict' in globals() and len(warn_pool_dict) > 0):
     warning_banners += '<p class="bannerwarnings">' \
                     + '- There ' + ('is ' if len(warn_pool_dict) == 1 else 'are ') + str(len(warn_pool_dict)) \
@@ -3059,7 +3060,7 @@ if chk_pool_use and ('warn_pool_dict' in globals() and len(warn_pool_dict) > 0):
                     + ' which ' + ('is' if len(warn_pool_dict) == 1 else 'are') + ' approaching or ' \
                     + ('has' if len(warn_pool_dict) == 1 else 'have') \
                     + ' reached ' + ('its' if len(warn_pool_dict) == 1 else 'their') \
-                    + ' MaxVols setting. See \'Pool Use\' table below.</p><br>\n'
+                    + ' MaximumVolumes setting. See \'Pool Use\' table below.</p><br>\n'
 
 # Highlight Verify Jobs where virus(s) were found?
 # ------------------------------------------------

@@ -90,7 +90,7 @@ Shows the (optional) summary/totals table followed by the (optional) Job summari
 Shows the tail end of the (optional) summary/totals table followed by the (optional) 'bad' Jobs logs:
 ![baculabackupreport-Sample_4-2021-05-06_16-49](https://user-images.githubusercontent.com/108133/117374978-65690280-ae8b-11eb-8b8a-3e7b82a1f0f7.png)
 
-#### Aways Failing Jobs feature:
+#### Always Failing Jobs feature:
 Shows the "Always failing jobs" feature (red arrows). Jobs that have been only/always failing in the past "-d days" (default 7) can have any column or their entire row highlighted. When there are jobs that are "always failing" the special subject icon can quickly alert you. Additionally, if using BWeb or Baculum, the Job's name can be a link to its history in the web GUI. The blue arrows show that there are some copy and migration jobs that ran in the past 24 hours which had copied jobs that were outside of the 24 hours. They are pulled into the list so they may be quickly accessed. Their files/bytes stats are not counted in the summary table.
 ![BaculaReport-5-20210902_231153](https://user-images.githubusercontent.com/108133/131954405-ea9776b6-adaa-47df-b5ba-8414175819e7.png)
 
